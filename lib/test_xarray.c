@@ -67,11 +67,45 @@ static noinline void check_xa_load(struct xarray *xa)
 	XA_BUG_ON(xa, !xa_empty(xa));
 }
 
+static noinline void check_xa_tag_1(struct xarray *xa, unsigned long index)
+{
+	/* NULL elements have no tags set */
+	XA_BUG_ON(xa, xa_get_tag(xa, index, XA_TAG_0));
+	xa_set_tag(xa, index, XA_TAG_0);
+	XA_BUG_ON(xa, xa_get_tag(xa, index, XA_TAG_0));
+
+	/* Storing a pointer will not make a tag appear */
+	XA_BUG_ON(xa, xa_store_value(xa, index, GFP_KERNEL) != NULL);
+	XA_BUG_ON(xa, xa_get_tag(xa, index, XA_TAG_0));
+	xa_set_tag(xa, index, XA_TAG_0);
+	XA_BUG_ON(xa, !xa_get_tag(xa, index, XA_TAG_0));
+
+	/* Setting one tag will not set another tag */
+	XA_BUG_ON(xa, xa_get_tag(xa, index + 1, XA_TAG_0));
+	XA_BUG_ON(xa, xa_get_tag(xa, index, XA_TAG_1));
+
+	/* Storing NULL clears tags, and they can't be set again */
+	xa_erase_value(xa, index);
+	XA_BUG_ON(xa, !xa_empty(xa));
+	XA_BUG_ON(xa, xa_get_tag(xa, index, XA_TAG_0));
+	xa_set_tag(xa, index, XA_TAG_0);
+	XA_BUG_ON(xa, xa_get_tag(xa, index, XA_TAG_0));
+}
+
+static noinline void check_xa_tag(struct xarray *xa)
+{
+	check_xa_tag_1(xa, 0);
+	check_xa_tag_1(xa, 4);
+	check_xa_tag_1(xa, 64);
+	check_xa_tag_1(xa, 4096);
+}
+
 static RADIX_TREE(array, GFP_KERNEL);
 
 static int xarray_checks(void)
 {
 	check_xa_load(&array);
+	check_xa_tag(&array);
 
 	printk("XArray: %u of %u tests passed\n", tests_passed, tests_run);
 	return (tests_run == tests_passed) ? 0 : -EINVAL;
