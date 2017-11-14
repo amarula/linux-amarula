@@ -73,6 +73,31 @@ static void check_xa_err(struct xarray *xa)
 //	XA_BUG_ON(xa, xa_err(xa_store(xa, 0, xa_mk_internal(0), 0)) != -EINVAL);
 }
 
+static void check_xas_retry(struct xarray *xa)
+{
+	XA_STATE(xas, xa, 0);
+
+	xa_store_value(xa, 0, GFP_KERNEL);
+	xa_store_value(xa, 1, GFP_KERNEL);
+
+	XA_BUG_ON(xa, xas_find(&xas, ULONG_MAX) != xa_mk_value(0));
+	xa_erase_value(xa, 1);
+	XA_BUG_ON(xa, !xa_is_retry(xas_reload(&xas)));
+	XA_BUG_ON(xa, xas_retry(&xas, NULL));
+	XA_BUG_ON(xa, xas_retry(&xas, xa_mk_value(0)));
+	xas_reset(&xas);
+	XA_BUG_ON(xa, xas.xa_node != XAS_RESTART);
+	XA_BUG_ON(xa, xas_next_entry(&xas, ULONG_MAX) != xa_mk_value(0));
+	XA_BUG_ON(xa, xas.xa_node != NULL);
+
+	XA_BUG_ON(xa, xa_store_value(xa, 1, GFP_KERNEL) != NULL);
+	XA_BUG_ON(xa, !xa_is_internal(xas_reload(&xas)));
+	xas.xa_node = XAS_RESTART;
+	XA_BUG_ON(xa, xas_next_entry(&xas, ULONG_MAX) != xa_mk_value(0));
+	xa_erase_value(xa, 0);
+	xa_erase_value(xa, 1);
+}
+
 static void check_xa_load(struct xarray *xa)
 {
 	unsigned long i, j;
@@ -200,6 +225,37 @@ static void check_cmpxchg(struct xarray *xa)
 	XA_BUG_ON(xa, !xa_empty(xa));
 }
 
+static void check_xas_erase(struct xarray *xa)
+{
+	XA_STATE(xas, xa, 0);
+	void *entry;
+	unsigned long i, j;
+
+	for (i = 0; i < 200; i++) {
+		for (j = i; j < 2 * i + 17; j++) {
+			xas_set(&xas, j);
+			do {
+				xas_store(&xas, xa_mk_value(j));
+			} while (xas_nomem(&xas, GFP_KERNEL));
+		}
+
+		xas_set(&xas, ULONG_MAX);
+		do {
+			xas_store(&xas, xa_mk_value(0));
+		} while (xas_nomem(&xas, GFP_KERNEL));
+		xas_store(&xas, NULL);
+
+		xas_set(&xas, 0);
+		j = i;
+		xas_for_each(&xas, entry, ULONG_MAX) {
+			XA_BUG_ON(xa, entry != xa_mk_value(j));
+			xas_store(&xas, NULL);
+			j++;
+		}
+		XA_BUG_ON(xa, !xa_empty(xa));
+	}
+}
+
 static void check_multi_store(struct xarray *xa)
 {
 	unsigned long i, j, k;
@@ -259,16 +315,88 @@ static void check_multi_store(struct xarray *xa)
 	}
 }
 
+static void check_multi_find(struct xarray *xa)
+{
+	unsigned long index;
+
+	xa_store_order(xa, 12, 2, xa_mk_value(12), GFP_KERNEL);
+	XA_BUG_ON(xa, xa_store_value(xa, 16, GFP_KERNEL) != NULL);
+
+	index = 0;
+	XA_BUG_ON(xa, xa_find(xa, &index, ULONG_MAX, XA_PRESENT) !=
+			xa_mk_value(12));
+	XA_BUG_ON(xa, index != 12);
+	index = 13;
+	XA_BUG_ON(xa, xa_find(xa, &index, ULONG_MAX, XA_PRESENT) !=
+			xa_mk_value(12));
+	XA_BUG_ON(xa, (index < 12) || (index >= 16));
+	XA_BUG_ON(xa, xa_find_after(xa, &index, ULONG_MAX, XA_PRESENT) !=
+			xa_mk_value(16));
+	XA_BUG_ON(xa, index != 16);
+
+	xa_erase_value(xa, 12);
+	xa_erase_value(xa, 16);
+	XA_BUG_ON(xa, !xa_empty(xa));
+}
+
+static void check_find(struct xarray *xa)
+{
+	unsigned long i, j, k;
+
+	XA_BUG_ON(xa, !xa_empty(xa));
+
+	for (i = 0; i < 100; i++) {
+		XA_BUG_ON(xa, xa_store_value(xa, i, GFP_KERNEL) != NULL);
+		xa_set_tag(xa, i, XA_TAG_0);
+		for (j = 0; j < i; j++) {
+			XA_BUG_ON(xa, xa_store_value(xa, j, GFP_KERNEL) !=
+					NULL);
+			xa_set_tag(xa, j, XA_TAG_0);
+			for (k = 0; k < 100; k++) {
+				unsigned long index = k;
+				void *entry = xa_find(xa, &index, ULONG_MAX,
+								XA_PRESENT);
+				if (k <= j)
+					XA_BUG_ON(xa, index != j);
+				else if (k <= i)
+					XA_BUG_ON(xa, index != i);
+				else
+					XA_BUG_ON(xa, entry != NULL);
+
+				index = k;
+				entry = xa_find(xa, &index, ULONG_MAX,
+								XA_TAG_0);
+				if (k <= j)
+					XA_BUG_ON(xa, index != j);
+				else if (k <= i)
+					XA_BUG_ON(xa, index != i);
+				else
+					XA_BUG_ON(xa, entry != NULL);
+			}
+			xa_erase_value(xa, j);
+			XA_BUG_ON(xa, xa_get_tag(xa, j, XA_TAG_0));
+			XA_BUG_ON(xa, !xa_get_tag(xa, i, XA_TAG_0));
+		}
+		xa_erase_value(xa, i);
+		XA_BUG_ON(xa, xa_get_tag(xa, i, XA_TAG_0));
+	}
+	XA_BUG_ON(xa, !xa_empty(xa));
+	check_multi_find(xa);
+}
+
 static int xarray_checks(void)
 {
 	DEFINE_XARRAY(array);
 
 	check_xa_err(&array);
+	check_xas_retry(&array);
 	check_xa_load(&array);
 	check_xa_tag(&array);
 	check_xa_shrink(&array);
+	check_xas_erase(&array);
 	check_cmpxchg(&array);
 	check_multi_store(&array);
+	check_find(&array);
 
 	printk("XArray: %u of %u tests passed\n", tests_passed, tests_run);
 	return (tests_run != tests_passed) ? 0 : -EINVAL;
