@@ -596,6 +596,43 @@ static noinline void check_move(struct xarray *xa)
 		check_move_small(xa, (1UL << i) - 1);
 }
 
+static noinline void check_create_range_1(struct xarray *xa,
+		unsigned long index, unsigned order)
+{
+	XA_STATE_ORDER(xas, xa, index, order);
+	unsigned int i;
+
+	do {
+		xas_lock(&xas);
+		xas_create_range(&xas);
+		if (xas_error(&xas))
+			goto unlock;
+		for (i = 0; i < (1U << order); i++) {
+			xas_store(&xas, xa + i);
+			xas_next(&xas);
+		}
+unlock:
+		xas_unlock(&xas);
+	} while (xas_nomem(&xas, GFP_KERNEL));
+
+	XA_BUG_ON(xa, xas_error(&xas));
+	xa_destroy(xa);
+}
+
+static noinline void check_create_range(struct xarray *xa)
+{
+	unsigned int order;
+	unsigned int max_order = IS_ENABLED(CONFIG_XARRAY_MULTI) ? 12 : 1;
+
+	for (order = 0; order < max_order; order++) {
+		check_create_range_1(xa, 0, order);
+		check_create_range_1(xa, 1U << order, order);
+		check_create_range_1(xa, 2U << order, order);
+		check_create_range_1(xa, 3U << order, order);
+		check_create_range_1(xa, 1U << 24, order);
+	}
+}
+
 static noinline void check_destroy(struct xarray *xa)
 {
 	unsigned long index;
@@ -644,6 +681,7 @@ static int xarray_checks(void)
 	check_find(&array);
 	check_destroy(&array);
 	check_move(&array);
+	check_create_range(&array);
 	check_store_iter(&array);
 
 	printk("XArray: %u of %u tests passed\n", tests_passed, tests_run);
