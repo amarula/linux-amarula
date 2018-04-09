@@ -170,12 +170,45 @@ static void check_xa_tag_1(struct xarray *xa, unsigned long index)
 	XA_BUG_ON(xa, !xa_empty(xa));
 }
 
+static void check_xa_tag_2(struct xarray *xa)
+{
+	XA_STATE(xas, xa, 0);
+	unsigned long index;
+	unsigned int count = 0;
+	void *entry;
+
+	xa_store_value(xa, 0, GFP_KERNEL);
+	xa_set_tag(xa, 0, XA_TAG_0);
+	xas_load(&xas);
+	xas_init_tags(&xas);
+	XA_BUG_ON(xa, !xa_get_tag(xa, 0, XA_TAG_0) == 0);
+
+	for (index = 3500; index < 4500; index++) {
+		xa_store_value(xa, index, GFP_KERNEL);
+		xa_set_tag(xa, index, XA_TAG_0);
+	}
+
+	xas_reset(&xas);
+	xas_for_each_tagged(&xas, entry, ULONG_MAX, XA_TAG_0)
+		count++;
+	XA_BUG_ON(xa, count != 1000);
+
+	xas_for_each(&xas, entry, ULONG_MAX) {
+		xas_init_tags(&xas);
+		XA_BUG_ON(xa, !xa_get_tag(xa, xas.xa_index, XA_TAG_0));
+		XA_BUG_ON(xa, !xas_get_tag(&xas, XA_TAG_0));
+	}
+
+	xa_destroy(xa);
+}
+
 static void check_xa_tag(struct xarray *xa)
 {
 	check_xa_tag_1(xa, 0);
 	check_xa_tag_1(xa, 4);
 	check_xa_tag_1(xa, 64);
 	check_xa_tag_1(xa, 4096);
+	check_xa_tag_2(xa);
 }
 
 static void check_xa_shrink(struct xarray *xa)
