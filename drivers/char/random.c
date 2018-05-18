@@ -1970,6 +1970,10 @@ static long random_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 			return -EPERM;
 		input_pool.entropy_count = 0;
 		blocking_pool.entropy_count = 0;
+		if (random_write_wakeup_bits) {
+			wake_up_interruptible_poll(&random_wait, POLLIN);
+			kill_fasync(&fasync, SIGIO, POLL_OUT);
+		}
 		return 0;
 	case RNDRESEEDCRNG:
 		if (!capable(CAP_SYS_ADMIN))
