@@ -126,6 +126,42 @@ const char *get_raid_name(enum btrfs_raid_types type)
 	return btrfs_raid_array[type].raid_name;
 }
 
+void btrfs_describe_block_groups(u64 bg_flags, char *buf, u32 size_buf)
+{
+	int i;
+	u32 ret;
+	char *bp = buf;
+	u64 flags = bg_flags;
+
+	if (!flags) {
+		strcpy(bp, "NONE");
+		return;
+	}
+
+#define DESCRIBE_FLAG(f, d) \
+	do { \
+		if (flags & f) { \
+			bp += snprintf(bp, buf - bp + size_buf, "%s|", d); \
+			flags &= ~f; \
+		} \
+	} while (0)
+
+	DESCRIBE_FLAG(BTRFS_BLOCK_GROUP_DATA, "data");
+	DESCRIBE_FLAG(BTRFS_BLOCK_GROUP_SYSTEM, "system");
+	DESCRIBE_FLAG(BTRFS_BLOCK_GROUP_METADATA, "metadata");
+	DESCRIBE_FLAG(BTRFS_AVAIL_ALLOC_BIT_SINGLE, "single");
+	for (i = 0; i < BTRFS_NR_RAID_TYPES; i++)
+		DESCRIBE_FLAG(btrfs_raid_array[i].bg_flag,
+			      btrfs_raid_array[i].raid_name);
+#undef DESCRIBE_FLAG
+
+	if (flags)
+		bp += snprintf(bp, buf - bp + size_buf, "0x%llx|", flags);
+
+	ret = bp - buf - 1;
+	buf[ret] = '\0'; /* remove last | */
+}
+
 static int init_first_rw_device(struct btrfs_trans_handle *trans,
 				struct btrfs_fs_info *fs_info);
 static int btrfs_relocate_sys_chunks(struct btrfs_fs_info *fs_info);
