@@ -3806,6 +3806,108 @@ static inline int validate_convert_profile(struct btrfs_balance_args *bctl_arg,
 		 (bctl_arg->target & ~allowed)));
 }
 
+static u32 describe_balance_args(struct btrfs_balance_args *bargs, char *buf,
+				 u32 size_buf)
+{
+	char *bp = buf;
+	u64 flags = bargs->flags;
+	char tmp_buf[128];
+
+	if (!flags)
+		return 0;
+
+	if (flags & BTRFS_BALANCE_ARGS_SOFT)
+		bp += snprintf(bp, buf - bp + size_buf, "soft,");
+
+	if (flags & BTRFS_BALANCE_ARGS_PROFILES) {
+		btrfs_describe_block_groups(bargs->profiles, tmp_buf,
+					    sizeof(tmp_buf));
+		bp += snprintf(bp, buf - bp + size_buf, "profiles=%s,",
+			       tmp_buf);
+	}
+
+	if (flags & BTRFS_BALANCE_ARGS_USAGE)
+		bp += snprintf(bp, buf - bp + size_buf, "usage=%llu,",
+			       bargs->usage);
+
+	if (flags & BTRFS_BALANCE_ARGS_USAGE_RANGE)
+		bp += snprintf(bp, buf - bp + size_buf, "usage=%u..%u,",
+			       bargs->usage_min, bargs->usage_max);
+
+	if (flags & BTRFS_BALANCE_ARGS_DEVID)
+		bp += snprintf(bp, buf - bp + size_buf, "devid=%llu,",
+			       bargs->devid);
+
+	if (flags & BTRFS_BALANCE_ARGS_DRANGE)
+		bp += snprintf(bp, buf - bp + size_buf, "drange=%llu..%llu,",
+			       bargs->pstart, bargs->pend);
+
+	if (flags & BTRFS_BALANCE_ARGS_VRANGE)
+		bp += snprintf(bp, buf - bp + size_buf, "vrange%llu..%llu,",
+			       bargs->vstart, bargs->vend);
+
+	if (flags & BTRFS_BALANCE_ARGS_LIMIT)
+		bp += snprintf(bp, buf - bp + size_buf, "limit=%llu,",
+			       bargs->limit);
+
+	if (flags & BTRFS_BALANCE_ARGS_LIMIT_RANGE)
+		bp += snprintf(bp, buf - bp + size_buf, "limit=%u..%u,",
+			       bargs->limit_min, bargs->limit_max);
+
+	if (flags & BTRFS_BALANCE_ARGS_STRIPES_RANGE)
+		bp += snprintf(bp, buf - bp + size_buf, "stripes=%u..%u,",
+			       bargs->stripes_min, bargs->stripes_max);
+
+	if (flags & BTRFS_BALANCE_ARGS_CONVERT) {
+		int index = btrfs_bg_flags_to_raid_index(bargs->target);
+
+		bp += snprintf(bp, buf - bp + size_buf, "convert=%s,",
+			       get_raid_name(index));
+	}
+
+	buf[bp - buf - 1] = '\0'; /* remove last , */
+	return bp - buf - 1;
+}
+
+static void describe_balance_start_or_resume(struct btrfs_fs_info *fs_info)
+{
+	u32 size_buf = 1024;
+	char tmp_buf[192];
+	char *buf;
+	char *bp;
+	struct btrfs_balance_control *bctl = fs_info->balance_ctl;
+
+	buf = kzalloc(size_buf, GFP_KERNEL);
+	if (!buf)
+		return;
+
+	bp = buf;
+	if (bctl->flags & BTRFS_BALANCE_FORCE)
+		bp += snprintf(bp, buf - bp + size_buf, "-f ");
+
+	if (bctl->flags & BTRFS_BALANCE_DATA) {
+		describe_balance_args(&bctl->data, tmp_buf, sizeof(tmp_buf));
+		bp += snprintf(bp, buf - bp + size_buf, "-d%s ", tmp_buf);
+	}
+
+	if (bctl->flags & BTRFS_BALANCE_METADATA) {
+		describe_balance_args(&bctl->meta, tmp_buf, sizeof(tmp_buf));
+		bp += snprintf(bp, buf - bp + size_buf, "-m%s ", tmp_buf);
+	}
+
+	if (bctl->flags & BTRFS_BALANCE_SYSTEM) {
+		describe_balance_args(&bctl->sys, tmp_buf, sizeof(tmp_buf));
+		bp += snprintf(bp, buf - bp + size_buf, "-s%s ", tmp_buf);
+	}
+
+	buf[bp - buf - 1] = '\0'; /* remove last " "*/
+	btrfs_info(fs_info, "%s %s",
+		   bctl->flags & BTRFS_BALANCE_RESUME ?
+		   "balance: resume":"balance: start", buf);
+
+	kfree(buf);
+}
+
 /*
  * Should be called with balance mutexe held
  */
@@ -3950,6 +4052,7 @@ int btrfs_balance(struct btrfs_fs_info *fs_info,
 
 	ASSERT(!test_bit(BTRFS_FS_BALANCE_RUNNING, &fs_info->flags));
 	set_bit(BTRFS_FS_BALANCE_RUNNING, &fs_info->flags);
+	describe_balance_start_or_resume(fs_info);
 	mutex_unlock(&fs_info->balance_mutex);
 
 	ret = __btrfs_balance(fs_info);
@@ -3987,10 +4090,8 @@ static int balance_kthread(void *data)
 	int ret = 0;
 
 	mutex_lock(&fs_info->balance_mutex);
-	if (fs_info->balance_ctl) {
-		btrfs_info(fs_info, "balance: resuming");
+	if (fs_info->balance_ctl)
 		ret = btrfs_balance(fs_info, fs_info->balance_ctl, NULL);
-	}
 	mutex_unlock(&fs_info->balance_mutex);
 
 	return ret;
