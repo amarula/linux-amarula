@@ -21,10 +21,42 @@
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
+
+	wifi_pwrseq: wifi-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		clocks = <&rtc 1>;
+		clock-names = "ext_clock";
+		reset-gpios = <&r_pio 0 2 GPIO_ACTIVE_LOW>; /* WL-PMU-EN: PL2 */
+		post-power-on-delay-ms = <400>;
+	};
 };
 
 &ehci0 {
 	status = "okay";
+};
+
+&mmc1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&mmc1_pins>;
+	vmmc-supply = <&reg_dcdc1>;
+	/*
+	 * Schematic connected dldo4 and eldo1 for vcc-io-wifi, but out-off
+	 * which dldo4 connection shows DNP(Do Not Papulate) so used eldo1
+	 * for vcc-io-wifi
+	 */
+	vqmmc-supply = <&reg_eldo1>;
+	mmc-pwrseq = <&wifi_pwrseq>;
+	bus-width = <4>;
+	non-removable;
+	status = "okay";
+
+	brcmf: wifi@1 {
+		reg = <1>;
+		compatible = "brcm,bcm4329-fmac";
+		interrupt-parent = <&r_pio>;
+		interrupts = <0 3 IRQ_TYPE_LEVEL_LOW>;	/* WL-WAKE-AP: PL3 */
+		interrupt-names = "host-wake";
+	};
 };
 
 &mmc2 {
@@ -168,6 +200,12 @@
 
 &reg_rtc_ldo {
 	regulator-name = "vcc-rtc";
+};
+
+&rtc {
+	clock-output-names = "rtc-osc32k", "rtc-osc32k-out";
+	clocks = <&osc32k>;
+	#clock-cells = <1>;
 };
 
 &uart0 {
