@@ -753,6 +753,15 @@
 
 	debug		[KNL] Enable kernel debugging (events log level).
 
+	debug_boot_weak_hash
+			[KNL] Enable printing pointers early in the boot
+			sequence.  If enabled, we use a weak hash instead of
+			siphash to hash pointers.  Use this option if you need
+			to see pointer values during early boot (i.e you are
+			seeing instances of '(___ptrval___)').
+			Cryptographically insecure, please do not use on
+			production kernels.
+
 	debug_locks_verbose=
 			[KNL] verbose self-tests
 			Format=<0|1>
