@@ -315,6 +315,68 @@ static void check_multi_store(struct xarray *xa)
 	}
 }
 
+static void __check_store_iter(struct xarray *xa, unsigned long start,
+			unsigned int order, unsigned int present)
+{
+	XA_STATE_ORDER(xas, xa, start, order);
+	void *entry;
+	unsigned int count = 0;
+
+retry:
+	xas_for_each_conflict(&xas, entry) {
+		XA_BUG_ON(xa, !xa_is_value(entry));
+		XA_BUG_ON(xa, entry < xa_mk_value(start));
+		XA_BUG_ON(xa, entry > xa_mk_value(start + (1UL << order) - 1));
+		count++;
+	}
+	xas_store(&xas, xa_mk_value(start));
+	if (xas_nomem(&xas, GFP_KERNEL)) {
+		count = 0;
+		goto retry;
+	}
+	XA_BUG_ON(xa, xas_error(&xas));
+	XA_BUG_ON(xa, count != present);
+	XA_BUG_ON(xa, xa_load(xa, start) != xa_mk_value(start));
+	XA_BUG_ON(xa, xa_load(xa, start + (1UL << order) - 1) !=
+			xa_mk_value(start));
+	xa_erase_value(xa, start);
+}
+
+static void check_store_iter(struct xarray *xa)
+{
+	unsigned int i, j;
+
+	for (i = 0; i < 20; i++) {
+		unsigned int min = 1 << i;
+		unsigned int max = (2 << i) - 1;
+		__check_store_iter(xa, 0, i, 0);
+		XA_BUG_ON(xa, !xa_empty(xa));
+		__check_store_iter(xa, min, i, 0);
+		XA_BUG_ON(xa, !xa_empty(xa));
+
+		xa_store_value(xa, min, GFP_KERNEL);
+		__check_store_iter(xa, min, i, 1);
+		XA_BUG_ON(xa, !xa_empty(xa));
+		xa_store_value(xa, max, GFP_KERNEL);
+		__check_store_iter(xa, min, i, 1);
+		XA_BUG_ON(xa, !xa_empty(xa));
+
+		for (j = 0; j < min; j++)
+			xa_store_value(xa, j, GFP_KERNEL);
+		__check_store_iter(xa, 0, i, min);
+		XA_BUG_ON(xa, !xa_empty(xa));
+		for (j = 0; j < min; j++)
+			xa_store_value(xa, min + j, GFP_KERNEL);
+		__check_store_iter(xa, min, i, min);
+		XA_BUG_ON(xa, !xa_empty(xa));
+	}
+	xa_store_value(xa, 63, GFP_KERNEL);
+	xa_store_value(xa, 65, GFP_KERNEL);
+	__check_store_iter(xa, 64, 2, 1);
+	xa_erase_value(xa, 63);
+	XA_BUG_ON(xa, !xa_empty(xa));
+}
+
 static void check_multi_find(struct xarray *xa)
 {
 	unsigned long index;
@@ -506,6 +568,7 @@ static int xarray_checks(void)
 	check_multi_store(&array);
 	check_find(&array);
 	check_move(&array);
+	check_store_iter(&array);
 
 	printk("XArray: %u of %u tests passed\n", tests_passed, tests_run);
 	return (tests_run != tests_passed) ? 0 : -EINVAL;
