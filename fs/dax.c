@@ -319,18 +319,27 @@ static unsigned long dax_radix_end_pfn(void *entry)
 	for (pfn = dax_radix_pfn(entry); \
 			pfn < dax_radix_end_pfn(entry); pfn++)
 
-static void dax_associate_entry(void *entry, struct address_space *mapping)
+/*
+ * TODO: for reflink+dax we need a way to associate a single page with
+ * multiple address_space instances at different linear_page_index()
+ * offsets.
+ */
+static void dax_associate_entry(void *entry, struct address_space *mapping,
+		struct vm_area_struct *vma, unsigned long address)
 {
-	unsigned long pfn;
+	unsigned long size = dax_entry_size(entry), pfn, index;
+	int i = 0;
 
 	if (IS_ENABLED(CONFIG_FS_DAX_LIMITED))
 		return;
 
+	index = linear_page_index(vma, address & ~(size - 1));
 	for_each_mapped_pfn(entry, pfn) {
 		struct page *page = pfn_to_page(pfn);
 
 		WARN_ON_ONCE(page->mapping);
 		page->mapping = mapping;
+		page->index = index + i++;
 	}
 }
 
@@ -348,6 +357,7 @@ static void dax_disassociate_entry(void *entry, struct address_space *mapping,
 		WARN_ON_ONCE(trunc && page_ref_count(page) > 1);
 		WARN_ON_ONCE(page->mapping && page->mapping != mapping);
 		page->mapping = NULL;
+		page->index = 0;
 	}
 }
 
@@ -362,6 +372,82 @@ static struct page *dax_busy_page(void *entry)
 			return page;
 	}
 	return NULL;
+}
+
+struct page *dax_lock_page(unsigned long pfn)
+{
+	pgoff_t index;
+	struct inode *inode;
+	wait_queue_head_t *wq;
+	void *entry = NULL, **slot;
+	struct address_space *mapping;
+	struct wait_exceptional_entry_queue ewait;
+	struct page *ret = NULL, *page = pfn_to_page(pfn);
+
+	rcu_read_lock();
+	for (;;) {
+		mapping = READ_ONCE(page->mapping);
+
+		if (!mapping || !IS_DAX(mapping->host))
+			break;
+
+		/*
+		 * In the device-dax case there's no need to lock, a
+		 * struct dev_pagemap pin is sufficient to keep the
+		 * inode alive.
+		 */
+		inode = mapping->host;
+		if (S_ISCHR(inode->i_mode)) {
+			ret = page;
+			break;
+		}
+
+		xa_lock_irq(&mapping->i_pages);
+		if (mapping != page->mapping) {
+			xa_unlock_irq(&mapping->i_pages);
+			continue;
+		}
+		index = page->index;
+
+		init_wait(&ewait.wait);
+		ewait.wait.func = wake_exceptional_entry_func;
+
+		entry = __radix_tree_lookup(&mapping->i_pages, index, NULL,
+				&slot);
+		if (!entry ||
+		    WARN_ON_ONCE(!radix_tree_exceptional_entry(entry))) {
+			xa_unlock_irq(&mapping->i_pages);
+			break;
+		} else if (!slot_locked(mapping, slot)) {
+			lock_slot(mapping, slot);
+			ret = page;
+			xa_unlock_irq(&mapping->i_pages);
+			break;
+		}
+
+		wq = dax_entry_waitqueue(mapping, index, entry, &ewait.key);
+		prepare_to_wait_exclusive(wq, &ewait.wait,
+				TASK_UNINTERRUPTIBLE);
+		xa_unlock_irq(&mapping->i_pages);
+		rcu_read_unlock();
+		schedule();
+		finish_wait(wq, &ewait.wait);
+		rcu_read_lock();
+	}
+	rcu_read_unlock();
+
+	return page;
+}
+
+void dax_unlock_page(struct page *page)
+{
+	struct address_space *mapping = page->mapping;
+	struct inode *inode = mapping->host;
+
+	if (S_ISCHR(inode->i_mode))
+		return;
+
+	dax_unlock_mapping_entry(mapping, page->index);
 }
 
 /*
@@ -701,7 +787,7 @@ static void *dax_insert_mapping_entry(struct address_space *mapping,
 	new_entry = dax_radix_locked_entry(pfn, flags);
 	if (dax_entry_size(entry) != dax_entry_size(new_entry)) {
 		dax_disassociate_entry(entry, mapping, false);
-		dax_associate_entry(new_entry, mapping);
+		dax_associate_entry(new_entry, mapping, vmf->vma, vmf->address);
 	}
 
 	if (dax_is_zero_entry(entry) || dax_is_empty_entry(entry)) {
