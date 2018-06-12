@@ -99,6 +99,22 @@ static void *dax_make_locked(unsigned long pfn, unsigned long flags)
 			DAX_LOCKED);
 }
 
+static unsigned long dax_is_pmd_entry(void *entry)
+{
+	return xa_to_value(entry) & DAX_PMD;
+}
+
+static void *dax_make_entry(pfn_t pfn, unsigned long flags)
+{
+	return xa_mk_value(flags | (pfn_t_to_pfn(pfn) << DAX_SHIFT));
+}
+
+static void *dax_make_page_entry(struct page *page, void *entry)
+{
+	pfn_t pfn = page_to_pfn_t(page);
+	return dax_make_entry(pfn, dax_is_pmd_entry(entry));
+}
+
 static bool dax_is_locked(void *entry)
 {
 	return xa_to_value(entry) & DAX_LOCKED;
@@ -109,11 +125,6 @@ static unsigned int dax_entry_order(void *entry)
 	if (xa_to_value(entry) & DAX_PMD)
 		return PMD_ORDER;
 	return 0;
-}
-
-static int dax_is_pmd_entry(void *entry)
-{
-	return xa_to_value(entry) & DAX_PMD;
 }
 
 static int dax_is_pte_entry(void *entry)
