@@ -36,7 +36,7 @@ static const match_table_t tokens = {
 	{Opt_err, NULL},
 };
 
-int proc_parse_options(char *options, struct pid_namespace *pid)
+int proc_parse_options(char *options, struct proc_mount_options *opts)
 {
 	char *p;
 	substring_t args[MAX_OPT_ARGS];
@@ -56,7 +56,7 @@ int proc_parse_options(char *options, struct pid_namespace *pid)
 		case Opt_gid:
 			if (match_int(&args[0], &option))
 				return -EINVAL;
-			pid->pid_gid = make_kgid(current_user_ns(), option);
+			opts->pid_gid = make_kgid(current_user_ns(), option);
 			break;
 		case Opt_hidepid:
 			if (match_int(&args[0], &option))
@@ -66,7 +66,7 @@ int proc_parse_options(char *options, struct pid_namespace *pid)
 				pr_err("proc: hidepid value must be between 0 and 2.\n");
 				return -EINVAL;
 			}
-			pid->hide_pid = option;
+			opts->hide_pid = option;
 			break;
 		default:
 			pr_err("proc: unrecognized mount option \"%s\" "
@@ -81,9 +81,19 @@ int proc_parse_options(char *options, struct pid_namespace *pid)
 int proc_remount(struct super_block *sb, int *flags, char *data)
 {
 	struct pid_namespace *pid = sb->s_fs_info;
+	struct proc_mount_options opts = {
+		.pid_gid  = pid->pid_gid,
+		.hide_pid = pid->hide_pid,
+	};
+	int ret;
 
 	sync_filesystem(sb);
-	return proc_parse_options(data, pid);
+	ret = proc_parse_options(data, &opts);
+	if (ret)
+		return ret;
+	pid->pid_gid  = opts.pid_gid;
+	pid->hide_pid = opts.hide_pid;
+	return 0;
 }
 
 static struct dentry *proc_mount(struct file_system_type *fs_type,

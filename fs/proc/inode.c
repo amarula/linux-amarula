@@ -493,12 +493,19 @@ struct inode *proc_get_inode(struct super_block *sb, struct proc_dir_entry *de)
 int proc_fill_super(struct super_block *s, void *data, int silent)
 {
 	struct pid_namespace *ns = get_pid_ns(s->s_fs_info);
+	struct proc_mount_options opts = {
+		.pid_gid  = GLOBAL_ROOT_GID,
+		.hide_pid = 0,
+	};
 	struct inode *root_inode;
 	int ret;
 
-	ret = proc_parse_options(data, ns);
+	ret = proc_parse_options(data, &opts);
 	if (ret)
 		return ret;
+
+	ns->pid_gid  = opts.pid_gid;
+	ns->hide_pid = opts.hide_pid;
 
 	/* User space would break if executables or devices appear on proc */
 	s->s_iflags |= SB_I_USERNS_VISIBLE | SB_I_NOEXEC | SB_I_NODEV;

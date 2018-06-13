@@ -252,8 +252,13 @@ static inline void proc_tty_init(void) {}
 /*
  * root.c
  */
+struct proc_mount_options {
+	kgid_t pid_gid;
+	int hide_pid;
+};
+
 extern struct proc_dir_entry proc_root;
-extern int proc_parse_options(char *options, struct pid_namespace *pid);
+extern int proc_parse_options(char *options, struct proc_mount_options *opts);
 
 extern void proc_self_init(void);
 extern int proc_remount(struct super_block *, int *, char *);
