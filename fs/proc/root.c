@@ -43,7 +43,7 @@ int proc_parse_options(char *options, struct pid_namespace *pid)
 	int option;
 
 	if (!options)
-		return 1;
+		return 0;
 
 	while ((p = strsep(&options, ",")) != NULL) {
 		int token;
@@ -55,27 +55,27 @@ int proc_parse_options(char *options, struct pid_namespace *pid)
 		switch (token) {
 		case Opt_gid:
 			if (match_int(&args[0], &option))
-				return 0;
+				return -EINVAL;
 			pid->pid_gid = make_kgid(current_user_ns(), option);
 			break;
 		case Opt_hidepid:
 			if (match_int(&args[0], &option))
-				return 0;
+				return -EINVAL;
 			if (option < HIDEPID_OFF ||
 			    option > HIDEPID_INVISIBLE) {
 				pr_err("proc: hidepid value must be between 0 and 2.\n");
-				return 0;
+				return -EINVAL;
 			}
 			pid->hide_pid = option;
 			break;
 		default:
 			pr_err("proc: unrecognized mount option \"%s\" "
 			       "or missing value\n", p);
-			return 0;
+			return -EINVAL;
 		}
 	}
 
-	return 1;
+	return 0;
 }
 
 int proc_remount(struct super_block *sb, int *flags, char *data)
@@ -83,7 +83,7 @@ int proc_remount(struct super_block *sb, int *flags, char *data)
 	struct pid_namespace *pid = sb->s_fs_info;
 
 	sync_filesystem(sb);
-	return !proc_parse_options(data, pid);
+	return proc_parse_options(data, pid);
 }
 
 static struct dentry *proc_mount(struct file_system_type *fs_type,
