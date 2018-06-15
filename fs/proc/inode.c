@@ -532,5 +532,8 @@ int proc_fill_super(struct super_block *s, void *data, int silent)
 	if (ret) {
 		return ret;
 	}
-	return proc_setup_thread_self(s);
+	ret = proc_setup_thread_self(s);
+
+	rcu_assign_pointer(ns->proc_super, s);
+	return ret;
 }
