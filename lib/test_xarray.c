@@ -226,12 +226,12 @@ static void check_xa_shrink(struct xarray *xa)
 	 */
 	XA_BUG_ON(xa, xas_load(&xas) != xa_mk_value(1));
 	node = xas.xa_node;
-	XA_BUG_ON(xa, node->slots[0] != xa_mk_value(0));
 	rcu_read_lock();
+	XA_BUG_ON(xa, rcu_dereference(node->slots[0]) != xa_mk_value(0));
 	XA_BUG_ON(xa, xas_store(&xas, NULL) != xa_mk_value(1));
 	XA_BUG_ON(xa, xa_load(xa, 1) != NULL);
 	XA_BUG_ON(xa, xas.xa_node != XAS_BOUNDS);
-	XA_BUG_ON(xa, node->slots[0] != XA_RETRY_ENTRY);
+	XA_BUG_ON(xa, rcu_dereference(node->slots[0]) != XA_RETRY_ENTRY);
 	XA_BUG_ON(xa, xas_load(&xas) != NULL);
 	rcu_read_unlock();
 	XA_BUG_ON(xa, xa_load(xa, 0) != xa_mk_value(0));
