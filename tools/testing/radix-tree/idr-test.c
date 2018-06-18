@@ -370,6 +370,15 @@ void idr_checks(void)
 	idr_align_test(&idr);
 }
 
+#define module_init(x)
+#define module_exit(x)
+#define MODULE_AUTHOR(x)
+#define MODULE_LICENSE(x)
+#define dump_stack()    assert(0)
+void ida_dump(struct ida *);
+
+#include "../../../lib/test_ida.c"
+
 /*
  * Check that we get the correct error when we run out of memory doing
  * allocations.  To ensure we run out of memory, just "forget" to preload.
@@ -551,7 +560,7 @@ void ida_simple_get_remove_test(void)
 	ida_destroy(&ida);
 }
 
-void ida_checks(void)
+void user_ida_checks(void)
 {
 	DEFINE_IDA(ida);
 	int id;
@@ -645,12 +654,19 @@ void ida_thread_tests(void)
 		pthread_join(threads[i], NULL);
 }
 
+void ida_tests(void)
+{
+	user_ida_checks();
+	ida_checks();
+	ida_exit();
+	ida_thread_tests();
+}
+
 int __weak main(void)
 {
 	radix_tree_init();
 	idr_checks();
-	ida_checks();
-	ida_thread_tests();
+	ida_tests();
 	radix_tree_cpu_dead(1);
 	rcu_barrier();
 	if (nr_allocated)
