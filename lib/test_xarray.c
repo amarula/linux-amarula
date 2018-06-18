@@ -674,3 +674,5 @@ static void xarray_exit(void)
 
 module_init(xarray_checks);
 module_exit(xarray_exit);
+MODULE_AUTHOR("Matthew Wilcox <willy@infradead.org>");
+MODULE_LICENSE("GPL");
