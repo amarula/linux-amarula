@@ -6027,32 +6027,6 @@ err:
 	return ret;
 }
 
-int btrfs_write_inode(struct inode *inode, struct writeback_control *wbc)
-{
-	struct btrfs_root *root = BTRFS_I(inode)->root;
-	struct btrfs_trans_handle *trans;
-	int ret = 0;
-	bool nolock = false;
-
-	if (test_bit(BTRFS_INODE_DUMMY, &BTRFS_I(inode)->runtime_flags))
-		return 0;
-
-	if (btrfs_fs_closing(root->fs_info) &&
-			btrfs_is_free_space_inode(BTRFS_I(inode)))
-		nolock = true;
-
-	if (wbc->sync_mode == WB_SYNC_ALL) {
-		if (nolock)
-			trans = btrfs_join_transaction_nolock(root);
-		else
-			trans = btrfs_join_transaction(root);
-		if (IS_ERR(trans))
-			return PTR_ERR(trans);
-		ret = btrfs_commit_transaction(trans);
-	}
-	return ret;
-}
-
 /*
  * This is somewhat expensive, updating the tree every time the
  * inode changes.  But, it is most likely to find the inode in cache.
@@ -6692,6 +6666,8 @@ static int btrfs_link(struct dentry *old_dentry, struct inode *dir,
 		drop_inode = 1;
 	} else {
 		struct dentry *parent = dentry->d_parent;
+		int ret;
+
 		err = btrfs_update_inode(trans, root, inode);
 		if (err)
 			goto fail;
@@ -6705,7 +6681,12 @@ static int btrfs_link(struct dentry *old_dentry, struct inode *dir,
 				goto fail;
 		}
 		d_instantiate(dentry, inode);
-		btrfs_log_new_name(trans, BTRFS_I(inode), NULL, parent);
+		ret = btrfs_log_new_name(trans, BTRFS_I(inode), NULL, parent,
+					 true, NULL);
+		if (ret == BTRFS_NEED_TRANS_COMMIT) {
+			err = btrfs_commit_transaction(trans);
+			trans = NULL;
+		}
 	}
 
 fail:
@@ -9445,10 +9426,18 @@ static int btrfs_rename_exchange(struct inode *old_dir,
 	int ret;
 	bool root_log_pinned = false;
 	bool dest_log_pinned = false;
+	struct btrfs_log_ctx ctx_root;
+	struct btrfs_log_ctx ctx_dest;
+	bool sync_log_root = false;
+	bool sync_log_dest = false;
+	bool commit_transaction = false;
 
 	/* we only allow rename subvolume link between subvolumes */
 	if (old_ino != BTRFS_FIRST_FREE_OBJECTID && root != dest)
 		return -EXDEV;
+
+	btrfs_init_log_ctx(&ctx_root, old_inode);
+	btrfs_init_log_ctx(&ctx_dest, new_inode);
 
 	/* close the race window with snapshot create/destroy ioctl */
 	if (old_ino == BTRFS_FIRST_FREE_OBJECTID)
@@ -9598,15 +9587,29 @@ static int btrfs_rename_exchange(struct inode *old_dir,
 
 	if (root_log_pinned) {
 		parent = new_dentry->d_parent;
-		btrfs_log_new_name(trans, BTRFS_I(old_inode), BTRFS_I(old_dir),
-				parent);
+		ret = btrfs_log_new_name(trans, BTRFS_I(old_inode),
+					 BTRFS_I(old_dir), parent,
+					 false, &ctx_root);
+		if (ret == BTRFS_NEED_LOG_SYNC)
+			sync_log_root = true;
+		else if (ret == BTRFS_NEED_TRANS_COMMIT)
+			commit_transaction = true;
+		ret = 0;
 		btrfs_end_log_trans(root);
 		root_log_pinned = false;
 	}
 	if (dest_log_pinned) {
-		parent = old_dentry->d_parent;
-		btrfs_log_new_name(trans, BTRFS_I(new_inode), BTRFS_I(new_dir),
-				parent);
+		if (!commit_transaction) {
+			parent = old_dentry->d_parent;
+			ret = btrfs_log_new_name(trans, BTRFS_I(new_inode),
+						 BTRFS_I(new_dir), parent,
+						 false, &ctx_dest);
+			if (ret == BTRFS_NEED_LOG_SYNC)
+				sync_log_dest = true;
+			else if (ret == BTRFS_NEED_TRANS_COMMIT)
+				commit_transaction = true;
+			ret = 0;
+		}
 		btrfs_end_log_trans(dest);
 		dest_log_pinned = false;
 	}
@@ -9639,7 +9642,26 @@ out_fail:
 			dest_log_pinned = false;
 		}
 	}
-	ret = btrfs_end_transaction(trans);
+	if (!ret && sync_log_root && !commit_transaction) {
+		ret = btrfs_sync_log(trans, BTRFS_I(old_inode)->root,
+				     &ctx_root);
+		if (ret)
+			commit_transaction = true;
+	}
+	if (!ret && sync_log_dest && !commit_transaction) {
+		ret = btrfs_sync_log(trans, BTRFS_I(new_inode)->root,
+				     &ctx_dest);
+		if (ret)
+			commit_transaction = true;
+	}
+	if (commit_transaction) {
+		ret = btrfs_commit_transaction(trans);
+	} else {
+		int ret2;
+
+		ret2 = btrfs_end_transaction(trans);
+		ret = ret ? ret : ret2;
+	}
 out_notrans:
 	if (new_ino == BTRFS_FIRST_FREE_OBJECTID)
 		up_read(&fs_info->subvol_sem);
@@ -9716,6 +9738,9 @@ static int btrfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	int ret;
 	u64 old_ino = btrfs_ino(BTRFS_I(old_inode));
 	bool log_pinned = false;
+	struct btrfs_log_ctx ctx;
+	bool sync_log = false;
+	bool commit_transaction = false;
 
 	if (btrfs_ino(BTRFS_I(new_dir)) == BTRFS_EMPTY_SUBVOL_DIR_OBJECTID)
 		return -EPERM;
@@ -9874,8 +9899,15 @@ static int btrfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	if (log_pinned) {
 		struct dentry *parent = new_dentry->d_parent;
 
-		btrfs_log_new_name(trans, BTRFS_I(old_inode), BTRFS_I(old_dir),
-				parent);
+		btrfs_init_log_ctx(&ctx, old_inode);
+		ret = btrfs_log_new_name(trans, BTRFS_I(old_inode),
+					 BTRFS_I(old_dir), parent,
+					 false, &ctx);
+		if (ret == BTRFS_NEED_LOG_SYNC)
+			sync_log = true;
+		else if (ret == BTRFS_NEED_TRANS_COMMIT)
+			commit_transaction = true;
+		ret = 0;
 		btrfs_end_log_trans(root);
 		log_pinned = false;
 	}
@@ -9912,7 +9944,19 @@ out_fail:
 		btrfs_end_log_trans(root);
 		log_pinned = false;
 	}
-	btrfs_end_transaction(trans);
+	if (!ret && sync_log) {
+		ret = btrfs_sync_log(trans, BTRFS_I(old_inode)->root, &ctx);
+		if (ret)
+			commit_transaction = true;
+	}
+	if (commit_transaction) {
+		ret = btrfs_commit_transaction(trans);
+	} else {
+		int ret2;
+
+		ret2 = btrfs_end_transaction(trans);
+		ret = ret ? ret : ret2;
+	}
 out_notrans:
 	if (old_ino == BTRFS_FIRST_FREE_OBJECTID)
 		up_read(&fs_info->subvol_sem);
