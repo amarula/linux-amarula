@@ -2956,18 +2956,18 @@ out_no_session:
 	return status;
 }
 
-static bool nfsd4_compound_in_session(struct nfsd4_session *session, struct nfs4_sessionid *sid)
+static bool nfsd4_compound_in_session(struct nfsd4_compound_state *cstate, struct nfs4_sessionid *sid)
 {
-	if (!session)
+	if (!cstate->session)
 		return false;
-	return !memcmp(sid, &session->se_sessionid, sizeof(*sid));
+	return !memcmp(sid, &cstate->session->se_sessionid, sizeof(*sid));
 }
 
 __be32
 nfsd4_destroy_session(struct svc_rqst *r, struct nfsd4_compound_state *cstate,
 		union nfsd4_op_u *u)
 {
-	struct nfsd4_destroy_session *sessionid = &u->destroy_session;
+	struct nfs4_sessionid *sessionid = &u->destroy_session.sessionid;
 	struct nfsd4_session *ses;
 	__be32 status;
 	int ref_held_by_me = 0;
@@ -2975,14 +2975,14 @@ nfsd4_destroy_session(struct svc_rqst *r, struct nfsd4_compound_state *cstate,
 	struct nfsd_net *nn = net_generic(net, nfsd_net_id);
 
 	status = nfserr_not_only_op;
-	if (nfsd4_compound_in_session(cstate->session, &sessionid->sessionid)) {
+	if (nfsd4_compound_in_session(cstate, sessionid)) {
 		if (!nfsd4_last_compound_op(r))
 			goto out;
 		ref_held_by_me++;
 	}
-	dump_sessionid(__func__, &sessionid->sessionid);
+	dump_sessionid(__func__, sessionid);
 	spin_lock(&nn->client_lock);
-	ses = find_in_sessionid_hashtbl(&sessionid->sessionid, net, &status);
+	ses = find_in_sessionid_hashtbl(sessionid, net, &status);
 	if (!ses)
 		goto out_client_lock;
 	status = nfserr_wrong_cred;
@@ -3945,9 +3945,9 @@ static void nfsd_break_one_deleg(struct nfs4_delegation *dp)
 	/*
 	 * We're assuming the state code never drops its reference
 	 * without first removing the lease.  Since we're in this lease
-	 * callback (and since the lease code is serialized by the kernel
-	 * lock) we know the server hasn't removed the lease yet, we know
-	 * it's safe to take a reference.
+	 * callback (and since the lease code is serialized by the
+	 * i_lock) we know the server hasn't removed the lease yet, and
+	 * we know it's safe to take a reference.
 	 */
 	refcount_inc(&dp->dl_stid.sc_count);
 	nfsd4_run_cb(&dp->dl_recall);
@@ -4693,6 +4693,28 @@ nfsd4_end_grace(struct nfsd_net *nn)
 	 */
 }
 
+/*
+ * If we've waited a lease period but there are still clients trying to
+ * reclaim, wait a little longer to give them a chance to finish.
+ */
+static bool clients_still_reclaiming(struct nfsd_net *nn)
+{
+	unsigned long now = get_seconds();
+	unsigned long double_grace_period_end = nn->boot_time +
+						2 * nn->nfsd4_lease;
+
+	if (!nn->somebody_reclaimed)
+		return false;
+	nn->somebody_reclaimed = false;
+	/*
+	 * If we've given them *two* lease times to reclaim, and they're
+	 * still not done, give up:
+	 */
+	if (time_after(now, double_grace_period_end))
+		return false;
+	return true;
+}
+
 static time_t
 nfs4_laundromat(struct nfsd_net *nn)
 {
@@ -4706,6 +4728,11 @@ nfs4_laundromat(struct nfsd_net *nn)
 	time_t t, new_timeo = nn->nfsd4_lease;
 
 	dprintk("NFSD: laundromat service - starting\n");
+
+	if (clients_still_reclaiming(nn)) {
+		new_timeo = 0;
+		goto out;
+	}
 	nfsd4_end_grace(nn);
 	INIT_LIST_HEAD(&reaplist);
 	spin_lock(&nn->client_lock);
@@ -4803,7 +4830,7 @@ nfs4_laundromat(struct nfsd_net *nn)
 		posix_unblock_lock(&nbl->nbl_lock);
 		free_blocked_lock(nbl);
 	}
-
+out:
 	new_timeo = max_t(time_t, new_timeo, NFSD_LAUNDROMAT_MINTIMEOUT);
 	return new_timeo;
 }
@@ -6053,6 +6080,8 @@ nfsd4_lock(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 	case 0: /* success! */
 		nfs4_inc_and_copy_stateid(&lock->lk_resp_stateid, &lock_stp->st_stid);
 		status = 0;
+		if (lock->lk_reclaim)
+			nn->somebody_reclaimed = true;
 		break;
 	case FILE_LOCK_DEFERRED:
 		nbl = NULL;

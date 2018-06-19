@@ -354,6 +354,7 @@ nfsd4_open(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 	struct svc_fh *resfh = NULL;
 	struct net *net = SVC_NET(rqstp);
 	struct nfsd_net *nn = net_generic(net, nfsd_net_id);
+	bool reclaim = false;
 
 	dprintk("NFSD: nfsd4_open filename %.*s op_openowner %p\n",
 		(int)open->op_fname.len, open->op_fname.data,
@@ -424,6 +425,7 @@ nfsd4_open(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 			if (status)
 				goto out;
 			open->op_openowner->oo_flags |= NFS4_OO_CONFIRMED;
+			reclaim = true;
 		case NFS4_OPEN_CLAIM_FH:
 		case NFS4_OPEN_CLAIM_DELEG_CUR_FH:
 			status = do_open_fhandle(rqstp, cstate, open);
@@ -452,6 +454,8 @@ nfsd4_open(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 	WARN(status && open->op_created,
 	     "nfsd4_process_open2 failed to open newly-created file! status=%u\n",
 	     be32_to_cpu(status));
+	if (reclaim && !status)
+		nn->somebody_reclaimed = true;
 out:
 	if (resfh && resfh != &cstate->current_fh) {
 		fh_dup2(&cstate->current_fh, resfh);
@@ -1599,7 +1603,7 @@ static const char *nfsd4_op_name(unsigned opnum);
  */
 static __be32 nfs41_check_op_ordering(struct nfsd4_compoundargs *args)
 {
-	struct nfsd4_op *op = &args->ops[0];
+	struct nfsd4_op *first_op = &args->ops[0];
 
 	/* These ordering requirements don't apply to NFSv4.0: */
 	if (args->minorversion == 0)
@@ -1607,12 +1611,17 @@ static __be32 nfs41_check_op_ordering(struct nfsd4_compoundargs *args)
 	/* This is weird, but OK, not our problem: */
 	if (args->opcnt == 0)
 		return nfs_ok;
-	if (op->status == nfserr_op_illegal)
+	if (first_op->status == nfserr_op_illegal)
 		return nfs_ok;
-	if (!(nfsd4_ops[op->opnum].op_flags & ALLOWED_AS_FIRST_OP))
+	if (!(nfsd4_ops[first_op->opnum].op_flags & ALLOWED_AS_FIRST_OP))
 		return nfserr_op_not_in_session;
-	if (op->opnum == OP_SEQUENCE)
+	if (first_op->opnum == OP_SEQUENCE)
 		return nfs_ok;
+	/*
+	 * So first_op is something allowed outside a session, like
+	 * EXCHANGE_ID; but then it has to be the only op in the
+	 * compound:
+	 */
 	if (args->opcnt != 1)
 		return nfserr_not_only_op;
 	return nfs_ok;
@@ -1726,6 +1735,7 @@ nfsd4_proc_compound(struct svc_rqst *rqstp)
 	if (status) {
 		op = &args->ops[0];
 		op->status = status;
+		resp->opcnt = 1;
 		goto encode_op;
 	}
 
