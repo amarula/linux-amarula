@@ -46,6 +46,7 @@
 #include <dt-bindings/clock/sun8i-r-ccu.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/reset/sun50i-a64-ccu.h>
+#include <dt-bindings/reset/sun8i-r-ccu.h>
 
 / {
 	interrupt-parent = <&gic>;
@@ -169,9 +170,24 @@
 		ranges;
 
 		syscon: syscon@1c00000 {
-			compatible = "allwinner,sun50i-a64-system-controller",
-				"syscon";
+			compatible = "allwinner,sun50i-a64-system-control";
 			reg = <0x01c00000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+
+			sram_c: sram@18000 {
+				compatible = "mmio-sram";
+				reg = <0x00018000 0x28000>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+				ranges = <0 0x00018000 0x28000>;
+
+				de2_sram: sram-section@0 {
+					compatible = "allwinner,sun50i-a64-sram-c";
+					reg = <0x0000 0x28000>;
+				};
+			};
 		};
 
 		dma: dma-controller@1c02000 {
@@ -362,6 +378,11 @@
 				function = "mmc2";
 				drive-strength = <30>;
 				bias-pull-up;
+			};
+
+			pwm_pin: pwm_pin {
+				pins = "PD22";
+				function = "pwm";
 			};
 
 			rmii_pins: rmii_pins {
@@ -629,11 +650,25 @@
 			#interrupt-cells = <3>;
 		};
 
+		pwm: pwm@1c21400 {
+			compatible = "allwinner,sun50i-a64-pwm",
+				     "allwinner,sun5i-a13-pwm";
+			reg = <0x01c21400 0x400>;
+			clocks = <&osc24M>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm_pin>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
 		rtc: rtc@1f00000 {
 			compatible = "allwinner,sun6i-a31-rtc";
 			reg = <0x01f00000 0x54>;
 			interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>;
+			clock-output-names = "rtc-osc32k", "rtc-osc32k-out";
+			clocks = <&osc32k>;
+			#clock-cells = <1>;
 		};
 
 		r_intc: interrupt-controller@1f00c00 {
@@ -655,6 +690,29 @@
 			#reset-cells = <1>;
 		};
 
+		r_i2c: i2c@1f02400 {
+			compatible = "allwinner,sun50i-a64-i2c",
+				     "allwinner,sun6i-a31-i2c";
+			reg = <0x01f02400 0x400>;
+			interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&r_ccu CLK_APB0_I2C>;
+			resets = <&r_ccu RST_APB0_I2C>;
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		r_pwm: pwm@1f03800 {
+			compatible = "allwinner,sun50i-a64-pwm",
+				     "allwinner,sun5i-a13-pwm";
+			reg = <0x01f03800 0x400>;
+			clocks = <&osc24M>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&r_pwm_pin>;
+			#pwm-cells = <3>;
+			status = "disabled";
+		};
+
 		r_pio: pinctrl@1f02c00 {
 			compatible = "allwinner,sun50i-a64-r-pinctrl";
 			reg = <0x01f02c00 0x400>;
@@ -665,6 +723,16 @@
 			#gpio-cells = <3>;
 			interrupt-controller;
 			#interrupt-cells = <3>;
+
+			r_i2c_pins_a: i2c-a {
+				pins = "PL8", "PL9";
+				function = "s_i2c";
+			};
+
+			r_pwm_pin: pwm {
+				pins = "PL10";
+				function = "s_pwm";
+			};
 
 			r_rsb_pins: rsb {
 				pins = "PL0", "PL1";
