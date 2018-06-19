@@ -310,10 +310,11 @@ ENTRY(startup_kdump)
 	l	%r15,.Lstack-.LPG0(%r13)
 	ahi	%r15,-STACK_FRAME_OVERHEAD
 	brasl	%r14,verify_facilities
-# For uncompressed images, continue in
-# arch/s390/kernel/head64.S. For compressed images, continue in
-# arch/s390/boot/compressed/head.S.
+#ifdef CONFIG_KERNEL_UNCOMPRESSED
 	jg	startup_continue
+#else
+	jg	startup_decompressor
+#endif
 
 .Lstack:
 	.long	0x8000 + (1<<(PAGE_SHIFT+THREAD_SIZE_ORDER))
