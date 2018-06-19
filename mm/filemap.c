@@ -463,7 +463,7 @@ bool filemap_range_has_page(struct address_space *mapping,
 		return false;
 
 	rcu_read_lock();
-	do {
+	for (;;) {
 		page = xas_find(&xas, max);
 		if (xas_retry(&xas, page))
 			continue;
@@ -475,7 +475,8 @@ bool filemap_range_has_page(struct address_space *mapping,
 		 * release the RCU lock anyway.  It is enough to know that
 		 * there was a page here recently.
 		 */
-	} while (0);
+		break;
+	}
 	rcu_read_unlock();
 
 	return page != NULL;
