@@ -4559,6 +4559,7 @@ int extent_fiemap(struct inode *inode, struct fiemap_extent_info *fieinfo,
 			end = 1;
 			flags |= FIEMAP_EXTENT_LAST;
 		} else if (em->block_start == EXTENT_MAP_INLINE) {
+			disko = 0;
 			flags |= (FIEMAP_EXTENT_DATA_INLINE |
 				  FIEMAP_EXTENT_NOT_ALIGNED);
 		} else if (em->block_start == EXTENT_MAP_DELALLOC) {
