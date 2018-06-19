@@ -45,12 +45,13 @@ static const struct dentry_operations ocxlflash_fs_dops = {
  * @flags:	Flags for the filesystem.
  * @dev_name:	Device name associated with the filesystem.
  * @data:	Data pointer.
+ * @data_size:	Size of the mount data.
  *
  * Return: pointer to the directory entry structure
  */
 static struct dentry *ocxlflash_fs_mount(struct file_system_type *fs_type,
 					 int flags, const char *dev_name,
-					 void *data)
+					 void *data, size_t data_size)
 {
 	return mount_pseudo(fs_type, "ocxlflash:", NULL, &ocxlflash_fs_dops,
 			    OCXLFLASH_FS_MAGIC);
