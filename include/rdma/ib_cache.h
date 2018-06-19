@@ -54,6 +54,8 @@ int ib_get_cached_gid(struct ib_device    *device,
 		      int                  index,
 		      union ib_gid        *gid,
 		      struct ib_gid_attr  *attr);
+int rdma_query_gid(struct ib_device *device, u8 port_num, int index,
+		   union ib_gid *gid);
 
 int ib_find_cached_gid(struct ib_device *device,
 		       const union ib_gid *gid,
@@ -61,6 +63,10 @@ int ib_find_cached_gid(struct ib_device *device,
 		       struct net_device *ndev,
 		       u8               *port_num,
 		       u16              *index);
+const struct ib_gid_attr *rdma_find_gid(struct ib_device *device,
+					const union ib_gid *gid,
+					enum ib_gid_type gid_type,
+					struct net_device *ndev);
 
 int ib_find_cached_gid_by_port(struct ib_device *device,
 			       const union ib_gid *gid,
@@ -68,6 +74,11 @@ int ib_find_cached_gid_by_port(struct ib_device *device,
 			       u8               port_num,
 			       struct net_device *ndev,
 			       u16              *index);
+const struct ib_gid_attr *rdma_find_gid_by_port(struct ib_device *ib_dev,
+						const union ib_gid *gid,
+						enum ib_gid_type gid_type,
+						u8 port,
+						struct net_device *ndev);
 
 int ib_find_gid_by_filter(struct ib_device *device,
 			  const union ib_gid *gid,
@@ -76,6 +87,12 @@ int ib_find_gid_by_filter(struct ib_device *device,
 					 const struct ib_gid_attr *,
 					 void *),
 			  void *context, u16 *index);
+const struct ib_gid_attr *rdma_find_gid_by_filter(
+	struct ib_device *device, const union ib_gid *gid, u8 port_num,
+	bool (*filter)(const union ib_gid *gid, const struct ib_gid_attr *,
+		       void *),
+	void *context);
+
 /**
  * ib_get_cached_pkey - Returns a cached PKey table entry
  * @device: The device to query.
@@ -150,4 +167,8 @@ int ib_get_cached_port_state(struct ib_device *device,
 			      enum ib_port_state *port_active);
 
 bool rdma_is_zero_gid(const union ib_gid *gid);
+const struct ib_gid_attr *rdma_get_gid_attr(struct ib_device *device,
+					    u8 port_num, int index);
+void rdma_put_gid_attr(const struct ib_gid_attr *attr);
+void rdma_hold_gid_attr(const struct ib_gid_attr *attr);
 #endif /* _IB_CACHE_H */
