@@ -1697,7 +1697,7 @@ smb2_query_symlink(const unsigned int xid, struct cifs_tcon *tcon,
 		       &resp_buftype);
 	if (!rc || !err_iov.iov_base) {
 		rc = -ENOENT;
-		goto querty_exit;
+		goto free_path;
 	}
 
 	err_buf = err_iov.iov_base;
@@ -1738,6 +1738,7 @@ smb2_query_symlink(const unsigned int xid, struct cifs_tcon *tcon,
 
  querty_exit:
 	free_rsp_buf(resp_buftype, err_buf);
+ free_path:
 	kfree(utf16_path);
 	return rc;
 }

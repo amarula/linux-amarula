@@ -1168,6 +1168,7 @@ cifs_parse_smb_version(char *value, struct smb_vol *vol, bool is_smb3)
 	substring_t args[MAX_OPT_ARGS];
 
 	switch (match_token(value, cifs_smb_version_tokens, args)) {
+#ifdef CONFIG_CIFS_ALLOW_INSECURE_LEGACY
 	case Smb_1:
 		if (disable_legacy_dialects) {
 			cifs_dbg(VFS, "mount with legacy dialect disabled\n");
@@ -1192,6 +1193,14 @@ cifs_parse_smb_version(char *value, struct smb_vol *vol, bool is_smb3)
 		vol->ops = &smb20_operations;
 		vol->vals = &smb20_values;
 		break;
+#else
+	case Smb_1:
+		cifs_dbg(VFS, "vers=1.0 (cifs) mount not permitted when legacy dialects disabled\n");
+		return 1;
+	case Smb_20:
+		cifs_dbg(VFS, "vers=2.0 mount not permitted when legacy dialects disabled\n");
+		return 1;
+#endif /* CIFS_ALLOW_INSECURE_LEGACY */
 	case Smb_21:
 		vol->ops = &smb21_operations;
 		vol->vals = &smb21_values;
@@ -3025,11 +3034,15 @@ cifs_get_tcon(struct cifs_ses *ses, struct smb_vol *volume_info)
 	}
 
 #ifdef CONFIG_CIFS_SMB311
-	if ((volume_info->linux_ext) && (ses->server->posix_ext_supported)) {
-		if (ses->server->vals->protocol_id == SMB311_PROT_ID) {
+	if (volume_info->linux_ext) {
+		if (ses->server->posix_ext_supported) {
 			tcon->posix_extensions = true;
 			printk_once(KERN_WARNING
 				"SMB3.11 POSIX Extensions are experimental\n");
+		} else {
+			cifs_dbg(VFS, "Server does not support mounting with posix SMB3.11 extensions.\n");
+			rc = -EOPNOTSUPP;
+			goto out_fail;
 		}
 	}
 #endif /* 311 */
