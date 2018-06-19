@@ -1405,7 +1405,7 @@ static void collapse_shmem(struct mm_struct *mm,
 		if (page_mapped(page))
 			unmap_mapping_pages(mapping, index, 1, false);
 
-		xas_lock(&xas);
+		xas_lock_irq(&xas);
 		xas_set(&xas, index);
 
 		VM_BUG_ON_PAGE(page != xas_load(&xas), page);
