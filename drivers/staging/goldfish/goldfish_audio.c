@@ -28,6 +28,7 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <linux/goldfish.h>
+#include <linux/acpi.h>
 
 MODULE_AUTHOR("Google, Inc.");
 MODULE_DESCRIPTION("Android QEMU Audio Driver");
@@ -60,11 +61,6 @@ struct goldfish_audio {
 #define WRITE_BUFFER_SIZE       16384
 #define COMBINED_BUFFER_SIZE    ((2 * READ_BUFFER_SIZE) + \
 					(2 * WRITE_BUFFER_SIZE))
-
-#define AUDIO_READ(data, addr)		(readl(data->reg_base + addr))
-#define AUDIO_WRITE(data, addr, x)	(writel(x, data->reg_base + addr))
-#define AUDIO_WRITE64(data, addr, addr2, x)	\
-	(gf_write_dma_addr((x), data->reg_base + addr, data->reg_base + addr2))
 
 /*
  *  temporary variable used between goldfish_audio_probe() and
@@ -112,10 +108,30 @@ enum {
 
 static atomic_t open_count = ATOMIC_INIT(0);
 
+static unsigned int audio_read(const struct goldfish_audio *data, int addr)
+{
+	return readl(data->reg_base + addr);
+}
+
+static void audio_write(const struct goldfish_audio *data,
+			int addr, unsigned int x)
+{
+	writel(x, data->reg_base + addr);
+}
+
+static void audio_write64(const struct goldfish_audio *data,
+			  int addr_lo, int addr_hi, unsigned int x)
+{
+	char __iomem *reg_base = data->reg_base;
+
+	gf_write_dma_addr(x, reg_base + addr_lo, reg_base + addr_hi);
+}
+
 static ssize_t goldfish_audio_read(struct file *fp, char __user *buf,
 				   size_t count, loff_t *pos)
 {
 	struct goldfish_audio *data = fp->private_data;
+	unsigned long irq_flags;
 	int length;
 	int result = 0;
 
@@ -124,12 +140,16 @@ static ssize_t goldfish_audio_read(struct file *fp, char __user *buf,
 
 	while (count > 0) {
 		length = (count > READ_BUFFER_SIZE ? READ_BUFFER_SIZE : count);
-		AUDIO_WRITE(data, AUDIO_START_READ, length);
+		audio_write(data, AUDIO_START_READ, length);
 
 		wait_event_interruptible(data->wait, data->buffer_status &
 					 AUDIO_INT_READ_BUFFER_FULL);
 
-		length = AUDIO_READ(data, AUDIO_READ_BUFFER_AVAILABLE);
+		spin_lock_irqsave(&data->lock, irq_flags);
+		data->buffer_status &= ~AUDIO_INT_READ_BUFFER_FULL;
+		spin_unlock_irqrestore(&data->lock, irq_flags);
+
+		length = audio_read(data, AUDIO_READ_BUFFER_AVAILABLE);
 
 		/* copy data to user space */
 		if (copy_to_user(buf, data->read_buffer, length))
@@ -177,10 +197,10 @@ static ssize_t goldfish_audio_write(struct file *fp, const char __user *buf,
 		 */
 		if (kbuf == data->write_buffer1) {
 			data->buffer_status &= ~AUDIO_INT_WRITE_BUFFER_1_EMPTY;
-			AUDIO_WRITE(data, AUDIO_WRITE_BUFFER_1, copy);
+			audio_write(data, AUDIO_WRITE_BUFFER_1, copy);
 		} else {
 			data->buffer_status &= ~AUDIO_INT_WRITE_BUFFER_2_EMPTY;
-			AUDIO_WRITE(data, AUDIO_WRITE_BUFFER_2, copy);
+			audio_write(data, AUDIO_WRITE_BUFFER_2, copy);
 		}
 		spin_unlock_irqrestore(&data->lock, irq_flags);
 
@@ -200,7 +220,7 @@ static int goldfish_audio_open(struct inode *ip, struct file *fp)
 		fp->private_data = audio_data;
 		audio_data->buffer_status = (AUDIO_INT_WRITE_BUFFER_1_EMPTY |
 					     AUDIO_INT_WRITE_BUFFER_2_EMPTY);
-		AUDIO_WRITE(audio_data, AUDIO_INT_ENABLE, AUDIO_INT_MASK);
+		audio_write(audio_data, AUDIO_INT_ENABLE, AUDIO_INT_MASK);
 		return 0;
 	}
 
@@ -212,7 +232,7 @@ static int goldfish_audio_release(struct inode *ip, struct file *fp)
 {
 	atomic_dec(&open_count);
 	/* FIXME: surely this is wrong for the multi-opened case */
-	AUDIO_WRITE(audio_data, AUDIO_INT_ENABLE, 0);
+	audio_write(audio_data, AUDIO_INT_ENABLE, 0);
 	return 0;
 }
 
@@ -235,7 +255,7 @@ static irqreturn_t goldfish_audio_interrupt(int irq, void *dev_id)
 	spin_lock_irqsave(&data->lock, irq_flags);
 
 	/* read buffer status flags */
-	status = AUDIO_READ(data, AUDIO_INT_STATUS);
+	status = audio_read(data, AUDIO_INT_STATUS);
 	status &= AUDIO_INT_MASK;
 	/*
 	 *  if buffers are newly empty, wake up blocked
@@ -320,18 +340,18 @@ static int goldfish_audio_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	AUDIO_WRITE64(data, AUDIO_SET_WRITE_BUFFER_1,
+	audio_write64(data, AUDIO_SET_WRITE_BUFFER_1,
 		      AUDIO_SET_WRITE_BUFFER_1_HIGH, buf_addr);
 	buf_addr += WRITE_BUFFER_SIZE;
 
-	AUDIO_WRITE64(data, AUDIO_SET_WRITE_BUFFER_2,
+	audio_write64(data, AUDIO_SET_WRITE_BUFFER_2,
 		      AUDIO_SET_WRITE_BUFFER_2_HIGH, buf_addr);
 
 	buf_addr += WRITE_BUFFER_SIZE;
 
-	data->read_supported = AUDIO_READ(data, AUDIO_READ_SUPPORTED);
+	data->read_supported = audio_read(data, AUDIO_READ_SUPPORTED);
 	if (data->read_supported)
-		AUDIO_WRITE64(data, AUDIO_SET_READ_BUFFER,
+		audio_write64(data, AUDIO_SET_READ_BUFFER,
 			      AUDIO_SET_READ_BUFFER_HIGH, buf_addr);
 
 	audio_data = data;
@@ -351,12 +371,21 @@ static const struct of_device_id goldfish_audio_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, goldfish_audio_of_match);
 
+#ifdef CONFIG_ACPI
+static const struct acpi_device_id goldfish_audio_acpi_match[] = {
+	{ "GFSH0005", 0 },
+	{ },
+};
+MODULE_DEVICE_TABLE(acpi, goldfish_audio_acpi_match);
+#endif
+
 static struct platform_driver goldfish_audio_driver = {
 	.probe		= goldfish_audio_probe,
 	.remove		= goldfish_audio_remove,
 	.driver = {
 		.name = "goldfish_audio",
 		.of_match_table = goldfish_audio_of_match,
+		.acpi_match_table = ACPI_PTR(goldfish_audio_acpi_match),
 	}
 };
 
