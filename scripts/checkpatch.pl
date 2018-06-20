@@ -5336,15 +5336,28 @@ sub process {
 		}
 
 # concatenated string without spaces between elements
-		if ($line =~ /$String[A-Z_]/ || $line =~ /[A-Za-z0-9_]$String/) {
-			CHK("CONCATENATED_STRING",
-			    "Concatenated strings should use spaces between elements\n" . $herecurr);
+		if ($line =~ /$String[A-Za-z0-9_]/ || $line =~ /[A-Za-z0-9_]$String/) {
+			if (CHK("CONCATENATED_STRING",
+				"Concatenated strings should use spaces between elements\n" . $herecurr) &&
+			    $fix) {
+				while ($line =~ /($String)/g) {
+					my $extracted_string = substr($rawline, $-[0], $+[0] - $-[0]);
+					$fixed[$fixlinenr] =~ s/\Q$extracted_string\E([A-Za-z0-9_])/$extracted_string $1/;
+					$fixed[$fixlinenr] =~ s/([A-Za-z0-9_])\Q$extracted_string\E/$1 $extracted_string/;
+				}
+			}
 		}
 
 # uncoalesced string fragments
 		if ($line =~ /$String\s*"/) {
-			WARN("STRING_FRAGMENTS",
-			     "Consecutive strings are generally better as a single string\n" . $herecurr);
+			if (WARN("STRING_FRAGMENTS",
+				 "Consecutive strings are generally better as a single string\n" . $herecurr) &&
+			    $fix) {
+				while ($line =~ /($String)(?=\s*")/g) {
+					my $extracted_string = substr($rawline, $-[0], $+[0] - $-[0]);
+					$fixed[$fixlinenr] =~ s/\Q$extracted_string\E\s*"/substr($extracted_string, 0, -1)/e;
+				}
+			}
 		}
 
 # check for non-standard and hex prefixed decimal printf formats
@@ -6255,6 +6268,13 @@ sub process {
 		if ($sline =~ /^.\s+bool\s*$Ident\s*:\s*\d+\s*;/) {
 			WARN("BOOL_BITFIELD",
 			     "Avoid using bool as bitfield.  Prefer bool bitfields as unsigned int or u<8|16|32>\n" . $herecurr);
+		}
+
+# check for bool use in .h files
+		if ($realfile =~ /\.h$/ &&
+		    $sline =~ /^.\s+bool\s*$Ident\s*(?::\s*d+\s*)?;/) {
+			CHK("BOOL_MEMBER",
+			    "Avoid using bool structure members because of possible alignment issues - see: https://lkml.org/lkml/2017/11/21/384\n" . $herecurr);
 		}
 
 # check for semaphores initialized locked

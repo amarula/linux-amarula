@@ -1742,15 +1742,22 @@ static int cgroup2_parse_option(struct fs_context *fc, char *token)
 		ctx->flags |= CGRP_ROOT_NS_DELEGATE;
 		return 0;
 	}
+	if (!strcmp(token, "groupoom")) {
+		ctx->flags |= CGRP_GROUP_OOM;
+		return 0;
+	}
 
 	return -EINVAL;
 }
 
 static int cgroup_show_options(struct seq_file *seq, struct kernfs_root *kf_root)
 {
-	if (current->nsproxy->cgroup_ns == &init_cgroup_ns &&
-	    cgrp_dfl_root.flags & CGRP_ROOT_NS_DELEGATE)
-		seq_puts(seq, ",nsdelegate");
+	if (current->nsproxy->cgroup_ns == &init_cgroup_ns) {
+		if (cgrp_dfl_root.flags & CGRP_ROOT_NS_DELEGATE)
+			seq_puts(seq, ",nsdelegate");
+		if (cgrp_dfl_root.flags & CGRP_GROUP_OOM)
+			seq_puts(seq, ",groupoom");
+	}
 	return 0;
 }
 
@@ -1761,6 +1768,11 @@ static void apply_cgroup_root_flags(unsigned int root_flags)
 			cgrp_dfl_root.flags |= CGRP_ROOT_NS_DELEGATE;
 		else
 			cgrp_dfl_root.flags &= ~CGRP_ROOT_NS_DELEGATE;
+
+		if (root_flags & CGRP_GROUP_OOM)
+			cgrp_dfl_root.flags |= CGRP_GROUP_OOM;
+		else
+			cgrp_dfl_root.flags &= ~CGRP_GROUP_OOM;
 	}
 }
 
@@ -5999,7 +6011,8 @@ static struct kobj_attribute cgroup_delegate_attr = __ATTR_RO(delegate);
 static ssize_t features_show(struct kobject *kobj, struct kobj_attribute *attr,
 			     char *buf)
 {
-	return snprintf(buf, PAGE_SIZE, "nsdelegate\n");
+	return snprintf(buf, PAGE_SIZE, "nsdelegate\n"
+					"groupoom\n");
 }
 static struct kobj_attribute cgroup_features_attr = __ATTR_RO(features);
 
