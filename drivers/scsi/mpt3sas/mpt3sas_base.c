@@ -102,6 +102,34 @@ static int
 _base_get_ioc_facts(struct MPT3SAS_ADAPTER *ioc);
 
 /**
+ * mpt3sas_base_check_cmd_timeout - Function
+ *		to check timeout and command termination due
+ *		to Host reset.
+ *
+ * @ioc:	per adapter object.
+ * @status:	Status of issued command.
+ * @mpi_request:mf request pointer.
+ * @sz:		size of buffer.
+ *
+ * @Returns - 1/0 Reset to be done or Not
+ */
+u8
+mpt3sas_base_check_cmd_timeout(struct MPT3SAS_ADAPTER *ioc,
+		u8 status, void *mpi_request, int sz)
+{
+	u8 issue_reset = 0;
+
+	if (!(status & MPT3_CMD_RESET))
+		issue_reset = 1;
+
+	pr_err(MPT3SAS_FMT "Command %s\n", ioc->name,
+	    ((issue_reset == 0) ? "terminated due to Host Reset" : "Timeout"));
+	_debug_dump_mf(mpi_request, sz);
+
+	return issue_reset;
+}
+
+/**
  * _scsih_set_fwfault_debug - global setting of ioc->fwfault_debug.
  *
  */
@@ -2924,10 +2952,9 @@ mpt3sas_base_unmap_resources(struct MPT3SAS_ADAPTER *ioc)
 	_base_free_irq(ioc);
 	_base_disable_msix(ioc);
 
-	if (ioc->combined_reply_queue) {
-		kfree(ioc->replyPostRegisterIndex);
-		ioc->replyPostRegisterIndex = NULL;
-	}
+	kfree(ioc->replyPostRegisterIndex);
+	ioc->replyPostRegisterIndex = NULL;
+
 
 	if (ioc->chip_phys) {
 		iounmap(ioc->chip);
@@ -3034,7 +3061,7 @@ mpt3sas_base_map_resources(struct MPT3SAS_ADAPTER *ioc)
 	/* Use the Combined reply queue feature only for SAS3 C0 & higher
 	 * revision HBAs and also only when reply queue count is greater than 8
 	 */
-	if (ioc->combined_reply_queue && ioc->reply_queue_count > 8) {
+	if (ioc->combined_reply_queue) {
 		/* Determine the Supplemental Reply Post Host Index Registers
 		 * Addresse. Supplemental Reply Post Host Index Registers
 		 * starts at offset MPI25_SUP_REPLY_POST_HOST_INDEX_OFFSET and
@@ -3058,8 +3085,7 @@ mpt3sas_base_map_resources(struct MPT3SAS_ADAPTER *ioc)
 			     MPI25_SUP_REPLY_POST_HOST_INDEX_OFFSET +
 			     (i * MPT3_SUP_REPLY_POST_HOST_INDEX_REG_OFFSET));
 		}
-	} else
-		ioc->combined_reply_queue = 0;
+	}
 
 	if (ioc->is_warpdrive) {
 		ioc->reply_post_host_index[0] = (resource_size_t __iomem *)
@@ -5355,7 +5381,7 @@ mpt3sas_base_sas_iounit_control(struct MPT3SAS_ADAPTER *ioc,
 {
 	u16 smid;
 	u32 ioc_state;
-	bool issue_reset = false;
+	u8 issue_reset = 0;
 	int rc;
 	void *request;
 	u16 wait_state_count;
@@ -5414,12 +5440,10 @@ mpt3sas_base_sas_iounit_control(struct MPT3SAS_ADAPTER *ioc,
 	    ioc->ioc_link_reset_in_progress)
 		ioc->ioc_link_reset_in_progress = 0;
 	if (!(ioc->base_cmds.status & MPT3_CMD_COMPLETE)) {
-		pr_err(MPT3SAS_FMT "%s: timeout\n",
-		    ioc->name, __func__);
-		_debug_dump_mf(mpi_request,
-		    sizeof(Mpi2SasIoUnitControlRequest_t)/4);
-		if (!(ioc->base_cmds.status & MPT3_CMD_RESET))
-			issue_reset = true;
+		issue_reset =
+			mpt3sas_base_check_cmd_timeout(ioc,
+				ioc->base_cmds.status, mpi_request,
+				sizeof(Mpi2SasIoUnitControlRequest_t)/4);
 		goto issue_host_reset;
 	}
 	if (ioc->base_cmds.status & MPT3_CMD_REPLY_VALID)
@@ -5457,7 +5481,7 @@ mpt3sas_base_scsi_enclosure_processor(struct MPT3SAS_ADAPTER *ioc,
 {
 	u16 smid;
 	u32 ioc_state;
-	bool issue_reset = false;
+	u8 issue_reset = 0;
 	int rc;
 	void *request;
 	u16 wait_state_count;
@@ -5510,12 +5534,10 @@ mpt3sas_base_scsi_enclosure_processor(struct MPT3SAS_ADAPTER *ioc,
 	wait_for_completion_timeout(&ioc->base_cmds.done,
 	    msecs_to_jiffies(10000));
 	if (!(ioc->base_cmds.status & MPT3_CMD_COMPLETE)) {
-		pr_err(MPT3SAS_FMT "%s: timeout\n",
-		    ioc->name, __func__);
-		_debug_dump_mf(mpi_request,
-		    sizeof(Mpi2SepRequest_t)/4);
-		if (!(ioc->base_cmds.status & MPT3_CMD_RESET))
-			issue_reset = false;
+		issue_reset =
+			mpt3sas_base_check_cmd_timeout(ioc,
+				ioc->base_cmds.status, mpi_request,
+				sizeof(Mpi2SepRequest_t)/4);
 		goto issue_host_reset;
 	}
 	if (ioc->base_cmds.status & MPT3_CMD_REPLY_VALID)
@@ -5681,6 +5703,9 @@ _base_get_ioc_facts(struct MPT3SAS_ADAPTER *ioc)
 	facts->WhoInit = mpi_reply.WhoInit;
 	facts->NumberOfPorts = mpi_reply.NumberOfPorts;
 	facts->MaxMSIxVectors = mpi_reply.MaxMSIxVectors;
+	if (ioc->msix_enable && (facts->MaxMSIxVectors <=
+	    MAX_COMBINED_MSIX_VECTORS(ioc->is_gen35_ioc)))
+		ioc->combined_reply_queue = 0;
 	facts->RequestCredit = le16_to_cpu(mpi_reply.RequestCredit);
 	facts->MaxReplyDescriptorPostQueueDepth =
 	    le16_to_cpu(mpi_reply.MaxReplyDescriptorPostQueueDepth);

@@ -2365,13 +2365,14 @@ scsih_slave_configure(struct scsi_device *sdev)
 				"connector name( %s)\n", ds,
 				pcie_device->enclosure_level,
 				pcie_device->connector_name);
-		pcie_device_put(pcie_device);
-		spin_unlock_irqrestore(&ioc->pcie_device_lock, flags);
-		scsih_change_queue_depth(sdev, qdepth);
 
 		if (pcie_device->nvme_mdts)
 			blk_queue_max_hw_sectors(sdev->request_queue,
 					pcie_device->nvme_mdts/512);
+
+		pcie_device_put(pcie_device);
+		spin_unlock_irqrestore(&ioc->pcie_device_lock, flags);
+		scsih_change_queue_depth(sdev, qdepth);
 		/* Enable QUEUE_FLAG_NOMERGES flag, so that IOs won't be
 		 ** merged and can eliminate holes created during merging
 		 ** operation.
@@ -2708,11 +2709,9 @@ mpt3sas_scsih_issue_tm(struct MPT3SAS_ADAPTER *ioc, u16 handle, u64 lun,
 	mpt3sas_base_put_smid_hi_priority(ioc, smid, msix_task);
 	wait_for_completion_timeout(&ioc->tm_cmds.done, timeout*HZ);
 	if (!(ioc->tm_cmds.status & MPT3_CMD_COMPLETE)) {
-		pr_err(MPT3SAS_FMT "%s: timeout\n",
-		    ioc->name, __func__);
-		_debug_dump_mf(mpi_request,
-		    sizeof(Mpi2SCSITaskManagementRequest_t)/4);
-		if (!(ioc->tm_cmds.status & MPT3_CMD_RESET)) {
+		if (mpt3sas_base_check_cmd_timeout(ioc,
+			ioc->tm_cmds.status, mpi_request,
+			sizeof(Mpi2SCSITaskManagementRequest_t)/4)) {
 			rc = mpt3sas_base_hard_reset_handler(ioc,
 					FORCE_BIG_HAMMER);
 			rc = (!rc) ? SUCCESS : FAILED;
@@ -7483,6 +7482,10 @@ _scsih_sas_broadcast_primitive_event(struct MPT3SAS_ADAPTER *ioc,
 		if (sas_device_priv_data->sas_target->flags &
 		    MPT_TARGET_FLAGS_VOLUME)
 			continue;
+		 /* skip PCIe devices */
+		if (sas_device_priv_data->sas_target->flags &
+		    MPT_TARGET_FLAGS_PCIE_DEVICE)
+			continue;
 
 		handle = sas_device_priv_data->sas_target->handle;
 		lun = sas_device_priv_data->lun;
@@ -7736,10 +7739,10 @@ _scsih_ir_fastpath(struct MPT3SAS_ADAPTER *ioc, u16 handle, u8 phys_disk_num)
 	wait_for_completion_timeout(&ioc->scsih_cmds.done, 10*HZ);
 
 	if (!(ioc->scsih_cmds.status & MPT3_CMD_COMPLETE)) {
-		pr_err(MPT3SAS_FMT "%s: timeout\n",
-		    ioc->name, __func__);
-		if (!(ioc->scsih_cmds.status & MPT3_CMD_RESET))
-			issue_reset = 1;
+		issue_reset =
+			mpt3sas_base_check_cmd_timeout(ioc,
+				ioc->scsih_cmds.status, mpi_request,
+				sizeof(Mpi2RaidActionRequest_t)/4);
 		rc = -EFAULT;
 		goto out;
 	}
@@ -10390,7 +10393,7 @@ scsih_scan_finished(struct Scsi_Host *shost, unsigned long time)
 	}
 
 	if (time >= (300 * HZ)) {
-		ioc->base_cmds.status = MPT3_CMD_NOT_USED;
+		ioc->port_enable_cmds.status = MPT3_CMD_NOT_USED;
 		pr_info(MPT3SAS_FMT
 			"port enable: FAILED with timeout (timeout=300s)\n",
 			ioc->name);
@@ -10412,7 +10415,7 @@ scsih_scan_finished(struct Scsi_Host *shost, unsigned long time)
 	}
 
 	pr_info(MPT3SAS_FMT "port enable: SUCCESS\n", ioc->name);
-	ioc->base_cmds.status = MPT3_CMD_NOT_USED;
+	ioc->port_enable_cmds.status = MPT3_CMD_NOT_USED;
 
 	if (ioc->wait_for_discovery_to_complete) {
 		ioc->wait_for_discovery_to_complete = 0;
