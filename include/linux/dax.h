@@ -86,8 +86,9 @@ static inline void fs_put_dax(struct dax_device *dax_dev)
 struct dax_device *fs_dax_get_by_bdev(struct block_device *bdev);
 int dax_writeback_mapping_range(struct address_space *mapping,
 		struct block_device *bdev, struct writeback_control *wbc);
-
 struct page *dax_layout_busy_page(struct address_space *mapping);
+struct page *dax_lock_page(unsigned long pfn);
+void dax_unlock_page(struct page *page);
 #else
 static inline bool bdev_dax_supported(struct block_device *bdev,
 		int blocksize)
@@ -118,6 +119,19 @@ static inline int dax_writeback_mapping_range(struct address_space *mapping,
 		struct block_device *bdev, struct writeback_control *wbc)
 {
 	return -EOPNOTSUPP;
+}
+
+static inline struct page *dax_lock_page(unsigned long pfn)
+{
+	struct page *page = pfn_to_page(pfn);
+
+	if (IS_DAX(page->mapping->host))
+		return page;
+	return NULL;
+}
+
+static inline void dax_unlock_page(struct page *page)
+{
 }
 #endif
 
