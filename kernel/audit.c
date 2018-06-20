@@ -83,9 +83,6 @@
 #define AUDIT_INITIALIZED	1
 static int	audit_initialized;
 
-#define AUDIT_OFF	0
-#define AUDIT_ON	1
-#define AUDIT_LOCKED	2
 u32		audit_enabled = AUDIT_OFF;
 bool		audit_ever_enabled = !!AUDIT_OFF;
 
@@ -1754,7 +1751,7 @@ struct audit_buffer *audit_log_start(struct audit_context *ctx, gfp_t gfp_mask,
 	if (audit_initialized != AUDIT_INITIALIZED)
 		return NULL;
 
-	if (unlikely(!audit_filter(type, AUDIT_FILTER_TYPE)))
+	if (unlikely(!audit_filter(type, AUDIT_FILTER_EXCLUDE)))
 		return NULL;
 
 	/* NOTE: don't ever fail/sleep on these two conditions:
