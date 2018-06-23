@@ -1,0 +1,28 @@
+next/soc
+
+next/dt
+
+next/drivers
+
+next/defconfig
+
+next/late
+
+fixes
+	<no branch> (ac62cc9d9cd6fa4c79e171c13dc8d58c3862b678)
+		git://git.infradead.org/linux-mvebu tags/mvebu-fixes-4.17-2
+	<no branch> (977d5ba4507dfe5b1346597ee57750262d8d2b19)
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-fixes-for-v4.18
+	<no branch> (1bcfe0564044be578841744faea1c2f46adc8178)
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-fixes-4.18
+	<no branch> (6cb1628ad3506b315cdddd7676db0ff2af378d28)
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.18/devicetree-fixes
+	<no branch> (75af23c4736c5633894ea0baf9bca1cf6b248ca4)
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.18/devicetree-arm64-fixes
+	<no branch> (d64324acdb7052b08b13ffc8c12af232c6a29afd)
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.18/maintainers-arm64-fixes
+	<no branch> (6b4154a655a258c67bcfabbd4c3a06637e74ebcd)
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-fixes-for-4.18-rc1
+	patch
+		arm64: defconfig: renormalize based on recent additions
+		ARM: multi_v7_defconfig: renormalize based on recent additions
