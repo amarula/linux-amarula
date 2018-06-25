@@ -395,18 +395,6 @@ bool pciehp_is_native(struct pci_dev *bridge)
 }
 
 /**
- * shpchp_is_native - Check whether a hotplug port is handled by the OS
- * @bridge: Hotplug port to check
- *
- * Returns true if the given @bridge is handled by the native SHPC hotplug
- * driver.
- */
-bool shpchp_is_native(struct pci_dev *bridge)
-{
-	return bridge->shpc_managed;
-}
-
-/**
  * pci_acpi_wake_bus - Root bus wakeup notification fork function.
  * @context: Device wakeup context.
  */
