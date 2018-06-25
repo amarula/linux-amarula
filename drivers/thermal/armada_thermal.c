@@ -72,9 +72,9 @@ struct armada_thermal_priv {
 };
 
 struct armada_thermal_data {
-	/* Initialize the sensor */
-	void (*init_sensor)(struct platform_device *pdev,
-			    struct armada_thermal_priv *);
+	/* Initialize the thermal IC */
+	void (*init)(struct platform_device *pdev,
+		     struct armada_thermal_priv *priv);
 
 	/* Test for a valid sensor value (optional) */
 	bool (*is_valid)(struct armada_thermal_priv *);
@@ -93,8 +93,8 @@ struct armada_thermal_data {
 	bool needs_control0;
 };
 
-static void armadaxp_init_sensor(struct platform_device *pdev,
-				 struct armada_thermal_priv *priv)
+static void armadaxp_init(struct platform_device *pdev,
+			  struct armada_thermal_priv *priv)
 {
 	u32 reg;
 
@@ -116,8 +116,8 @@ static void armadaxp_init_sensor(struct platform_device *pdev,
 	writel(reg, priv->status);
 }
 
-static void armada370_init_sensor(struct platform_device *pdev,
-				  struct armada_thermal_priv *priv)
+static void armada370_init(struct platform_device *pdev,
+			   struct armada_thermal_priv *priv)
 {
 	u32 reg;
 
@@ -135,8 +135,8 @@ static void armada370_init_sensor(struct platform_device *pdev,
 	msleep(10);
 }
 
-static void armada375_init_sensor(struct platform_device *pdev,
-				  struct armada_thermal_priv *priv)
+static void armada375_init(struct platform_device *pdev,
+			   struct armada_thermal_priv *priv)
 {
 	u32 reg;
 
@@ -163,8 +163,8 @@ static void armada_wait_sensor_validity(struct armada_thermal_priv *priv)
 				   STATUS_POLL_TIMEOUT_US);
 }
 
-static void armada380_init_sensor(struct platform_device *pdev,
-				  struct armada_thermal_priv *priv)
+static void armada380_init(struct platform_device *pdev,
+			   struct armada_thermal_priv *priv)
 {
 	u32 reg = readl_relaxed(priv->control1);
 
@@ -185,8 +185,8 @@ static void armada380_init_sensor(struct platform_device *pdev,
 	armada_wait_sensor_validity(priv);
 }
 
-static void armada_ap806_init_sensor(struct platform_device *pdev,
-				     struct armada_thermal_priv *priv)
+static void armada_ap806_init(struct platform_device *pdev,
+			      struct armada_thermal_priv *priv)
 {
 	u32 reg;
 
@@ -246,7 +246,7 @@ static struct thermal_zone_device_ops ops = {
 };
 
 static const struct armada_thermal_data armadaxp_data = {
-	.init_sensor = armadaxp_init_sensor,
+	.init = armadaxp_init,
 	.temp_shift = 10,
 	.temp_mask = 0x1ff,
 	.coef_b = 3153000000ULL,
@@ -256,7 +256,7 @@ static const struct armada_thermal_data armadaxp_data = {
 
 static const struct armada_thermal_data armada370_data = {
 	.is_valid = armada_is_valid,
-	.init_sensor = armada370_init_sensor,
+	.init = armada370_init,
 	.is_valid_bit = BIT(9),
 	.temp_shift = 10,
 	.temp_mask = 0x1ff,
@@ -267,7 +267,7 @@ static const struct armada_thermal_data armada370_data = {
 
 static const struct armada_thermal_data armada375_data = {
 	.is_valid = armada_is_valid,
-	.init_sensor = armada375_init_sensor,
+	.init = armada375_init,
 	.is_valid_bit = BIT(10),
 	.temp_shift = 0,
 	.temp_mask = 0x1ff,
@@ -279,7 +279,7 @@ static const struct armada_thermal_data armada375_data = {
 
 static const struct armada_thermal_data armada380_data = {
 	.is_valid = armada_is_valid,
-	.init_sensor = armada380_init_sensor,
+	.init = armada380_init,
 	.is_valid_bit = BIT(10),
 	.temp_shift = 0,
 	.temp_mask = 0x3ff,
@@ -291,7 +291,7 @@ static const struct armada_thermal_data armada380_data = {
 
 static const struct armada_thermal_data armada_ap806_data = {
 	.is_valid = armada_is_valid,
-	.init_sensor = armada_ap806_init_sensor,
+	.init = armada_ap806_init,
 	.is_valid_bit = BIT(16),
 	.temp_shift = 0,
 	.temp_mask = 0x3ff,
@@ -305,7 +305,7 @@ static const struct armada_thermal_data armada_ap806_data = {
 
 static const struct armada_thermal_data armada_cp110_data = {
 	.is_valid = armada_is_valid,
-	.init_sensor = armada380_init_sensor,
+	.init = armada380_init,
 	.is_valid_bit = BIT(10),
 	.temp_shift = 0,
 	.temp_mask = 0x3ff,
@@ -394,7 +394,7 @@ static int armada_thermal_probe(struct platform_device *pdev)
 		priv->control1 = control + CONTROL1_OFFSET;
 	}
 
-	priv->data->init_sensor(pdev, priv);
+	priv->data->init(pdev, priv);
 
 	thermal = thermal_zone_device_register(dev_name(&pdev->dev), 0, 0, priv,
 					       &ops, NULL, 0, 0);
