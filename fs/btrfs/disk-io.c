@@ -4092,7 +4092,7 @@ void btrfs_mark_buffer_dirty(struct extent_buffer *buf)
 	 * enabled.  Normal people shouldn't be marking dummy buffers as dirty
 	 * outside of the sanity tests.
 	 */
-	if (unlikely(test_bit(EXTENT_BUFFER_DUMMY, &buf->bflags)))
+	if (unlikely(test_bit(EXTENT_BUFFER_PRIVATE, &buf->bflags)))
 		return;
 #endif
 	root = BTRFS_I(buf->pages[0]->mapping->host)->root;
