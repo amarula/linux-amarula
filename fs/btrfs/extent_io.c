@@ -4644,19 +4644,14 @@ int extent_buffer_under_io(struct extent_buffer *eb)
  */
 static void btrfs_release_extent_buffer_page(struct extent_buffer *eb)
 {
-	int index;
-	struct page *page;
+	int i;
 	int mapped = !test_bit(EXTENT_BUFFER_DUMMY, &eb->bflags);
 
 	BUG_ON(extent_buffer_under_io(eb));
 
-	index = num_extent_pages(eb);
-	if (index == 0)
-		return;
+	for (i = 0; i < num_extent_pages(eb); i++) {
+		struct page *page = eb->pages[i];
 
-	do {
-		index--;
-		page = eb->pages[index];
 		if (!page)
 			continue;
 		if (mapped)
@@ -4688,7 +4683,7 @@ static void btrfs_release_extent_buffer_page(struct extent_buffer *eb)
 
 		/* One for when we allocated the page */
 		put_page(page);
-	} while (index != 0);
+	}
 }
 
 /*
