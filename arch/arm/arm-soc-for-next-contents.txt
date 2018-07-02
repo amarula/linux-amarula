@@ -7,6 +7,8 @@ next/dt
 		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-dt-for-v4.19
 	socfpga/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/socfpga_updates_for_v4.19_part1
+	patch
+		arm: dts: highbank: Add missing OPP properties for CPUs
 
 next/drivers
 	drivers/tee
