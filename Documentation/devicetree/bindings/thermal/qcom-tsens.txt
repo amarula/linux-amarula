@@ -5,6 +5,8 @@ Required properties:
  - "qcom,msm8916-tsens" : For 8916 Family of SoCs
  - "qcom,msm8974-tsens" : For 8974 Family of SoCs
  - "qcom,msm8996-tsens" : For 8996 Family of SoCs
+ - "qcom,tsens-v2.4.0"  : For SDM845 Family of SoCs
+ - "qcom,tsens-v2"      : Generic fallback binding for any Soc using 2.x.y version of the tsens IP
 
 - reg: Address range of the thermal registers
 - #thermal-sensor-cells : Should be 1. See ./thermal.txt for a description.
