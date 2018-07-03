@@ -134,9 +134,10 @@ static int micron_nand_on_die_ecc_setup(struct nand_chip *chip, bool enable)
 }
 
 
-static int micron_nand_on_die_ecc_status_4(struct mtd_info *mtd,
-					   struct nand_chip *chip, u8 status)
+static int micron_nand_on_die_ecc_status_4(struct nand_chip *chip, u8 status)
 {
+	struct mtd_info *mtd = nand_to_mtd(chip);
+
 	/*
 	 * The internal ECC doesn't tell us the number of bitflips
 	 * that have been corrected, but tells us if it recommends to
@@ -154,9 +155,10 @@ static int micron_nand_on_die_ecc_status_4(struct mtd_info *mtd,
 	return 0;
 }
 
-static int micron_nand_on_die_ecc_status_8(struct mtd_info *mtd,
-					   struct nand_chip *chip, u8 status)
+static int micron_nand_on_die_ecc_status_8(struct nand_chip *chip, u8 status)
 {
+	struct mtd_info *mtd = nand_to_mtd(chip);
+
 	/*
 	 * With 8/512 we have more information but still don't know precisely
 	 * how many bit-flips were seen.
@@ -206,9 +208,9 @@ micron_nand_read_page_on_die_ecc(struct mtd_info *mtd, struct nand_chip *chip,
 		goto out;
 
 	if (chip->ecc.strength == 4)
-		max_bitflips = micron_nand_on_die_ecc_status_4(mtd, chip, status);
+		max_bitflips = micron_nand_on_die_ecc_status_4(chip, status);
 	else
-		max_bitflips = micron_nand_on_die_ecc_status_8(mtd, chip, status);
+		max_bitflips = micron_nand_on_die_ecc_status_8(chip, status);
 
 	ret = nand_read_data_op(chip, buf, mtd->writesize, false);
 	if (!ret && oob_required)
