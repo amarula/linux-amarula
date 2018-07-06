@@ -742,7 +742,8 @@ static int do_dentry_open(struct file *f,
 	static const struct file_operations empty_fops = {};
 	int error;
 
-	f->f_mode = OPEN_FMODE(f->f_flags) | FMODE_LSEEK |
+	WARN_ON(f->f_mode & ~FMODE_NOACCOUNT);
+	f->f_mode |= OPEN_FMODE(f->f_flags) | FMODE_LSEEK |
 				FMODE_PREAD | FMODE_PWRITE;
 
 	path_get(&f->f_path);
@@ -753,6 +754,7 @@ static int do_dentry_open(struct file *f,
 	f->f_wb_err = filemap_sample_wb_err(f->f_mapping);
 
 	if (unlikely(f->f_flags & O_PATH)) {
+		WARN_ON(f->f_mode & FMODE_NOACCOUNT);
 		f->f_mode = FMODE_PATH;
 		f->f_op = &empty_fops;
 		return 0;
@@ -919,12 +921,12 @@ int vfs_open(const struct path *path, struct file *file,
  * Return: A pointer to a struct file or an IS_ERR pointer.  Cannot return NULL.
  */
 struct file *path_open(const struct path *path, int flags, struct inode *inode,
-		       const struct cred *cred)
+		       const struct cred *cred, bool account)
 {
 	struct file *file;
 	int error;
 
-	file = get_empty_filp();
+	file = __get_empty_filp(account);
 	if (IS_ERR(file))
 		return file;
 
