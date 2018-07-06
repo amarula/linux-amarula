@@ -443,7 +443,6 @@ struct se_cmd {
 	u8			scsi_asc;
 	u8			scsi_ascq;
 	u16			scsi_sense_length;
-	unsigned		cmd_wait_set:1;
 	unsigned		unknown_data_length:1;
 	bool			state_active:1;
 	u64			tag; /* SAM command identifier aka task tag */
@@ -476,7 +475,7 @@ struct se_cmd {
 	struct se_session	*se_sess;
 	struct se_tmr_req	*se_tmr_req;
 	struct list_head	se_cmd_list;
-	struct completion	cmd_wait_comp;
+	struct completion	*compl;
 	const struct target_core_fabric_ops *se_tfo;
 	sense_reason_t		(*execute_cmd)(struct se_cmd *);
 	sense_reason_t (*transport_complete_callback)(struct se_cmd *, bool, int *);
@@ -606,8 +605,8 @@ struct se_session {
 	struct list_head	sess_list;
 	struct list_head	sess_acl_list;
 	struct list_head	sess_cmd_list;
-	struct list_head	sess_wait_list;
 	spinlock_t		sess_cmd_lock;
+	wait_queue_head_t	cmd_list_wq;
 	void			*sess_cmd_map;
 	struct sbitmap_queue	sess_tag_pool;
 };
@@ -639,7 +638,6 @@ struct se_dev_entry {
 	atomic_long_t		total_cmds;
 	atomic_long_t		read_bytes;
 	atomic_long_t		write_bytes;
-	atomic_t		ua_count;
 	/* Used for PR SPEC_I_PT=1 and REGISTER_AND_MOVE */
 	struct kref		pr_kref;
 	struct completion	pr_comp;
