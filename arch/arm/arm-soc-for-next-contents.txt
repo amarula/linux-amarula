@@ -9,14 +9,24 @@ next/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/socfpga_updates_for_v4.19_part1
 	patch
 		arm: dts: highbank: Add missing OPP properties for CPUs
+	keystone/dts
+		git://git.kernel.org/pub/scm/linux/kernel/git/ssantosh/linux-keystone tags/keystone_dts_for_4.19
 
 next/drivers
 	drivers/tee
 		git://git.linaro.org/people/jens.wiklander/linux-tee tags/tee-drv-for-4.18
+	keystone/soc-drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/ssantosh/linux-keystone tags/soc_drivers_for_4.19
 
 next/defconfig
+	keystone/config
+		git://git.kernel.org/pub/scm/linux/kernel/git/ssantosh/linux-keystone tags/keystone_config_for_4.19
 
 next/late
 
 fixes
+	<no branch> (2ceb2780b790b74bc408a949f6aedbad8afa693e)
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-fixes-4.18-2
+	<no branch> (0144eb204cdcdf09a76794b4a294291388e739bc)
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.18/fixes-signed
 
