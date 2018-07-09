@@ -1277,6 +1277,23 @@ out_err:
 	goto out;
 }
 
+struct nfsd4_copy *
+find_async_copy(struct nfs4_client *clp, stateid_t *stateid)
+{
+	struct nfsd4_copy *copy;
+
+	spin_lock(&clp->async_lock);
+	list_for_each_entry(copy, &clp->async_copies, copies) {
+		if (memcmp(&copy->cp_stateid, stateid, NFS4_STATEID_SIZE))
+			continue;
+		refcount_inc(&copy->refcount);
+		spin_unlock(&clp->async_lock);
+		return copy;
+	}
+	spin_unlock(&clp->async_lock);
+	return NULL;
+}
+
 static __be32
 nfsd4_offload_cancel(struct svc_rqst *rqstp,
 		     struct nfsd4_compound_state *cstate,
@@ -1285,20 +1302,10 @@ nfsd4_offload_cancel(struct svc_rqst *rqstp,
 	struct nfsd4_offload_status *os = &u->offload_status;
 	__be32 status = 0;
 	struct nfsd4_copy *copy;
-	bool found = false;
 	struct nfs4_client *clp = cstate->clp;
 
-	spin_lock(&clp->async_lock);
-	list_for_each_entry(copy, &clp->async_copies, copies) {
-		if (memcmp(&copy->cp_stateid, &os->stateid,
-				NFS4_STATEID_SIZE))
-			continue;
-		found = true;
-		refcount_inc(&copy->refcount);
-		break;
-	}
-	spin_unlock(&clp->async_lock);
-	if (found) {
+	copy = find_async_copy(clp, &os->stateid);
+	if (copy) {
 		set_tsk_thread_flag(copy->copy_task, TIF_SIGPENDING);
 		kthread_stop(copy->copy_task);
 		nfs4_put_copy(copy);
@@ -1335,7 +1342,19 @@ nfsd4_offload_status(struct svc_rqst *rqstp,
 		     struct nfsd4_compound_state *cstate,
 		     union nfsd4_op_u *u)
 {
-	return nfserr_notsupp;
+	struct nfsd4_offload_status *os = &u->offload_status;
+	__be32 status = 0;
+	struct nfsd4_copy *copy;
+	struct nfs4_client *clp = cstate->clp;
+
+	copy = find_async_copy(clp, &os->stateid);
+	if (copy) {
+		os->count = copy->cp_res.wr_bytes_written;
+		nfs4_put_copy(copy);
+	} else
+		status = nfserr_bad_stateid;
+
+	return status;
 }
 
 static __be32
