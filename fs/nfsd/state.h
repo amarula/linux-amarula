@@ -355,6 +355,8 @@ struct nfs4_client {
 	struct rpc_wait_queue	cl_cb_waitq;	/* backchannel callers may */
 						/* wait here for slots */
 	struct net		*net;
+	struct list_head	async_copies;	/* list of async copies */
+	spinlock_t		async_lock;	/* lock for async copies */
 };
 
 /* struct nfs4_client_reset
