@@ -36,8 +36,7 @@ int blk_mq_update_nr_requests(struct request_queue *q, unsigned int nr);
 void blk_mq_wake_waiters(struct request_queue *q);
 bool blk_mq_dispatch_rq_list(struct request_queue *, struct list_head *, bool);
 void blk_mq_flush_busy_ctxs(struct blk_mq_hw_ctx *hctx, struct list_head *list);
-bool blk_mq_get_driver_tag(struct request *rq, struct blk_mq_hw_ctx **hctx,
-				bool wait);
+bool blk_mq_get_driver_tag(struct request *rq);
 struct request *blk_mq_dequeue_from_ctx(struct blk_mq_hw_ctx *hctx,
 					struct blk_mq_ctx *start);
 
@@ -201,6 +200,14 @@ static inline void blk_mq_put_driver_tag(struct request *rq)
 
 	hctx = blk_mq_map_queue(rq->q, rq->mq_ctx->cpu);
 	__blk_mq_put_driver_tag(hctx, rq);
+}
+
+static inline void blk_mq_clear_mq_map(struct blk_mq_tag_set *set)
+{
+	int cpu;
+
+	for_each_possible_cpu(cpu)
+		set->mq_map[cpu] = 0;
 }
 
 #endif

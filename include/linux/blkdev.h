@@ -42,7 +42,7 @@ struct bsg_job;
 struct blkcg_gq;
 struct blk_flush_queue;
 struct pr_ops;
-struct rq_wb;
+struct rq_qos;
 struct blk_queue_stats;
 struct blk_stat_callback;
 
@@ -442,10 +442,8 @@ struct request_queue {
 	int			nr_rqs[2];	/* # allocated [a]sync rqs */
 	int			nr_rqs_elvpriv;	/* # allocated rqs w/ elvpriv */
 
-	atomic_t		shared_hctx_restart;
-
 	struct blk_queue_stats	*stats;
-	struct rq_wb		*rq_wb;
+	struct rq_qos		*rq_qos;
 
 	/*
 	 * If blkcg is not used, @q->root_rl serves all requests.  If blkcg
@@ -592,6 +590,7 @@ struct request_queue {
 
 	struct queue_limits	limits;
 
+#ifdef CONFIG_BLK_DEV_ZONED
 	/*
 	 * Zoned block device information for request dispatch control.
 	 * nr_zones is the total number of zones of the device. This is always
@@ -612,6 +611,7 @@ struct request_queue {
 	unsigned int		nr_zones;
 	unsigned long		*seq_zones_bitmap;
 	unsigned long		*seq_zones_wlock;
+#endif /* CONFIG_BLK_DEV_ZONED */
 
 	/*
 	 * sg stuff
@@ -800,11 +800,7 @@ static inline unsigned int blk_queue_zone_sectors(struct request_queue *q)
 	return blk_queue_is_zoned(q) ? q->limits.chunk_sectors : 0;
 }
 
-static inline unsigned int blk_queue_nr_zones(struct request_queue *q)
-{
-	return q->nr_zones;
-}
-
+#ifdef CONFIG_BLK_DEV_ZONED
 static inline unsigned int blk_queue_zone_no(struct request_queue *q,
 					     sector_t sector)
 {
@@ -820,6 +816,7 @@ static inline bool blk_queue_zone_is_seq(struct request_queue *q,
 		return false;
 	return test_bit(blk_queue_zone_no(q, sector), q->seq_zones_bitmap);
 }
+#endif /* CONFIG_BLK_DEV_ZONED */
 
 static inline bool rq_is_sync(struct request *rq)
 {
@@ -1070,6 +1067,7 @@ static inline unsigned int blk_rq_cur_sectors(const struct request *rq)
 	return blk_rq_cur_bytes(rq) >> SECTOR_SHIFT;
 }
 
+#ifdef CONFIG_BLK_DEV_ZONED
 static inline unsigned int blk_rq_zone_no(struct request *rq)
 {
 	return blk_queue_zone_no(rq->q, blk_rq_pos(rq));
@@ -1079,6 +1077,7 @@ static inline unsigned int blk_rq_zone_is_seq(struct request *rq)
 {
 	return blk_queue_zone_is_seq(rq->q, blk_rq_pos(rq));
 }
+#endif /* CONFIG_BLK_DEV_ZONED */
 
 /*
  * Some commands like WRITE SAME have a payload or data transfer size which
@@ -1636,15 +1635,6 @@ static inline unsigned int bdev_zone_sectors(struct block_device *bdev)
 
 	if (q)
 		return blk_queue_zone_sectors(q);
-	return 0;
-}
-
-static inline unsigned int bdev_nr_zones(struct block_device *bdev)
-{
-	struct request_queue *q = bdev_get_queue(bdev);
-
-	if (q)
-		return blk_queue_nr_zones(q);
 	return 0;
 }
 
