@@ -1112,6 +1112,51 @@ void nfs4_put_copy(struct nfsd4_copy *copy)
 	kfree(copy);
 }
 
+static bool
+check_and_set_stop_copy(struct nfsd4_copy *copy)
+{
+	bool value;
+
+	spin_lock(&copy->cp_clp->async_lock);
+	value = copy->stopped;
+	if (!copy->stopped)
+		copy->stopped = true;
+	spin_unlock(&copy->cp_clp->async_lock);
+	return value;
+}
+
+static void nfsd4_stop_copy(struct nfsd4_copy *copy)
+{
+	/* only 1 thread should stop the copy */
+	if (!check_and_set_stop_copy(copy)) {
+		set_tsk_thread_flag(copy->copy_task, TIF_SIGPENDING);
+		kthread_stop(copy->copy_task);
+	}
+	nfs4_put_copy(copy);
+}
+
+static struct nfsd4_copy *nfsd4_get_copy(struct nfs4_client *clp)
+{
+	struct nfsd4_copy *copy = NULL;
+
+	spin_lock(&clp->async_lock);
+	if (!list_empty(&clp->async_copies)) {
+		copy = list_first_entry(&clp->async_copies, struct nfsd4_copy,
+					copies);
+		refcount_inc(&copy->refcount);
+	}
+	spin_unlock(&clp->async_lock);
+	return copy;
+}
+
+void nfsd4_shutdown_copy(struct nfs4_client *clp)
+{
+	struct nfsd4_copy *copy;
+
+	while ((copy = nfsd4_get_copy(clp)) != NULL)
+		nfsd4_stop_copy(copy);
+}
+
 static void nfsd4_cb_offload_release(struct nfsd4_callback *cb)
 {
 	struct nfsd4_copy *copy = container_of(cb, struct nfsd4_copy, cp_cb);
@@ -1305,11 +1350,9 @@ nfsd4_offload_cancel(struct svc_rqst *rqstp,
 	struct nfs4_client *clp = cstate->clp;
 
 	copy = find_async_copy(clp, &os->stateid);
-	if (copy) {
-		set_tsk_thread_flag(copy->copy_task, TIF_SIGPENDING);
-		kthread_stop(copy->copy_task);
-		nfs4_put_copy(copy);
-	} else
+	if (copy)
+		nfsd4_stop_copy(copy);
+	else
 		status = nfserr_bad_stateid;
 
 	return status;

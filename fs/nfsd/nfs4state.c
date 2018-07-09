@@ -1974,6 +1974,7 @@ __destroy_client(struct nfs4_client *clp)
 		}
 	}
 	nfsd4_return_all_client_layouts(clp);
+	nfsd4_shutdown_copy(clp);
 	nfsd4_shutdown_callback(clp);
 	if (clp->cl_cb_conn.cb_xprt)
 		svc_xprt_put(clp->cl_cb_conn.cb_xprt);
@@ -2504,7 +2505,8 @@ static bool client_has_state(struct nfs4_client *clp)
 		|| !list_empty(&clp->cl_lo_states)
 #endif
 		|| !list_empty(&clp->cl_delegations)
-		|| !list_empty(&clp->cl_sessions);
+		|| !list_empty(&clp->cl_sessions)
+		|| !list_empty(&clp->async_copies);
 }
 
 __be32
