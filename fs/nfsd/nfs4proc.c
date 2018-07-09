@@ -1104,11 +1104,19 @@ nfsd4_clone(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 out:
 	return status;
 }
+
+void nfs4_put_copy(struct nfsd4_copy *copy)
+{
+	if (!refcount_dec_and_test(&copy->refcount))
+		return;
+	kfree(copy);
+}
+
 static void nfsd4_cb_offload_release(struct nfsd4_callback *cb)
 {
 	struct nfsd4_copy *copy = container_of(cb, struct nfsd4_copy, cp_cb);
 
-	kfree(copy);
+	nfs4_put_copy(copy);
 }
 
 static int nfsd4_cb_offload_done(struct nfsd4_callback *cb,
@@ -1139,6 +1147,8 @@ static ssize_t _nfsd_copy_file_range(struct nfsd4_copy *copy)
 	u64 dst_pos = copy->cp_dst_pos;
 
 	do {
+		if (signalled() || kthread_should_stop())
+			break;
 		bytes_copied = nfsd_copy_file_range(copy->file_src, src_pos,
 				copy->file_dst, dst_pos, bytes_total);
 		if (bytes_copied <= 0)
@@ -1192,7 +1202,7 @@ static void cleanup_async_copy(struct nfsd4_copy *copy)
 	spin_lock(&copy->cp_clp->async_lock);
 	list_del(&copy->copies);
 	spin_unlock(&copy->cp_clp->async_lock);
-	kfree(copy);
+	nfs4_put_copy(copy);
 }
 
 static int nfsd4_do_async_copy(void *data)
@@ -1242,6 +1252,7 @@ nfsd4_copy(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 			goto out;
 		if (!nfs4_init_cp_state(nn, copy))
 			goto out;
+		refcount_set(&async_copy->refcount, 1);
 		memcpy(&copy->cp_res.cb_stateid, &copy->cp_stateid,
 			sizeof(copy->cp_stateid));
 		dup_copy_fields(copy, async_copy);
@@ -1271,7 +1282,30 @@ nfsd4_offload_cancel(struct svc_rqst *rqstp,
 		     struct nfsd4_compound_state *cstate,
 		     union nfsd4_op_u *u)
 {
-	return 0;
+	struct nfsd4_offload_status *os = &u->offload_status;
+	__be32 status = 0;
+	struct nfsd4_copy *copy;
+	bool found = false;
+	struct nfs4_client *clp = cstate->clp;
+
+	spin_lock(&clp->async_lock);
+	list_for_each_entry(copy, &clp->async_copies, copies) {
+		if (memcmp(&copy->cp_stateid, &os->stateid,
+				NFS4_STATEID_SIZE))
+			continue;
+		found = true;
+		refcount_inc(&copy->refcount);
+		break;
+	}
+	spin_unlock(&clp->async_lock);
+	if (found) {
+		set_tsk_thread_flag(copy->copy_task, TIF_SIGPENDING);
+		kthread_stop(copy->copy_task);
+		nfs4_put_copy(copy);
+	} else
+		status = nfserr_bad_stateid;
+
+	return status;
 }
 
 static __be32
