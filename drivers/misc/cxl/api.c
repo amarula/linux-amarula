@@ -43,7 +43,8 @@ static const struct dentry_operations cxl_fs_dops = {
 };
 
 static struct dentry *cxl_fs_mount(struct file_system_type *fs_type, int flags,
-				const char *dev_name, void *data)
+				   const char *dev_name,
+				   void *data, size_t data_len)
 {
 	return mount_pseudo(fs_type, "cxl:", NULL, &cxl_fs_dops,
 			CXL_PSEUDO_FS_MAGIC);
@@ -67,10 +68,8 @@ static struct file *cxl_getfile(const char *name,
 				const struct file_operations *fops,
 				void *priv, int flags)
 {
-	struct qstr this;
-	struct path path;
 	struct file *file;
-	struct inode *inode = NULL;
+	struct inode *inode;
 	int rc;
 
 	/* strongly inspired by anon_inode_getfile() */
@@ -91,27 +90,16 @@ static struct file *cxl_getfile(const char *name,
 		goto err_fs;
 	}
 
-	file = ERR_PTR(-ENOMEM);
-	this.name = name;
-	this.len = strlen(name);
-	this.hash = 0;
-	path.dentry = d_alloc_pseudo(cxl_vfs_mount->mnt_sb, &this);
-	if (!path.dentry)
+	file = alloc_file_pseudo(inode, cxl_vfs_mount, name,
+				 OPEN_FMODE(flags), fops);
+	if (IS_ERR(file))
 		goto err_inode;
 
-	path.mnt = mntget(cxl_vfs_mount);
-	d_instantiate(path.dentry, inode);
-
-	file = alloc_file(&path, OPEN_FMODE(flags), fops);
-	if (IS_ERR(file))
-		goto err_dput;
 	file->f_flags = flags & (O_ACCMODE | O_NONBLOCK);
 	file->private_data = priv;
 
 	return file;
 
-err_dput:
-	path_put(&path);
 err_inode:
 	iput(inode);
 err_fs:
