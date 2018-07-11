@@ -119,7 +119,6 @@ static void __init bootmem_init(void)
 
 void __init setup_arch(char **cmdline_p)
 {
-	unflatten_and_copy_device_tree();
 
 	init_mm.start_code = (unsigned long) _stext;
 	init_mm.end_code = (unsigned long) _etext;
@@ -136,6 +135,7 @@ void __init setup_arch(char **cmdline_p)
 	parse_early_param();
 
 	bootmem_init();
+	unflatten_and_copy_device_tree();
 	/*
 	 * get kmalloc into gear
 	 */
