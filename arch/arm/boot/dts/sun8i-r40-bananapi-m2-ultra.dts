@@ -251,24 +251,8 @@
 	regulator-name = "vcc-wifi";
 };
 
-&tcon_top_hdmi_in_tcon_tv0 {
-	remote-endpoint = <&tcon_tv0_out_tcon_top>;
-};
-
-&tcon_top_mixer0_out_tcon_tv0 {
-	remote-endpoint = <&tcon_tv0_in_tcon_top>;
-};
-
-&tcon_tv0_in {
-	tcon_tv0_in_tcon_top: endpoint {
-		remote-endpoint = <&tcon_top_mixer0_out_tcon_tv0>;
-	};
-};
-
-&tcon_tv0_out {
-	tcon_tv0_out_tcon_top: endpoint {
-		remote-endpoint = <&tcon_top_hdmi_in_tcon_tv0>;
-	};
+&tcon_tv0 {
+	status = "okay";
 };
 
 &uart0 {
