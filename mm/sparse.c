@@ -588,7 +588,8 @@ void __init sparse_init(void)
 				sizeof(map_map[0]));
 #endif
 
-	/* The numner of present sections stored in nr_present_sections
+	/*
+	 * The number of present sections stored in nr_present_sections
 	 * are kept the same since mem sections are marked as present in
 	 * memory_present(). In this for loop, we need check which sections
 	 * failed to allocate memmap or usemap, then clear its
@@ -596,7 +597,8 @@ void __init sparse_init(void)
 	 * increase 'nr_consumed_maps' whether its allocation of memmap
 	 * or usemap failed or not, so that after we handle the i-th
 	 * memory section, can get memmap and usemap of (i+1)-th section
-	 * correctly. */
+	 * correctly.
+	 */
 	for_each_present_section_nr(0, pnum) {
 		struct mem_section *ms;
 
