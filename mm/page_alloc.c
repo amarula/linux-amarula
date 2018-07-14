@@ -8039,8 +8039,9 @@ bool is_free_buddy_page(struct page *page)
 
 #ifdef CONFIG_MEMORY_FAILURE
 /*
- * Set PG_hwpoison flag if a given page is confirmed to be a free page
- * within zone lock, which prevents the race against page allocation.
+ * Set PG_hwpoison flag if a given page is confirmed to be a free page.  This
+ * test is performed under the zone lock to prevent a race against page
+ * allocation.
  */
 bool set_hwpoison_free_buddy_page(struct page *page)
 {
