@@ -302,7 +302,7 @@ static unsigned long move_vma(struct vm_area_struct *vma,
 				     need_rmap_locks);
 	if (moved_len < old_len) {
 		err = -ENOMEM;
-	} else if (vma->vm_ops && vma->vm_ops->mremap) {
+	} else if (vma->vm_ops->mremap) {
 		err = vma->vm_ops->mremap(new_vma);
 	}
 

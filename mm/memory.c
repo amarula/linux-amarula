@@ -768,7 +768,7 @@ static void print_bad_pte(struct vm_area_struct *vma, unsigned long addr,
 		 (void *)addr, vma->vm_flags, vma->anon_vma, mapping, index);
 	pr_alert("file:%pD fault:%pf mmap:%pf readpage:%pf\n",
 		 vma->vm_file,
-		 vma->vm_ops ? vma->vm_ops->fault : NULL,
+		 vma->vm_ops->fault,
 		 vma->vm_file ? vma->vm_file->f_op->mmap : NULL,
 		 mapping ? mapping->a_ops->readpage : NULL);
 	dump_stack();
@@ -825,7 +825,7 @@ struct page *_vm_normal_page(struct vm_area_struct *vma, unsigned long addr,
 	if (IS_ENABLED(CONFIG_ARCH_HAS_PTE_SPECIAL)) {
 		if (likely(!pte_special(pte)))
 			goto check_pfn;
-		if (vma->vm_ops && vma->vm_ops->find_special_page)
+		if (vma->vm_ops->find_special_page)
 			return vma->vm_ops->find_special_page(vma, addr);
 		if (vma->vm_flags & (VM_PFNMAP | VM_MIXEDMAP))
 			return NULL;
@@ -2398,7 +2398,7 @@ static void fault_dirty_shared_page(struct vm_area_struct *vma,
 {
 	struct address_space *mapping;
 	bool dirtied;
-	bool page_mkwrite = vma->vm_ops && vma->vm_ops->page_mkwrite;
+	bool page_mkwrite = vma->vm_ops->page_mkwrite;
 
 	dirtied = set_page_dirty(page);
 	VM_BUG_ON_PAGE(PageAnon(page), page);
@@ -2642,7 +2642,7 @@ static int wp_pfn_shared(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
 
-	if (vma->vm_ops && vma->vm_ops->pfn_mkwrite) {
+	if (vma->vm_ops->pfn_mkwrite) {
 		int ret;
 
 		pte_unmap_unlock(vmf->pte, vmf->ptl);
@@ -2663,7 +2663,7 @@ static int wp_page_shared(struct vm_fault *vmf)
 
 	get_page(vmf->page);
 
-	if (vma->vm_ops && vma->vm_ops->page_mkwrite) {
+	if (vma->vm_ops->page_mkwrite) {
 		int tmp;
 
 		pte_unmap_unlock(vmf->pte, vmf->ptl);
@@ -4433,7 +4433,7 @@ int __access_remote_vm(struct task_struct *tsk, struct mm_struct *mm,
 			vma = find_vma(mm, addr);
 			if (!vma || vma->vm_start > addr)
 				break;
-			if (vma->vm_ops && vma->vm_ops->access)
+			if (vma->vm_ops->access)
 				ret = vma->vm_ops->access(vma, addr, buf,
 							  len, write);
 			if (ret <= 0)
