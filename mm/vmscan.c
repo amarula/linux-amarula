@@ -364,11 +364,6 @@ int prealloc_shrinker(struct shrinker *shrinker)
 	if (!shrinker->nr_deferred)
 		return -ENOMEM;
 
-	if (shrinker->flags & SHRINKER_MEMCG_AWARE) {
-		if (prealloc_memcg_shrinker(shrinker))
-			goto free_deferred;
-	}
-
 	/*
 	 * There is a window between prealloc_shrinker()
 	 * and register_shrinker_prepared(). We don't want
@@ -383,6 +378,12 @@ int prealloc_shrinker(struct shrinker *shrinker)
 	 * is not registered (id is not assigned).
 	 */
 	INIT_LIST_HEAD(&shrinker->list);
+
+	if (shrinker->flags & SHRINKER_MEMCG_AWARE) {
+		if (prealloc_memcg_shrinker(shrinker))
+			goto free_deferred;
+	}
+
 	return 0;
 
 free_deferred:
@@ -571,13 +572,10 @@ static unsigned long shrink_slab_memcg(gfp_t gfp_mask, int nid,
 	if (!down_read_trylock(&shrinker_rwsem))
 		return 0;
 
-	/*
-	 * 1) Caller passes only alive memcg, so map can't be NULL.
-	 * 2) shrinker_rwsem protects from maps expanding.
-	 */
 	map = rcu_dereference_protected(memcg->nodeinfo[nid]->shrinker_map,
 					true);
-	BUG_ON(!map);
+	if (unlikely(!map))
+		goto unlock;
 
 	for_each_set_bit(i, map->map, shrinker_nr_max) {
 		struct shrink_control sc = {
@@ -592,7 +590,6 @@ static unsigned long shrink_slab_memcg(gfp_t gfp_mask, int nid,
 			clear_bit(i, map->map);
 			continue;
 		}
-		BUG_ON(!(shrinker->flags & SHRINKER_MEMCG_AWARE));
 
 		/* See comment in prealloc_shrinker() */
 		if (unlikely(list_empty(&shrinker->list)))
@@ -606,7 +603,7 @@ static unsigned long shrink_slab_memcg(gfp_t gfp_mask, int nid,
 			break;
 		}
 	}
-
+unlock:
 	up_read(&shrinker_rwsem);
 	return freed;
 }
