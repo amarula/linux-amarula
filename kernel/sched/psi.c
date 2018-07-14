@@ -422,15 +422,15 @@ void psi_task_change(struct task_struct *task, u64 now, int clear, int set)
 	psi_group_change(&psi_system, cpu, now, clear, set);
 
 #ifdef CONFIG_CGROUPS
-       cgroup = task->cgroups->dfl_cgrp;
-       while (cgroup && (parent = cgroup_parent(cgroup))) {
-               struct psi_group *group;
+	cgroup = task->cgroups->dfl_cgrp;
+	while (cgroup && (parent = cgroup_parent(cgroup))) {
+		struct psi_group *group;
 
-               group = cgroup_psi(cgroup);
-               psi_group_change(group, cpu, now, clear, set);
+		group = cgroup_psi(cgroup);
+		psi_group_change(group, cpu, now, clear, set);
 
-               cgroup = parent;
-       }
+		cgroup = parent;
+	}
 #endif
 }
 
@@ -535,11 +535,10 @@ void cgroup_move_task(struct task_struct *task, struct css_set *to)
 
 	rq = task_rq_lock(task, &rf);
 
-	if (task_on_rq_queued(task)) {
+	if (task_on_rq_queued(task))
 		task_flags = TSK_RUNNING;
-	} else if (task->in_iowait) {
+	else if (task->in_iowait)
 		task_flags = TSK_IOWAIT;
-	}
 	if (task->flags & PF_MEMSTALL)
 		task_flags |= TSK_MEMSTALL;
 

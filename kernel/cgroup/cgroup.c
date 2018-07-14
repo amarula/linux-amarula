@@ -4551,21 +4551,21 @@ static struct cftype cgroup_base_files[] = {
 		.seq_show = cpu_stat_show,
 	},
 #ifdef CONFIG_PSI
-       {
-               .name = "cpu.pressure",
-               .flags = CFTYPE_NOT_ON_ROOT,
-               .seq_show = cgroup_cpu_pressure_show,
-       },
-       {
-               .name = "memory.pressure",
-               .flags = CFTYPE_NOT_ON_ROOT,
-               .seq_show = cgroup_memory_pressure_show,
-       },
-       {
-               .name = "io.pressure",
-               .flags = CFTYPE_NOT_ON_ROOT,
-               .seq_show = cgroup_io_pressure_show,
-       },
+	{
+		.name = "cpu.pressure",
+		.flags = CFTYPE_NOT_ON_ROOT,
+		.seq_show = cgroup_cpu_pressure_show,
+	},
+	{
+		.name = "memory.pressure",
+		.flags = CFTYPE_NOT_ON_ROOT,
+		.seq_show = cgroup_memory_pressure_show,
+	},
+	{
+		.name = "io.pressure",
+		.flags = CFTYPE_NOT_ON_ROOT,
+		.seq_show = cgroup_io_pressure_show,
+	},
 #endif
 	{ }	/* terminate */
 };
