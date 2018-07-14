@@ -183,6 +183,11 @@ static int prealloc_memcg_shrinker(struct shrinker *shrinker)
 	if (id < 0)
 		goto unlock;
 
+	if (memcg_expand_shrinker_maps(id)) {
+		idr_remove(&shrinker_idr, id);
+		goto unlock;
+	}
+
 	if (id >= shrinker_nr_max)
 		shrinker_nr_max = id + 1;
 	shrinker->id = id;
