@@ -101,7 +101,7 @@ int inotify_handle_event(struct fsnotify_group *group,
 
 	/* Whoever is interested in the event, pays for the allocation. */
 	memalloc_use_memcg(group->memcg);
-	event = kmalloc(alloc_len, GFP_KERNEL | __GFP_ACCOUNT);
+	event = kmalloc(alloc_len, GFP_KERNEL_ACCOUNT);
 	memalloc_unuse_memcg();
 
 	if (unlikely(!event)) {

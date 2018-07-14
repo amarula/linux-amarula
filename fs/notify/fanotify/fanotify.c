@@ -142,7 +142,7 @@ struct fanotify_event_info *fanotify_alloc_event(struct fsnotify_group *group,
 						 const struct path *path)
 {
 	struct fanotify_event_info *event = NULL;
-	gfp_t gfp = GFP_KERNEL | __GFP_ACCOUNT;
+	gfp_t gfp = GFP_KERNEL_ACCOUNT;
 
 	/*
 	 * For queues with unlimited length lost events are not expected and
