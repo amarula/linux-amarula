@@ -496,9 +496,11 @@ void __oom_reap_task_mm(struct mm_struct *mm)
 	 * Tell all users of get_user/copy_from_user etc... that the content
 	 * is no longer stable. No barriers really needed because unmapping
 	 * should imply barriers already and the reader would hit a page fault
-	 * if it stumbled over a reaped memory.
+	 * if it stumbled over a reaped memory. If MMF_UNSTABLE is already set,
+	 * reaping as already occurred so nothing left to do.
 	 */
-	set_bit(MMF_UNSTABLE, &mm->flags);
+	if (test_and_set_bit(MMF_UNSTABLE, &mm->flags))
+		return;
 
 	for (vma = mm->mmap ; vma; vma = vma->vm_next) {
 		if (!can_madv_dontneed_vma(vma))
