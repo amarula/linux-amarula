@@ -352,8 +352,7 @@ static int memcg_expand_one_shrinker_map(struct mem_cgroup *memcg,
 		memset((void *)new->map + old_size, 0, size - old_size);
 
 		rcu_assign_pointer(memcg->nodeinfo[nid]->shrinker_map, new);
-		if (old)
-			call_rcu(&old->rcu, memcg_free_shrinker_map_rcu);
+		call_rcu(&old->rcu, memcg_free_shrinker_map_rcu);
 	}
 
 	return 0;
@@ -406,7 +405,7 @@ int memcg_expand_shrinker_maps(int new_id)
 	int size, old_size, ret = 0;
 	struct mem_cgroup *memcg;
 
-	size = DIV_ROUND_UP(new_id + 1, BITS_PER_BYTE);
+	size = DIV_ROUND_UP(new_id + 1, BITS_PER_LONG) * sizeof(unsigned long);
 	old_size = memcg_shrinker_map_size;
 	if (size <= old_size)
 		return 0;
