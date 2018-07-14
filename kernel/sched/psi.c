@@ -176,7 +176,8 @@ static void calc_avgs(unsigned long avg[3], u64 time, int missed_periods)
 	unsigned long pct;
 
 	/* Sample the most recent active period */
-	pct = time * 100 / psi_period;
+	pct = time * 100;
+	do_div(pct, psi_period);
 	pct *= FIXED_1;
 	avg[0] = calc_load(avg[0], EXP_10s, pct);
 	avg[1] = calc_load(avg[1], EXP_60s, pct);
