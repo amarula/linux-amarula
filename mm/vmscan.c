@@ -178,6 +178,7 @@ static int prealloc_memcg_shrinker(struct shrinker *shrinker)
 	int id, ret = -ENOMEM;
 
 	down_write(&shrinker_rwsem);
+	/* This may call shrinker, so it must use down_read_trylock() */
 	id = idr_alloc(&shrinker_idr, shrinker, 0, 0, GFP_KERNEL);
 	if (id < 0)
 		goto unlock;
@@ -375,11 +376,11 @@ void free_prealloced_shrinker(struct shrinker *shrinker)
 	if (!shrinker->nr_deferred)
 		return;
 
-	kfree(shrinker->nr_deferred);
-	shrinker->nr_deferred = NULL;
-
 	if (shrinker->flags & SHRINKER_MEMCG_AWARE)
 		unregister_memcg_shrinker(shrinker);
+
+	kfree(shrinker->nr_deferred);
+	shrinker->nr_deferred = NULL;
 }
 
 void register_shrinker_prepared(struct shrinker *shrinker)
