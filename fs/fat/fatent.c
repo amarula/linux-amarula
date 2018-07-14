@@ -705,8 +705,8 @@ int fat_trim_fs(struct inode *inode, struct fstrim_range *range)
 	struct msdos_sb_info *sbi = MSDOS_SB(sb);
 	const struct fatent_operations *ops = sbi->fatent_ops;
 	struct fat_entry fatent;
-	u64 ent_start, ent_end, minlen;
-	u32 free = 0, trimmed = 0;
+	u64 ent_start, ent_end, minlen, trimmed = 0;
+	u32 free = 0;
 	unsigned long reada_blocks, reada_mask, cur_block = 0;
 	int err = 0;
 
