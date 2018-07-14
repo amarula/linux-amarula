@@ -814,7 +814,7 @@ struct buffer_head *alloc_page_buffers(struct page *page, unsigned long size,
 		bool retry)
 {
 	struct buffer_head *bh, *head;
-	gfp_t gfp = GFP_NOFS;
+	gfp_t gfp = GFP_NOFS | __GFP_ACCOUNT;
 	long offset;
 	struct mem_cgroup *memcg;
 
