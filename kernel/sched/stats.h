@@ -248,10 +248,10 @@ sched_info_switch(struct rq *rq, struct task_struct *prev, struct task_struct *n
 }
 
 #else /* !CONFIG_SCHED_INFO: */
-# define sched_info_queued(rq, t)	do { } while (0)
-# define sched_info_reset_dequeued(t)	do { } while (0)
-# define sched_info_dequeued(rq, t)	do { } while (0)
-# define sched_info_depart(rq, t)	do { } while (0)
-# define sched_info_arrive(rq, next)	do { } while (0)
-# define sched_info_switch(rq, t, next)	do { } while (0)
+# define sched_info_queued(rq, t, wakeup)	do { } while (0)
+# define sched_info_reset_dequeued(t)		do { } while (0)
+# define sched_info_dequeued(rq, t, sleep)	do { } while (0)
+# define sched_info_depart(rq, t)		do { } while (0)
+# define sched_info_arrive(rq, next)		do { } while (0)
+# define sched_info_switch(rq, t, next)		do { } while (0)
 #endif /* CONFIG_SCHED_INFO */
