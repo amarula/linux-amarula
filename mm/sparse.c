@@ -753,12 +753,9 @@ int __meminit sparse_add_one_section(struct pglist_data *pgdat,
 	 * plus, it does a kmalloc
 	 */
 	ret = sparse_index_init(section_nr, pgdat->node_id);
-	if (ret < 0) {
-		if (ret == -EEXIST)
-			ret = 0;
-		else
-			return ret;
-	}
+	if (ret < 0 && ret != -EEXIST)
+		return ret;
+	ret = 0;
 	memmap = kmalloc_section_memmap(section_nr, pgdat->node_id, altmap);
 	if (!memmap)
 		return -ENOMEM;
