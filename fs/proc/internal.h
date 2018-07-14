@@ -65,12 +65,12 @@ struct proc_dir_entry {
 	char inline_name[];
 } __randomize_layout;
 
-#ifdef CONFIG_64BIT
-#define SIZEOF_PDE	(sizeof(spinlock_t) <= 4 ? 192 : 256)
-#else
-#define SIZEOF_PDE	(sizeof(spinlock_t) <= 4 ? 128 : 192)
-#endif
-
+#define SIZEOF_PDE	(				\
+	sizeof(struct proc_dir_entry) < 128 ? 128 :	\
+	sizeof(struct proc_dir_entry) < 192 ? 192 :	\
+	sizeof(struct proc_dir_entry) < 256 ? 256 :	\
+	sizeof(struct proc_dir_entry) < 512 ? 512 :	\
+	0)
 #define SIZEOF_PDE_INLINE_NAME (SIZEOF_PDE - sizeof(struct proc_dir_entry))
 
 extern struct kmem_cache *proc_dir_entry_cache;
