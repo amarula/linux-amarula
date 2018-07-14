@@ -71,18 +71,6 @@ int mmap_rnd_compat_bits __read_mostly = CONFIG_ARCH_MMAP_RND_COMPAT_BITS;
 static bool ignore_rlimit_data;
 core_param(ignore_rlimit_data, ignore_rlimit_data, bool, 0644);
 
-/*
- * All anonymous VMAs have ->vm_ops set to anon_vm_ops.
- * vma_is_anonymous() reiles on anon_vm_ops to detect anonymous VMA.
- */
-const struct vm_operations_struct anon_vm_ops = {};
-
-/*
- * All VMAs have to have ->vm_ops set. dummy_vm_ops can be used if the VMA
- * doesn't need to handle any of the operations.
- */
-const struct vm_operations_struct dummy_vm_ops = {};
-
 static void unmap_region(struct mm_struct *mm,
 		struct vm_area_struct *vma, struct vm_area_struct *prev,
 		unsigned long start, unsigned long end);
@@ -1776,6 +1764,11 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		 */
 		vma->vm_file = get_file(file);
 		error = call_mmap(file, vma);
+
+		/* All mappings must have ->vm_ops set */
+		if (!vma->vm_ops)
+			vma->vm_ops = &dummy_vm_ops;
+
 		if (error)
 			goto unmap_and_free_vma;
 
@@ -1787,10 +1780,6 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		 *      be updated for vma_link()
 		 */
 		WARN_ON_ONCE(addr != vma->vm_start);
-
-		/* All mappings must have ->vm_ops set */
-		if (!vma->vm_ops)
-			vma->vm_ops = &dummy_vm_ops;
 
 		addr = vma->vm_start;
 		vm_flags = vma->vm_flags;

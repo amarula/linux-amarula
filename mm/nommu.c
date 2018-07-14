@@ -1058,6 +1058,8 @@ static int do_mmap_shared_file(struct vm_area_struct *vma)
 	int ret;
 
 	ret = call_mmap(vma->vm_file, vma);
+	if (!vma->vm_ops)
+		vma->vm_ops = &dummy_vm_ops;
 	if (ret == 0) {
 		vma->vm_region->vm_top = vma->vm_region->vm_end;
 		return 0;
@@ -1089,6 +1091,8 @@ static int do_mmap_private(struct vm_area_struct *vma,
 	 */
 	if (capabilities & NOMMU_MAP_DIRECT) {
 		ret = call_mmap(vma->vm_file, vma);
+		if (!vma->vm_ops)
+			vma->vm_ops = &dummy_vm_ops;
 		if (ret == 0) {
 			/* shouldn't return success if we're not sharing */
 			BUG_ON(!(vma->vm_flags & VM_MAYSHARE));
@@ -1137,6 +1141,8 @@ static int do_mmap_private(struct vm_area_struct *vma,
 		fpos = vma->vm_pgoff;
 		fpos <<= PAGE_SHIFT;
 
+		vma->vm_ops = &dummy_vm_ops;
+
 		ret = kernel_read(vma->vm_file, base, len, &fpos);
 		if (ret < 0)
 			goto error_free;
@@ -1144,7 +1150,8 @@ static int do_mmap_private(struct vm_area_struct *vma,
 		/* clear the last little bit */
 		if (ret < len)
 			memset(base + ret, 0, len - ret);
-
+	} else {
+		vma->vm_ops = &anon_vm_ops;
 	}
 
 	return 0;
