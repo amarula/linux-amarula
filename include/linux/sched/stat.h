@@ -31,7 +31,7 @@ static inline int sched_info_on(void)
 	if (delayacct_on)
 		return 1;
 #elif defined(CONFIG_PSI)
-	extern int psi_disabled;
+	extern bool psi_disabled;
 	if (!psi_disabled)
 		return 1;
 #endif
