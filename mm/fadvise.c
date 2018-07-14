@@ -73,7 +73,7 @@ int ksys_fadvise64_64(int fd, loff_t offset, loff_t len, int advice)
 	}
 
 	/* Careful about overflows. Len == 0 means "as much as possible" */
-	endbyte = offset + len;
+	endbyte = (u64)offset + (u64)len;
 	if (!len || endbyte < len)
 		endbyte = -1;
 	else
