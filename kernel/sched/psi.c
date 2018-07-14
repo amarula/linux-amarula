@@ -396,6 +396,9 @@ static void psi_group_change(struct psi_group *group, int cpu, u64 now,
 
 void psi_task_change(struct task_struct *task, u64 now, int clear, int set)
 {
+#ifdef CONFIG_CGROUPS
+	struct cgroup *cgroup, *parent;
+#endif
 	int cpu = task_cpu(task);
 
 	if (psi_disabled)
@@ -417,6 +420,18 @@ void psi_task_change(struct task_struct *task, u64 now, int clear, int set)
 	task->psi_flags |= set;
 
 	psi_group_change(&psi_system, cpu, now, clear, set);
+
+#ifdef CONFIG_CGROUPS
+       cgroup = task->cgroups->dfl_cgrp;
+       while (cgroup && (parent = cgroup_parent(cgroup))) {
+               struct psi_group *group;
+
+               group = cgroup_psi(cgroup);
+               psi_group_change(group, cpu, now, clear, set);
+
+               cgroup = parent;
+       }
+#endif
 }
 
 /**
@@ -483,8 +498,71 @@ void psi_memstall_leave(unsigned long *flags)
 	rq_unlock_irq(rq, &rf);
 }
 
-static int psi_show(struct seq_file *m, struct psi_group *group,
-		    enum psi_res res)
+#ifdef CONFIG_CGROUPS
+int psi_cgroup_alloc(struct cgroup *cgroup)
+{
+	cgroup->psi.cpus = alloc_percpu(struct psi_group_cpu);
+	if (!cgroup->psi.cpus)
+		return -ENOMEM;
+	psi_group_init(&cgroup->psi);
+	return 0;
+}
+
+void psi_cgroup_free(struct cgroup *cgroup)
+{
+	cancel_delayed_work_sync(&cgroup->psi.clock_work);
+	free_percpu(cgroup->psi.cpus);
+}
+
+/**
+ * cgroup_move_task - move task to a different cgroup
+ * @task: the task
+ * @to: the target css_set
+ *
+ * Move task to a new cgroup and safely migrate its associated stall
+ * state between the different groups.
+ *
+ * This function acquires the task's rq lock to lock out concurrent
+ * changes to the task's scheduling state and - in case the task is
+ * running - concurrent changes to its stall state.
+ */
+void cgroup_move_task(struct task_struct *task, struct css_set *to)
+{
+	unsigned int task_flags = 0;
+	struct rq_flags rf;
+	struct rq *rq;
+	u64 now;
+
+	rq = task_rq_lock(task, &rf);
+
+	if (task_on_rq_queued(task)) {
+		task_flags = TSK_RUNNING;
+	} else if (task->in_iowait) {
+		task_flags = TSK_IOWAIT;
+	}
+	if (task->flags & PF_MEMSTALL)
+		task_flags |= TSK_MEMSTALL;
+
+	if (task_flags) {
+		update_rq_clock(rq);
+		now = rq_clock(rq);
+		psi_task_change(task, now, task_flags, 0);
+	}
+
+	/*
+	 * Lame to do this here, but the scheduler cannot be locked
+	 * from the outside, so we move cgroups from inside sched/.
+	 */
+	rcu_assign_pointer(task->cgroups, to);
+
+	if (task_flags)
+		psi_task_change(task, now, 0, task_flags);
+
+	task_rq_unlock(rq, task, &rf);
+}
+#endif /* CONFIG_CGROUPS */
+
+int psi_show(struct seq_file *m, struct psi_group *group, enum psi_res res)
 {
 	unsigned long avg[2][3];
 	u64 some, full;
