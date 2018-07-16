@@ -4760,19 +4760,14 @@ int extent_buffer_under_io(struct extent_buffer *eb)
  */
 static void btrfs_release_extent_buffer_page(struct extent_buffer *eb)
 {
-	int index;
-	struct page *page;
-	int mapped = !test_bit(EXTENT_BUFFER_DUMMY, &eb->bflags);
+	int i;
+	int mapped = !test_bit(EXTENT_BUFFER_PRIVATE, &eb->bflags);
 
 	BUG_ON(extent_buffer_under_io(eb));
 
-	index = num_extent_pages(eb);
-	if (index == 0)
-		return;
+	for (i = 0; i < num_extent_pages(eb); i++) {
+		struct page *page = eb->pages[i];
 
-	do {
-		index--;
-		page = eb->pages[index];
 		if (!page)
 			continue;
 		if (mapped)
@@ -4804,7 +4799,7 @@ static void btrfs_release_extent_buffer_page(struct extent_buffer *eb)
 
 		/* One for when we allocated the page */
 		put_page(page);
-	} while (index != 0);
+	}
 }
 
 /*
@@ -4879,7 +4874,7 @@ struct extent_buffer *btrfs_clone_extent_buffer(struct extent_buffer *src)
 	}
 
 	set_bit(EXTENT_BUFFER_UPTODATE, &new->bflags);
-	set_bit(EXTENT_BUFFER_DUMMY, &new->bflags);
+	set_bit(EXTENT_BUFFER_PRIVATE, &new->bflags);
 
 	return new;
 }
@@ -4903,7 +4898,7 @@ struct extent_buffer *__alloc_dummy_extent_buffer(struct btrfs_fs_info *fs_info,
 	}
 	set_extent_buffer_uptodate(eb);
 	btrfs_set_header_nritems(eb, 0);
-	set_bit(EXTENT_BUFFER_DUMMY, &eb->bflags);
+	set_bit(EXTENT_BUFFER_PRIVATE, &eb->bflags);
 
 	return eb;
 err:
@@ -5188,9 +5183,10 @@ static inline void btrfs_release_extent_buffer_rcu(struct rcu_head *head)
 	__free_extent_buffer(eb);
 }
 
-/* Expects to have eb->eb_lock already held */
 static int release_extent_buffer(struct extent_buffer *eb)
 {
+	lockdep_assert_held(&eb->refs_lock);
+
 	WARN_ON(atomic_read(&eb->refs) == 0);
 	if (atomic_dec_and_test(&eb->refs)) {
 		if (test_and_clear_bit(EXTENT_BUFFER_IN_TREE, &eb->bflags)) {
@@ -5209,7 +5205,7 @@ static int release_extent_buffer(struct extent_buffer *eb)
 		/* Should be safe to release our pages at this point */
 		btrfs_release_extent_buffer_page(eb);
 #ifdef CONFIG_BTRFS_FS_RUN_SANITY_TESTS
-		if (unlikely(test_bit(EXTENT_BUFFER_DUMMY, &eb->bflags))) {
+		if (unlikely(test_bit(EXTENT_BUFFER_PRIVATE, &eb->bflags))) {
 			__free_extent_buffer(eb);
 			return 1;
 		}
@@ -5240,7 +5236,7 @@ void free_extent_buffer(struct extent_buffer *eb)
 
 	spin_lock(&eb->refs_lock);
 	if (atomic_read(&eb->refs) == 2 &&
-	    test_bit(EXTENT_BUFFER_DUMMY, &eb->bflags))
+	    test_bit(EXTENT_BUFFER_PRIVATE, &eb->bflags))
 		atomic_dec(&eb->refs);
 
 	if (atomic_read(&eb->refs) == 2 &&
