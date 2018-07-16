@@ -1,6 +1,19 @@
 next/soc
 	renesas/soc
 		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-soc-for-v4.19
+	broadcom/soc
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.19/soc
+	davinci/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v4.19/soc
+		contains depends/davinci-clk
+	imx/maintainer
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-maintainer-4.19
+	omap/omap1
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.19/omap1-v2-signed
+	omap/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.19/soc-signed
+	tegra/firmware
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.19-firmware
 
 next/dt
 	renesas/arm64-dt
@@ -11,22 +24,83 @@ next/dt
 		arm: dts: highbank: Add missing OPP properties for CPUs
 	keystone/dts
 		git://git.kernel.org/pub/scm/linux/kernel/git/ssantosh/linux-keystone tags/keystone_dts_for_4.19
+	rockchip/dts32
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.19-rockchip-dts32-1
+	rockchip/dts64
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.19-rockchip-dts64-1
+	broadcom/dt
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.19/devicetree
+	broadcom/dt64
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.19/devicetree-arm64
+	davinci/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v4.19/dt
+	omap/dt2
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.19/dt-signed-v2
+	omap/dt-mcan
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.19/dt-mcan-v2-signed-v2
+		contains omap/ti-sysc
+	tegra/dt-bindings
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.19-dt-bindings
+	tegra/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.19-arm-dt
+	tegra/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.19-arm64-dt
+	samsung/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt-4.19
+	samsung/dt64
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt64-4.19
+	pxa/dt
+		https://github.com/rjarzmik/linux tags/pxa-dt-4.19
+	mvebu/dt
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-4.19-1
+	mvebu/dt64
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt64-4.19-1
+	stm32/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/atorgue/stm32 tags/stm32-dt-for-v4.19-1
+	patch
+		ARM: dts: nomadik: Cut FSMC timings
+	rockchip/dt32-fixes
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.18-rockchip-dts32fixes-1
+	gemini/dts
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-nomadik tags/gemini-dts-v4.19
 
 next/drivers
 	drivers/tee
 		git://git.linaro.org/people/jens.wiklander/linux-tee tags/tee-drv-for-4.18
 	keystone/soc-drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/ssantosh/linux-keystone tags/soc_drivers_for_4.19
+	broadcom/drivers
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.19/drivers
+	omap/ti-sysc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.19/ti-sysc-v2-signed
+	tegra/memory
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.19-memory
+	drivers/scmi
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/scmi-update-4.19
+	drivers/vexpress
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/vexpress-update-4.19
 
 next/defconfig
 	keystone/config
 		git://git.kernel.org/pub/scm/linux/kernel/git/ssantosh/linux-keystone tags/keystone_config_for_4.19
+	broadcom/defconfig
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.19/defconfig
+	broadcom/defconfig64
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.19/defconfig-arm64
+	davinci/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v4.19/defconfig
+	samsung/defconfig
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-defconfig-4.19
+	stm32/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/atorgue/stm32 tags/stm32-defconfig-for-v4.19-1
 
 next/late
 
 fixes
-	<no branch> (2ceb2780b790b74bc408a949f6aedbad8afa693e)
-		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-fixes-4.18-2
-	<no branch> (0144eb204cdcdf09a76794b4a294291388e739bc)
-		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.18/fixes-signed
+	<no branch> (0c1049dcb4ceec640d8bd797335bcbebdcab44d2)
+		https://github.com/rjarzmik/linux tags/pxa-fixes-4.18
+	<no branch> (568cc2f07c8ea5f71a0486464bd9703e4671045f)
+		git://git.infradead.org/linux-mvebu tags/mvebu-fixes-4.18-1
+	<no branch> (923847413f7316b5ced3491769b3fefa6c56a79a)
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.18/fixes-rc4-signed
 
