@@ -73,6 +73,7 @@ dtb-$(CONFIG_ARCH_BCM2835) += \
 	bcm2835-rpi-b-rev2.dtb \
 	bcm2835-rpi-b-plus.dtb \
 	bcm2835-rpi-a-plus.dtb \
+	bcm2835-rpi-cm1-io1.dtb \
 	bcm2836-rpi-2-b.dtb \
 	bcm2837-rpi-3-b.dtb \
 	bcm2837-rpi-3-b-plus.dtb \
@@ -200,6 +201,7 @@ dtb-$(CONFIG_ARCH_GEMINI) += \
 	gemini-dlink-dns-313.dtb \
 	gemini-nas4220b.dtb \
 	gemini-rut1xx.dtb \
+	gemini-sl93512r.dtb \
 	gemini-sq201.dtb \
 	gemini-wbd111.dtb \
 	gemini-wbd222.dtb
@@ -859,6 +861,8 @@ dtb-$(CONFIG_ARCH_S3C64XX) += \
 	s3c6410-smdk6410.dtb
 dtb-$(CONFIG_ARCH_S5PV210) += \
 	s5pv210-aquila.dtb \
+	s5pv210-fascinate4g.dtb \
+	s5pv210-galaxys.dtb \
 	s5pv210-goni.dtb \
 	s5pv210-smdkc110.dtb \
 	s5pv210-smdkv210.dtb \
@@ -1039,7 +1043,7 @@ dtb-$(CONFIG_ARCH_TANGO) += \
 	tango4-vantage-1172.dtb
 dtb-$(CONFIG_ARCH_TEGRA_2x_SOC) += \
 	tegra20-harmony.dtb \
-	tegra20-iris-512.dtb \
+	tegra20-colibri-iris.dtb \
 	tegra20-medcom-wide.dtb \
 	tegra20-paz00.dtb \
 	tegra20-plutux.dtb \
@@ -1138,6 +1142,7 @@ dtb-$(CONFIG_MACH_ARMADA_38X) += \
 	armada-388-clearfog-pro.dtb \
 	armada-388-db.dtb \
 	armada-388-gp.dtb \
+	armada-388-helios4.dtb \
 	armada-388-rd.dtb
 dtb-$(CONFIG_MACH_ARMADA_39X) += \
 	armada-398-db.dtb
