@@ -4533,8 +4533,7 @@ next_slot:
 				break;
 		} else if (extent_type == BTRFS_FILE_EXTENT_INLINE) {
 			extent_end = found_key.offset +
-				btrfs_file_extent_inline_len(leaf,
-						     path->slots[0], fi);
+				btrfs_file_extent_ram_bytes(leaf, fi);
 			extent_end = ALIGN(extent_end, fs_info->sectorsize);
 			path->slots[0]++;
 			goto next_slot;
