@@ -184,6 +184,7 @@ void fc_rport_destroy(struct kref *kref)
 	struct fc_rport_priv *rdata;
 
 	rdata = container_of(kref, struct fc_rport_priv, kref);
+	WARN_ON(!list_empty(&rdata->peers));
 	kfree_rcu(rdata, rcu);
 }
 EXPORT_SYMBOL(fc_rport_destroy);
@@ -1835,7 +1836,7 @@ static void fc_rport_recv_plogi_req(struct fc_lport *lport,
 	struct fc_seq_els_data rjt_data;
 	u32 sid;
 
-	lockdep_assert_held(&rdata->rp_mutex);
+	lockdep_assert_held(&lport->lp_mutex);
 
 	sid = fc_frame_sid(fp);
 
