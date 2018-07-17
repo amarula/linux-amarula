@@ -130,7 +130,7 @@ struct ib_uverbs_async_event_file {
 };
 
 struct ib_uverbs_completion_event_file {
-	struct ib_uobject_file			uobj_file;
+	struct ib_uobject			uobj;
 	struct ib_uverbs_event_queue		ev_queue;
 };
 
@@ -144,6 +144,14 @@ struct ib_uverbs_file {
 	struct ib_uverbs_async_event_file       *async_file;
 	struct list_head			list;
 	int					is_closed;
+
+	/* locking the uobjects_list */
+	struct mutex		uobjects_lock;
+	struct list_head	uobjects;
+
+	/* protects cleanup process from other actions */
+	struct rw_semaphore	cleanup_rwsem;
+	enum rdma_remove_reason cleanup_reason;
 
 	struct idr		idr;
 	/* spinlock protects write access to idr */
@@ -196,7 +204,6 @@ struct ib_uwq_object {
 
 struct ib_ucq_object {
 	struct ib_uobject	uobject;
-	struct ib_uverbs_file  *uverbs_file;
 	struct list_head	comp_list;
 	struct list_head	async_list;
 	u32			comp_events_reported;
@@ -230,7 +237,7 @@ void ib_uverbs_wq_event_handler(struct ib_event *event, void *context_ptr);
 void ib_uverbs_srq_event_handler(struct ib_event *event, void *context_ptr);
 void ib_uverbs_event_handler(struct ib_event_handler *handler,
 			     struct ib_event *event);
-int ib_uverbs_dealloc_xrcd(struct ib_uverbs_device *dev, struct ib_xrcd *xrcd,
+int ib_uverbs_dealloc_xrcd(struct ib_uobject *uobject, struct ib_xrcd *xrcd,
 			   enum rdma_remove_reason why);
 
 int uverbs_dealloc_mw(struct ib_mw *mw);
@@ -238,12 +245,7 @@ void ib_uverbs_detach_umcast(struct ib_qp *qp,
 			     struct ib_uqp_object *uobj);
 
 void create_udata(struct uverbs_attr_bundle *ctx, struct ib_udata *udata);
-extern const struct uverbs_attr_def uverbs_uhw_compat_in;
-extern const struct uverbs_attr_def uverbs_uhw_compat_out;
 long ib_uverbs_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
-int uverbs_destroy_def_handler(struct ib_device *ib_dev,
-			       struct ib_uverbs_file *file,
-			       struct uverbs_attr_bundle *attrs);
 
 struct ib_uverbs_flow_spec {
 	union {

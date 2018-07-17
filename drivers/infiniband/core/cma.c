@@ -366,7 +366,6 @@ struct cma_multicast {
 	void			*context;
 	struct sockaddr_storage	addr;
 	struct kref		mcref;
-	bool			igmp_joined;
 	u8			join_state;
 };
 
@@ -603,46 +602,54 @@ static int cma_translate_addr(struct sockaddr *addr, struct rdma_dev_addr *dev_a
 	return ret;
 }
 
-static inline int cma_validate_port(struct ib_device *device, u8 port,
-				    enum ib_gid_type gid_type,
-				    union ib_gid *gid,
-				    struct rdma_id_private *id_priv)
+static const struct ib_gid_attr *
+cma_validate_port(struct ib_device *device, u8 port,
+		  enum ib_gid_type gid_type,
+		  union ib_gid *gid,
+		  struct rdma_id_private *id_priv)
 {
 	struct rdma_dev_addr *dev_addr = &id_priv->id.route.addr.dev_addr;
 	int bound_if_index = dev_addr->bound_dev_if;
+	const struct ib_gid_attr *sgid_attr;
 	int dev_type = dev_addr->dev_type;
 	struct net_device *ndev = NULL;
-	int ret = -ENODEV;
 
 	if ((dev_type == ARPHRD_INFINIBAND) && !rdma_protocol_ib(device, port))
-		return ret;
+		return ERR_PTR(-ENODEV);
 
 	if ((dev_type != ARPHRD_INFINIBAND) && rdma_protocol_ib(device, port))
-		return ret;
+		return ERR_PTR(-ENODEV);
 
 	if (dev_type == ARPHRD_ETHER && rdma_protocol_roce(device, port)) {
 		ndev = dev_get_by_index(dev_addr->net, bound_if_index);
 		if (!ndev)
-			return ret;
+			return ERR_PTR(-ENODEV);
 	} else {
 		gid_type = IB_GID_TYPE_IB;
 	}
 
-	ret = ib_find_cached_gid_by_port(device, gid, gid_type, port,
-					 ndev, NULL);
-
+	sgid_attr = rdma_find_gid_by_port(device, gid, gid_type, port, ndev);
 	if (ndev)
 		dev_put(ndev);
+	return sgid_attr;
+}
 
-	return ret;
+static void cma_bind_sgid_attr(struct rdma_id_private *id_priv,
+			       const struct ib_gid_attr *sgid_attr)
+{
+	WARN_ON(id_priv->id.route.addr.dev_addr.sgid_attr);
+	id_priv->id.route.addr.dev_addr.sgid_attr = sgid_attr;
 }
 
 static int cma_acquire_dev(struct rdma_id_private *id_priv,
 			   struct rdma_id_private *listen_id_priv)
 {
 	struct rdma_dev_addr *dev_addr = &id_priv->id.route.addr.dev_addr;
+	const struct ib_gid_attr *sgid_attr;
 	struct cma_device *cma_dev;
 	union ib_gid gid, iboe_gid, *gidp;
+	enum ib_gid_type gid_type;
+	enum ib_gid_type default_type;
 	int ret = -ENODEV;
 	u8 port;
 
@@ -662,14 +669,15 @@ static int cma_acquire_dev(struct rdma_id_private *id_priv,
 		port = listen_id_priv->id.port_num;
 		gidp = rdma_protocol_roce(cma_dev->device, port) ?
 		       &iboe_gid : &gid;
-
-		ret = cma_validate_port(cma_dev->device, port,
-					rdma_protocol_ib(cma_dev->device, port) ?
-					IB_GID_TYPE_IB :
-					listen_id_priv->gid_type, gidp,
-					id_priv);
-		if (!ret) {
+		gid_type = rdma_protocol_ib(cma_dev->device, port) ?
+					    IB_GID_TYPE_IB :
+					    listen_id_priv->gid_type;
+		sgid_attr = cma_validate_port(cma_dev->device, port,
+					      gid_type, gidp, id_priv);
+		if (!IS_ERR(sgid_attr)) {
 			id_priv->id.port_num = port;
+			cma_bind_sgid_attr(id_priv, sgid_attr);
+			ret = 0;
 			goto out;
 		}
 	}
@@ -683,14 +691,16 @@ static int cma_acquire_dev(struct rdma_id_private *id_priv,
 
 			gidp = rdma_protocol_roce(cma_dev->device, port) ?
 			       &iboe_gid : &gid;
-
-			ret = cma_validate_port(cma_dev->device, port,
-						rdma_protocol_ib(cma_dev->device, port) ?
-						IB_GID_TYPE_IB :
-						cma_dev->default_gid_type[port - 1],
-						gidp, id_priv);
-			if (!ret) {
+			default_type = cma_dev->default_gid_type[port - 1];
+			gid_type =
+				rdma_protocol_ib(cma_dev->device, port) ?
+						 IB_GID_TYPE_IB : default_type;
+			sgid_attr = cma_validate_port(cma_dev->device, port,
+						      gid_type, gidp, id_priv);
+			if (!IS_ERR(sgid_attr)) {
 				id_priv->id.port_num = port;
+				cma_bind_sgid_attr(id_priv, sgid_attr);
+				ret = 0;
 				goto out;
 			}
 		}
@@ -732,8 +742,8 @@ static int cma_resolve_ib_dev(struct rdma_id_private *id_priv)
 
 			if (ib_get_cached_port_state(cur_dev->device, p, &port_state))
 				continue;
-			for (i = 0; !ib_get_cached_gid(cur_dev->device, p, i,
-						       &gid, NULL);
+			for (i = 0; !rdma_query_gid(cur_dev->device,
+						    p, i, &gid);
 			     i++) {
 				if (!memcmp(&gid, dgid, sizeof(gid))) {
 					cma_dev = cur_dev;
@@ -1629,6 +1639,21 @@ static void cma_release_port(struct rdma_id_private *id_priv)
 	mutex_unlock(&lock);
 }
 
+static void cma_leave_roce_mc_group(struct rdma_id_private *id_priv,
+				    struct cma_multicast *mc)
+{
+	struct rdma_dev_addr *dev_addr = &id_priv->id.route.addr.dev_addr;
+	struct net_device *ndev = NULL;
+
+	if (dev_addr->bound_dev_if)
+		ndev = dev_get_by_index(dev_addr->net, dev_addr->bound_dev_if);
+	if (ndev) {
+		cma_igmp_send(ndev, &mc->multicast.ib->rec.mgid, false);
+		dev_put(ndev);
+	}
+	kref_put(&mc->mcref, release_mc);
+}
+
 static void cma_leave_mc_groups(struct rdma_id_private *id_priv)
 {
 	struct cma_multicast *mc;
@@ -1642,22 +1667,7 @@ static void cma_leave_mc_groups(struct rdma_id_private *id_priv)
 			ib_sa_free_multicast(mc->multicast.ib);
 			kfree(mc);
 		} else {
-			if (mc->igmp_joined) {
-				struct rdma_dev_addr *dev_addr =
-					&id_priv->id.route.addr.dev_addr;
-				struct net_device *ndev = NULL;
-
-				if (dev_addr->bound_dev_if)
-					ndev = dev_get_by_index(&init_net,
-								dev_addr->bound_dev_if);
-				if (ndev) {
-					cma_igmp_send(ndev,
-						      &mc->multicast.ib->rec.mgid,
-						      false);
-					dev_put(ndev);
-				}
-			}
-			kref_put(&mc->mcref, release_mc);
+			cma_leave_roce_mc_group(id_priv, mc);
 		}
 	}
 }
@@ -1699,6 +1709,10 @@ void rdma_destroy_id(struct rdma_cm_id *id)
 		cma_deref_id(id_priv->id.context);
 
 	kfree(id_priv->id.route.path_rec);
+
+	if (id_priv->id.route.addr.dev_addr.sgid_attr)
+		rdma_put_gid_attr(id_priv->id.route.addr.dev_addr.sgid_attr);
+
 	put_net(id_priv->id.route.addr.dev_addr.net);
 	kfree(id_priv);
 }
@@ -2561,8 +2575,6 @@ cma_iboe_set_path_rec_l2_fields(struct rdma_id_private *id_priv)
 	route->path_rec->rec_type = sa_conv_gid_to_pathrec_type(gid_type);
 
 	route->path_rec->roce.route_resolved = true;
-	sa_path_set_ndev(route->path_rec, addr->dev_addr.net);
-	sa_path_set_ifindex(route->path_rec, ndev->ifindex);
 	sa_path_set_dmac(route->path_rec, addr->dev_addr.dst_dev_addr);
 	return ndev;
 }
@@ -2791,7 +2803,7 @@ static int cma_bind_loopback(struct rdma_id_private *id_priv)
 	p = 1;
 
 port_found:
-	ret = ib_get_cached_gid(cma_dev->device, p, 0, &gid, NULL);
+	ret = rdma_query_gid(cma_dev->device, p, 0, &gid);
 	if (ret)
 		goto out;
 
@@ -3488,7 +3500,8 @@ static int cma_sidr_rep_handler(struct ib_cm_id *cm_id,
 		ib_init_ah_attr_from_path(id_priv->id.device,
 					  id_priv->id.port_num,
 					  id_priv->id.route.path_rec,
-					  &event.param.ud.ah_attr);
+					  &event.param.ud.ah_attr,
+					  rep->sgid_attr);
 		event.param.ud.qp_num = rep->qpn;
 		event.param.ud.qkey = rep->qkey;
 		event.event = RDMA_CM_EVENT_ESTABLISHED;
@@ -3501,6 +3514,8 @@ static int cma_sidr_rep_handler(struct ib_cm_id *cm_id,
 	}
 
 	ret = id_priv->id.event_handler(&id_priv->id, &event);
+
+	rdma_destroy_ah_attr(&event.param.ud.ah_attr);
 	if (ret) {
 		/* Destroy the CM ID by returning a non-zero value. */
 		id_priv->cm_id.ib = NULL;
@@ -3557,6 +3572,7 @@ static int cma_resolve_ib_udp(struct rdma_id_private *id_priv,
 	id_priv->cm_id.ib = id;
 
 	req.path = id_priv->id.route.path_rec;
+	req.sgid_attr = id_priv->id.route.addr.dev_addr.sgid_attr;
 	req.service_id = rdma_get_service_id(&id_priv->id, cma_dst_addr(id_priv));
 	req.timeout_ms = 1 << (CMA_CM_RESPONSE_TIMEOUT - 8);
 	req.max_cm_retries = CMA_MAX_CM_RETRIES;
@@ -3618,6 +3634,8 @@ static int cma_connect_ib(struct rdma_id_private *id_priv,
 	if (route->num_paths == 2)
 		req.alternate_path = &route->path_rec[1];
 
+	req.ppath_sgid_attr = id_priv->id.route.addr.dev_addr.sgid_attr;
+	/* Alternate path SGID attribute currently unsupported */
 	req.service_id = rdma_get_service_id(&id_priv->id, cma_dst_addr(id_priv));
 	req.qp_num = id_priv->qp_num;
 	req.qp_type = id_priv->id.qp_type;
@@ -3981,6 +3999,8 @@ static int cma_ib_mc_handler(int status, struct ib_sa_multicast *multicast)
 		event.event = RDMA_CM_EVENT_MULTICAST_ERROR;
 
 	ret = id_priv->id.event_handler(&id_priv->id, &event);
+
+	rdma_destroy_ah_attr(&event.param.ud.ah_attr);
 	if (ret) {
 		cma_exch(id_priv, RDMA_CM_DESTROYING);
 		mutex_unlock(&id_priv->handler_mutex);
@@ -4168,8 +4188,6 @@ static int cma_iboe_join_multicast(struct rdma_id_private *id_priv,
 			if (!send_only) {
 				err = cma_igmp_send(ndev, &mc->multicast.ib->rec.mgid,
 						    true);
-				if (!err)
-					mc->igmp_joined = true;
 			}
 		}
 	} else {
@@ -4221,26 +4239,29 @@ int rdma_join_multicast(struct rdma_cm_id *id, struct sockaddr *addr,
 	memcpy(&mc->addr, addr, rdma_addr_size(addr));
 	mc->context = context;
 	mc->id_priv = id_priv;
-	mc->igmp_joined = false;
 	mc->join_state = join_state;
-	spin_lock(&id_priv->lock);
-	list_add(&mc->list, &id_priv->mc_list);
-	spin_unlock(&id_priv->lock);
 
 	if (rdma_protocol_roce(id->device, id->port_num)) {
 		kref_init(&mc->mcref);
 		ret = cma_iboe_join_multicast(id_priv, mc);
-	} else if (rdma_cap_ib_mcast(id->device, id->port_num))
+		if (ret)
+			goto out_err;
+	} else if (rdma_cap_ib_mcast(id->device, id->port_num)) {
 		ret = cma_join_ib_multicast(id_priv, mc);
-	else
+		if (ret)
+			goto out_err;
+	} else {
 		ret = -ENOSYS;
-
-	if (ret) {
-		spin_lock_irq(&id_priv->lock);
-		list_del(&mc->list);
-		spin_unlock_irq(&id_priv->lock);
-		kfree(mc);
+		goto out_err;
 	}
+
+	spin_lock(&id_priv->lock);
+	list_add(&mc->list, &id_priv->mc_list);
+	spin_unlock(&id_priv->lock);
+
+	return 0;
+out_err:
+	kfree(mc);
 	return ret;
 }
 EXPORT_SYMBOL(rdma_join_multicast);
@@ -4268,23 +4289,7 @@ void rdma_leave_multicast(struct rdma_cm_id *id, struct sockaddr *addr)
 				ib_sa_free_multicast(mc->multicast.ib);
 				kfree(mc);
 			} else if (rdma_protocol_roce(id->device, id->port_num)) {
-				if (mc->igmp_joined) {
-					struct rdma_dev_addr *dev_addr =
-						&id->route.addr.dev_addr;
-					struct net_device *ndev = NULL;
-
-					if (dev_addr->bound_dev_if)
-						ndev = dev_get_by_index(dev_addr->net,
-									dev_addr->bound_dev_if);
-					if (ndev) {
-						cma_igmp_send(ndev,
-							      &mc->multicast.ib->rec.mgid,
-							      false);
-						dev_put(ndev);
-					}
-					mc->igmp_joined = false;
-				}
-				kref_put(&mc->mcref, release_mc);
+				cma_leave_roce_mc_group(id_priv, mc);
 			}
 			return;
 		}
