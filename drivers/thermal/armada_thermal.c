@@ -51,12 +51,15 @@
 #define CONTROL0_TSEN_TC_TRIM_MASK	0x7
 #define CONTROL0_TSEN_TC_TRIM_VAL	0x3
 
-/* TSEN refers to the temperature sensors within the AP */
 #define CONTROL0_TSEN_START		BIT(0)
 #define CONTROL0_TSEN_RESET		BIT(1)
 #define CONTROL0_TSEN_ENABLE		BIT(2)
+#define CONTROL0_TSEN_AVG_BYPASS	BIT(6)
+#define CONTROL0_TSEN_OSR_SHIFT		24
+#define CONTROL0_TSEN_OSR_MAX		0x3
 
-/* EXT_TSEN refers to the external temperature sensors, out of the AP */
+#define CONTROL1_TSEN_AVG_SHIFT		0
+#define CONTROL1_TSEN_AVG_MASK		0x7
 #define CONTROL1_EXT_TSEN_SW_RESET	BIT(7)
 #define CONTROL1_EXT_TSEN_HW_RESETn	BIT(8)
 
@@ -74,9 +77,9 @@ struct armada_thermal_priv {
 };
 
 struct armada_thermal_data {
-	/* Initialize the sensor */
-	void (*init_sensor)(struct platform_device *pdev,
-			    struct armada_thermal_priv *);
+	/* Initialize the thermal IC */
+	void (*init)(struct platform_device *pdev,
+		     struct armada_thermal_priv *priv);
 
 	/* Test for a valid sensor value (optional) */
 	bool (*is_valid)(struct armada_thermal_priv *);
@@ -95,23 +98,20 @@ struct armada_thermal_data {
 	bool needs_control0;
 };
 
-static void armadaxp_init_sensor(struct platform_device *pdev,
-				 struct armada_thermal_priv *priv)
+static void armadaxp_init(struct platform_device *pdev,
+			  struct armada_thermal_priv *priv)
 {
 	u32 reg;
 
 	reg = readl_relaxed(priv->control1);
 	reg |= PMU_TDC0_OTF_CAL_MASK;
-	writel(reg, priv->control1);
 
 	/* Reference calibration value */
 	reg &= ~PMU_TDC0_REF_CAL_CNT_MASK;
 	reg |= (0xf1 << PMU_TDC0_REF_CAL_CNT_OFFS);
-	writel(reg, priv->control1);
 
 	/* Reset the sensor */
-	reg = readl_relaxed(priv->control1);
-	writel((reg | PMU_TDC0_SW_RST_MASK), priv->control1);
+	reg |= PMU_TDC0_SW_RST_MASK;
 
 	writel(reg, priv->control1);
 
@@ -121,28 +121,27 @@ static void armadaxp_init_sensor(struct platform_device *pdev,
 	writel(reg, priv->status);
 }
 
-static void armada370_init_sensor(struct platform_device *pdev,
-				  struct armada_thermal_priv *priv)
+static void armada370_init(struct platform_device *pdev,
+			   struct armada_thermal_priv *priv)
 {
 	u32 reg;
 
 	reg = readl_relaxed(priv->control1);
 	reg |= PMU_TDC0_OTF_CAL_MASK;
-	writel(reg, priv->control1);
 
 	/* Reference calibration value */
 	reg &= ~PMU_TDC0_REF_CAL_CNT_MASK;
 	reg |= (0xf1 << PMU_TDC0_REF_CAL_CNT_OFFS);
-	writel(reg, priv->control1);
 
 	reg &= ~PMU_TDC0_START_CAL_MASK;
+
 	writel(reg, priv->control1);
 
 	msleep(10);
 }
 
-static void armada375_init_sensor(struct platform_device *pdev,
-				  struct armada_thermal_priv *priv)
+static void armada375_init(struct platform_device *pdev,
+			   struct armada_thermal_priv *priv)
 {
 	u32 reg;
 
@@ -169,8 +168,8 @@ static void armada_wait_sensor_validity(struct armada_thermal_priv *priv)
 				   STATUS_POLL_TIMEOUT_US);
 }
 
-static void armada380_init_sensor(struct platform_device *pdev,
-				  struct armada_thermal_priv *priv)
+static void armada380_init(struct platform_device *pdev,
+			   struct armada_thermal_priv *priv)
 {
 	u32 reg = readl_relaxed(priv->control1);
 
@@ -191,18 +190,44 @@ static void armada380_init_sensor(struct platform_device *pdev,
 	armada_wait_sensor_validity(priv);
 }
 
-static void armada_ap806_init_sensor(struct platform_device *pdev,
-				     struct armada_thermal_priv *priv)
+static void armada_ap806_init(struct platform_device *pdev,
+			      struct armada_thermal_priv *priv)
 {
 	u32 reg;
 
 	reg = readl_relaxed(priv->control0);
 	reg &= ~CONTROL0_TSEN_RESET;
 	reg |= CONTROL0_TSEN_START | CONTROL0_TSEN_ENABLE;
+
+	/* Sample every ~2ms */
+	reg |= CONTROL0_TSEN_OSR_MAX << CONTROL0_TSEN_OSR_SHIFT;
+
+	/* Enable average (2 samples by default) */
+	reg &= ~CONTROL0_TSEN_AVG_BYPASS;
+
 	writel(reg, priv->control0);
 
 	/* Wait the sensors to be valid or the core will warn the user */
 	armada_wait_sensor_validity(priv);
+}
+
+static void armada_cp110_init(struct platform_device *pdev,
+			      struct armada_thermal_priv *priv)
+{
+	u32 reg;
+
+	armada380_init(pdev, priv);
+
+	/* Sample every ~2ms */
+	reg = readl_relaxed(priv->control0);
+	reg |= CONTROL0_TSEN_OSR_MAX << CONTROL0_TSEN_OSR_SHIFT;
+	writel(reg, priv->control0);
+
+	/* Average the output value over 2^1 = 2 samples */
+	reg = readl_relaxed(priv->control1);
+	reg &= ~CONTROL1_TSEN_AVG_MASK << CONTROL1_TSEN_AVG_SHIFT;
+	reg |= 1 << CONTROL1_TSEN_AVG_SHIFT;
+	writel(reg, priv->control1);
 }
 
 static bool armada_is_valid(struct armada_thermal_priv *priv)
@@ -252,7 +277,7 @@ static struct thermal_zone_device_ops ops = {
 };
 
 static const struct armada_thermal_data armadaxp_data = {
-	.init_sensor = armadaxp_init_sensor,
+	.init = armadaxp_init,
 	.temp_shift = 10,
 	.temp_mask = 0x1ff,
 	.coef_b = 3153000000ULL,
@@ -262,7 +287,7 @@ static const struct armada_thermal_data armadaxp_data = {
 
 static const struct armada_thermal_data armada370_data = {
 	.is_valid = armada_is_valid,
-	.init_sensor = armada370_init_sensor,
+	.init = armada370_init,
 	.is_valid_bit = BIT(9),
 	.temp_shift = 10,
 	.temp_mask = 0x1ff,
@@ -273,7 +298,7 @@ static const struct armada_thermal_data armada370_data = {
 
 static const struct armada_thermal_data armada375_data = {
 	.is_valid = armada_is_valid,
-	.init_sensor = armada375_init_sensor,
+	.init = armada375_init,
 	.is_valid_bit = BIT(10),
 	.temp_shift = 0,
 	.temp_mask = 0x1ff,
@@ -285,7 +310,7 @@ static const struct armada_thermal_data armada375_data = {
 
 static const struct armada_thermal_data armada380_data = {
 	.is_valid = armada_is_valid,
-	.init_sensor = armada380_init_sensor,
+	.init = armada380_init,
 	.is_valid_bit = BIT(10),
 	.temp_shift = 0,
 	.temp_mask = 0x3ff,
@@ -297,7 +322,7 @@ static const struct armada_thermal_data armada380_data = {
 
 static const struct armada_thermal_data armada_ap806_data = {
 	.is_valid = armada_is_valid,
-	.init_sensor = armada_ap806_init_sensor,
+	.init = armada_ap806_init,
 	.is_valid_bit = BIT(16),
 	.temp_shift = 0,
 	.temp_mask = 0x3ff,
@@ -311,7 +336,7 @@ static const struct armada_thermal_data armada_ap806_data = {
 
 static const struct armada_thermal_data armada_cp110_data = {
 	.is_valid = armada_is_valid,
-	.init_sensor = armada380_init_sensor,
+	.init = armada_cp110_init,
 	.is_valid_bit = BIT(10),
 	.temp_shift = 0,
 	.temp_mask = 0x3ff,
@@ -400,7 +425,7 @@ static int armada_thermal_probe(struct platform_device *pdev)
 		priv->control1 = control + CONTROL1_OFFSET;
 	}
 
-	priv->data->init_sensor(pdev, priv);
+	priv->data->init(pdev, priv);
 
 	thermal = thermal_zone_device_register(dev_name(&pdev->dev), 0, 0, priv,
 					       &ops, NULL, 0, 0);
