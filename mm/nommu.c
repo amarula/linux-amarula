@@ -364,10 +364,6 @@ void *vzalloc_node(unsigned long size, int node)
 }
 EXPORT_SYMBOL(vzalloc_node);
 
-#ifndef PAGE_KERNEL_EXEC
-# define PAGE_KERNEL_EXEC PAGE_KERNEL
-#endif
-
 /**
  *	vmalloc_exec  -  allocate virtually contiguous, executable memory
  *	@size:		allocation size
@@ -764,7 +760,7 @@ static void delete_vma_from_mm(struct vm_area_struct *vma)
  */
 static void delete_vma(struct mm_struct *mm, struct vm_area_struct *vma)
 {
-	if (vma->vm_ops && vma->vm_ops->close)
+	if (vma->vm_ops->close)
 		vma->vm_ops->close(vma);
 	if (vma->vm_file)
 		fput(vma->vm_file);
@@ -1058,6 +1054,8 @@ static int do_mmap_shared_file(struct vm_area_struct *vma)
 	int ret;
 
 	ret = call_mmap(vma->vm_file, vma);
+	if (!vma->vm_ops)
+		vma->vm_ops = &dummy_vm_ops;
 	if (ret == 0) {
 		vma->vm_region->vm_top = vma->vm_region->vm_end;
 		return 0;
@@ -1089,6 +1087,8 @@ static int do_mmap_private(struct vm_area_struct *vma,
 	 */
 	if (capabilities & NOMMU_MAP_DIRECT) {
 		ret = call_mmap(vma->vm_file, vma);
+		if (!vma->vm_ops)
+			vma->vm_ops = &dummy_vm_ops;
 		if (ret == 0) {
 			/* shouldn't return success if we're not sharing */
 			BUG_ON(!(vma->vm_flags & VM_MAYSHARE));
@@ -1137,6 +1137,8 @@ static int do_mmap_private(struct vm_area_struct *vma,
 		fpos = vma->vm_pgoff;
 		fpos <<= PAGE_SHIFT;
 
+		vma->vm_ops = &dummy_vm_ops;
+
 		ret = kernel_read(vma->vm_file, base, len, &fpos);
 		if (ret < 0)
 			goto error_free;
@@ -1144,7 +1146,8 @@ static int do_mmap_private(struct vm_area_struct *vma,
 		/* clear the last little bit */
 		if (ret < len)
 			memset(base + ret, 0, len - ret);
-
+	} else {
+		vma->vm_ops = &anon_vm_ops;
 	}
 
 	return 0;
@@ -1489,7 +1492,7 @@ int split_vma(struct mm_struct *mm, struct vm_area_struct *vma,
 		region->vm_pgoff = new->vm_pgoff += npages;
 	}
 
-	if (new->vm_ops && new->vm_ops->open)
+	if (new->vm_ops->open)
 		new->vm_ops->open(new);
 
 	delete_vma_from_mm(vma);

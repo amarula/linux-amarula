@@ -177,7 +177,7 @@ static struct vm_area_struct *remove_vma(struct vm_area_struct *vma)
 	struct vm_area_struct *next = vma->vm_next;
 
 	might_sleep();
-	if (vma->vm_ops && vma->vm_ops->close)
+	if (vma->vm_ops->close)
 		vma->vm_ops->close(vma);
 	if (vma->vm_file)
 		fput(vma->vm_file);
@@ -561,6 +561,8 @@ static unsigned long count_vma_pages_range(struct mm_struct *mm,
 void __vma_link_rb(struct mm_struct *mm, struct vm_area_struct *vma,
 		struct rb_node **rb_link, struct rb_node *rb_parent)
 {
+	WARN_ONCE(!vma->vm_ops, "missing vma->vm_ops");
+
 	/* Update tracking information for the gap following the new vma. */
 	if (vma->vm_next)
 		vma_gap_update(vma->vm_next);
@@ -996,7 +998,7 @@ static inline int is_mergeable_vma(struct vm_area_struct *vma,
 		return 0;
 	if (vma->vm_file != file)
 		return 0;
-	if (vma->vm_ops && vma->vm_ops->close)
+	if (vma->vm_ops->close)
 		return 0;
 	if (!is_mergeable_vm_userfaultfd_ctx(vma, vm_userfaultfd_ctx))
 		return 0;
@@ -1636,7 +1638,7 @@ int vma_wants_writenotify(struct vm_area_struct *vma, pgprot_t vm_page_prot)
 		return 0;
 
 	/* The backer wishes to know when pages are first written to? */
-	if (vm_ops && (vm_ops->page_mkwrite || vm_ops->pfn_mkwrite))
+	if (vm_ops->page_mkwrite || vm_ops->pfn_mkwrite)
 		return 1;
 
 	/* The open routine did something to the protections that pgprot_modify
@@ -1762,6 +1764,11 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		 */
 		vma->vm_file = get_file(file);
 		error = call_mmap(file, vma);
+
+		/* All mappings must have ->vm_ops set */
+		if (!vma->vm_ops)
+			vma->vm_ops = &dummy_vm_ops;
+
 		if (error)
 			goto unmap_and_free_vma;
 
@@ -1780,6 +1787,9 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		error = shmem_zero_setup(vma);
 		if (error)
 			goto free_vma;
+	} else {
+		/* vma_is_anonymous() relies on this. */
+		vma->vm_ops = &anon_vm_ops;
 	}
 
 	vma_link(mm, vma, prev, rb_link, rb_parent);
@@ -1796,11 +1806,12 @@ out:
 
 	vm_stat_account(mm, vm_flags, len >> PAGE_SHIFT);
 	if (vm_flags & VM_LOCKED) {
-		if (!((vm_flags & VM_SPECIAL) || is_vm_hugetlb_page(vma) ||
-					vma == get_gate_vma(current->mm)))
-			mm->locked_vm += (len >> PAGE_SHIFT);
-		else
+		if ((vm_flags & VM_SPECIAL) || vma_is_dax(vma) ||
+					is_vm_hugetlb_page(vma) ||
+					vma == get_gate_vma(current->mm))
 			vma->vm_flags &= VM_LOCKED_CLEAR_MASK;
+		else
+			mm->locked_vm += (len >> PAGE_SHIFT);
 	}
 
 	if (file)
@@ -2614,7 +2625,7 @@ int __split_vma(struct mm_struct *mm, struct vm_area_struct *vma,
 	struct vm_area_struct *new;
 	int err;
 
-	if (vma->vm_ops && vma->vm_ops->split) {
+	if (vma->vm_ops->split) {
 		err = vma->vm_ops->split(vma, addr);
 		if (err)
 			return err;
@@ -2647,7 +2658,7 @@ int __split_vma(struct mm_struct *mm, struct vm_area_struct *vma,
 	if (new->vm_file)
 		get_file(new->vm_file);
 
-	if (new->vm_ops && new->vm_ops->open)
+	if (new->vm_ops->open)
 		new->vm_ops->open(new);
 
 	if (new_below)
@@ -2661,7 +2672,7 @@ int __split_vma(struct mm_struct *mm, struct vm_area_struct *vma,
 		return 0;
 
 	/* Clean everything up if vma_adjust failed. */
-	if (new->vm_ops && new->vm_ops->close)
+	if (new->vm_ops->close)
 		new->vm_ops->close(new);
 	if (new->vm_file)
 		fput(new->vm_file);
@@ -2992,6 +3003,7 @@ static int do_brk_flags(unsigned long addr, unsigned long len, unsigned long fla
 
 	INIT_LIST_HEAD(&vma->anon_vma_chain);
 	vma->vm_mm = mm;
+	vma->vm_ops = &anon_vm_ops;
 	vma->vm_start = addr;
 	vma->vm_end = addr + len;
 	vma->vm_pgoff = pgoff;
@@ -3054,25 +3066,26 @@ void exit_mmap(struct mm_struct *mm)
 	if (unlikely(mm_is_oom_victim(mm))) {
 		/*
 		 * Manually reap the mm to free as much memory as possible.
-		 * Then, as the oom reaper does, set MMF_OOM_SKIP to disregard
-		 * this mm from further consideration.  Taking mm->mmap_sem for
-		 * write after setting MMF_OOM_SKIP will guarantee that the oom
-		 * reaper will not run on this mm again after mmap_sem is
-		 * dropped.
-		 *
 		 * Nothing can be holding mm->mmap_sem here and the above call
 		 * to mmu_notifier_release(mm) ensures mmu notifier callbacks in
 		 * __oom_reap_task_mm() will not block.
-		 *
+		 */
+		__oom_reap_task_mm(mm);
+
+		/*
+		 * Now, set MMF_UNSTABLE to avoid racing with the oom reaper.
 		 * This needs to be done before calling munlock_vma_pages_all(),
 		 * which clears VM_LOCKED, otherwise the oom reaper cannot
-		 * reliably test it.
+		 * reliably test for it.  If the oom reaper races with
+		 * munlock_vma_pages_all(), this can result in a kernel oops if
+		 * a pmd is zapped, for example, after follow_page_mask() has
+		 * checked pmd_none().
+		 *
+		 * Taking mm->mmap_sem for write after setting MMF_UNSTABLE will
+		 * guarantee that the oom reaper will not run on this mm again
+		 * after mmap_sem is dropped.
 		 */
-		mutex_lock(&oom_lock);
-		__oom_reap_task_mm(mm);
-		mutex_unlock(&oom_lock);
-
-		set_bit(MMF_OOM_SKIP, &mm->flags);
+		set_bit(MMF_UNSTABLE, &mm->flags);
 		down_write(&mm->mmap_sem);
 		up_write(&mm->mmap_sem);
 	}
@@ -3100,6 +3113,7 @@ void exit_mmap(struct mm_struct *mm)
 	unmap_vmas(&tlb, vma, 0, -1);
 	free_pgtables(&tlb, vma, FIRST_USER_ADDRESS, USER_PGTABLES_CEILING);
 	tlb_finish_mmu(&tlb, 0, -1);
+	set_bit(MMF_OOM_SKIP, &mm->flags);
 
 	/*
 	 * Walk the list again, actually closing and freeing it,
@@ -3216,7 +3230,7 @@ struct vm_area_struct *copy_vma(struct vm_area_struct **vmap,
 			goto out_free_mempol;
 		if (new_vma->vm_file)
 			get_file(new_vma->vm_file);
-		if (new_vma->vm_ops && new_vma->vm_ops->open)
+		if (new_vma->vm_ops->open)
 			new_vma->vm_ops->open(new_vma);
 		vma_link(mm, new_vma, prev, rb_link, rb_parent);
 		*need_rmap_locks = false;

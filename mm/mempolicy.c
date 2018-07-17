@@ -651,13 +651,13 @@ static int vma_replace_policy(struct vm_area_struct *vma,
 	pr_debug("vma %lx-%lx/%lx vm_ops %p vm_file %p set_policy %p\n",
 		 vma->vm_start, vma->vm_end, vma->vm_pgoff,
 		 vma->vm_ops, vma->vm_file,
-		 vma->vm_ops ? vma->vm_ops->set_policy : NULL);
+		 vma->vm_ops->set_policy);
 
 	new = mpol_dup(pol);
 	if (IS_ERR(new))
 		return PTR_ERR(new);
 
-	if (vma->vm_ops && vma->vm_ops->set_policy) {
+	if (vma->vm_ops->set_policy) {
 		err = vma->vm_ops->set_policy(vma, new);
 		if (err)
 			goto err_out;
@@ -845,7 +845,7 @@ static long do_get_mempolicy(int *policy, nodemask_t *nmask,
 			up_read(&mm->mmap_sem);
 			return -EFAULT;
 		}
-		if (vma->vm_ops && vma->vm_ops->get_policy)
+		if (vma->vm_ops->get_policy)
 			pol = vma->vm_ops->get_policy(vma, addr);
 		else
 			pol = vma->vm_policy;
@@ -1617,7 +1617,7 @@ struct mempolicy *__get_vma_policy(struct vm_area_struct *vma,
 	struct mempolicy *pol = NULL;
 
 	if (vma) {
-		if (vma->vm_ops && vma->vm_ops->get_policy) {
+		if (vma->vm_ops->get_policy) {
 			pol = vma->vm_ops->get_policy(vma, addr);
 		} else if (vma->vm_policy) {
 			pol = vma->vm_policy;
@@ -1663,7 +1663,7 @@ bool vma_policy_mof(struct vm_area_struct *vma)
 {
 	struct mempolicy *pol;
 
-	if (vma->vm_ops && vma->vm_ops->get_policy) {
+	if (vma->vm_ops->get_policy) {
 		bool ret = false;
 
 		pol = vma->vm_ops->get_policy(vma, vma->vm_start);

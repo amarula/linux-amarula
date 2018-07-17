@@ -336,9 +336,6 @@ static void kernfs_vma_open(struct vm_area_struct *vma)
 	struct file *file = vma->vm_file;
 	struct kernfs_open_file *of = kernfs_of(file);
 
-	if (!of->vm_ops)
-		return;
-
 	if (!kernfs_get_active(of->kn))
 		return;
 
@@ -353,9 +350,6 @@ static vm_fault_t kernfs_vma_fault(struct vm_fault *vmf)
 	struct file *file = vmf->vma->vm_file;
 	struct kernfs_open_file *of = kernfs_of(file);
 	vm_fault_t ret;
-
-	if (!of->vm_ops)
-		return VM_FAULT_SIGBUS;
 
 	if (!kernfs_get_active(of->kn))
 		return VM_FAULT_SIGBUS;
@@ -373,9 +367,6 @@ static vm_fault_t kernfs_vma_page_mkwrite(struct vm_fault *vmf)
 	struct file *file = vmf->vma->vm_file;
 	struct kernfs_open_file *of = kernfs_of(file);
 	vm_fault_t ret;
-
-	if (!of->vm_ops)
-		return VM_FAULT_SIGBUS;
 
 	if (!kernfs_get_active(of->kn))
 		return VM_FAULT_SIGBUS;
@@ -397,9 +388,6 @@ static int kernfs_vma_access(struct vm_area_struct *vma, unsigned long addr,
 	struct kernfs_open_file *of = kernfs_of(file);
 	int ret;
 
-	if (!of->vm_ops)
-		return -EINVAL;
-
 	if (!kernfs_get_active(of->kn))
 		return -EINVAL;
 
@@ -419,9 +407,6 @@ static int kernfs_vma_set_policy(struct vm_area_struct *vma,
 	struct kernfs_open_file *of = kernfs_of(file);
 	int ret;
 
-	if (!of->vm_ops)
-		return 0;
-
 	if (!kernfs_get_active(of->kn))
 		return -EINVAL;
 
@@ -439,9 +424,6 @@ static struct mempolicy *kernfs_vma_get_policy(struct vm_area_struct *vma,
 	struct file *file = vma->vm_file;
 	struct kernfs_open_file *of = kernfs_of(file);
 	struct mempolicy *pol;
-
-	if (!of->vm_ops)
-		return vma->vm_policy;
 
 	if (!kernfs_get_active(of->kn))
 		return vma->vm_policy;
@@ -511,7 +493,7 @@ static int kernfs_fop_mmap(struct file *file, struct vm_area_struct *vma)
 	 * So error if someone is trying to use close.
 	 */
 	rc = -EINVAL;
-	if (vma->vm_ops && vma->vm_ops->close)
+	if (vma->vm_ops->close)
 		goto out_put;
 
 	rc = 0;

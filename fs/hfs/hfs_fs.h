@@ -246,15 +246,36 @@ extern void hfs_mark_mdb_dirty(struct super_block *sb);
  *	mac:	unsigned big-endian since 00:00 GMT, Jan. 1, 1904
  *
  */
-#define __hfs_u_to_mtime(sec)	cpu_to_be32(sec + 2082844800U - sys_tz.tz_minuteswest * 60)
-#define __hfs_m_to_utime(sec)	(be32_to_cpu(sec) - 2082844800U  + sys_tz.tz_minuteswest * 60)
+static inline time64_t __hfs_m_to_utime(__be32 mt)
+{
+	time64_t ut = (u32)(be32_to_cpu(mt) - 2082844800U);
 
+	/*
+	 * Times past 2040-02-06 06:28 are assumed to be invalid,
+	 * matching the MacOS behavior.
+	 */
+	if (ut > 2082844800U + UINT_MAX)
+		ut = 0;
+
+	return ut + sys_tz.tz_minuteswest * 60;
+}
+
+static inline __be32 __hfs_u_to_mtime(time64_t ut)
+{
+	ut -= - sys_tz.tz_minuteswest * 60;
+
+	/*
+	 * MacOS wraps "invalid" times after 2040 when writing back, so
+	 * let's do the same here.
+	 */
+	return cpu_to_be32(lower_32_bits(ut + 2082844800U));
+}
 #define HFS_I(inode)	(container_of(inode, struct hfs_inode_info, vfs_inode))
 #define HFS_SB(sb)	((struct hfs_sb_info *)(sb)->s_fs_info)
 
-#define hfs_m_to_utime(time)	(struct timespec){ .tv_sec = __hfs_m_to_utime(time) }
-#define hfs_u_to_mtime(time)	__hfs_u_to_mtime((time).tv_sec)
-#define hfs_mtime()		__hfs_u_to_mtime(get_seconds())
+#define hfs_m_to_utime(time)   (struct timespec64){ .tv_sec = __hfs_m_to_utime(time) }
+#define hfs_u_to_mtime(time)   __hfs_u_to_mtime((time).tv_sec)
+#define hfs_mtime()		__hfs_u_to_mtime(ktime_get_real_seconds())
 
 static inline const char *hfs_mdb_name(struct super_block *sb)
 {

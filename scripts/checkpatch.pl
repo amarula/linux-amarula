@@ -13,6 +13,7 @@ use POSIX;
 use File::Basename;
 use Cwd 'abs_path';
 use Term::ANSIColor qw(:constants);
+use Encode qw(decode encode);
 
 my $P = $0;
 my $D = dirname(abs_path($P));
@@ -240,11 +241,11 @@ $check_orig = $check;
 
 my $exit = 0;
 
+my $perl_version_ok = 1;
 if ($^V && $^V lt $minimum_perl_version) {
+	$perl_version_ok = 0;
 	printf "$P: requires at least perl version %vd\n", $minimum_perl_version;
-	if (!$ignore_perl_version) {
-		exit(1);
-	}
+	exit(1) if (!$ignore_perl_version);
 }
 
 #if no filenames are given, push '-' to read patch from stdin
@@ -346,9 +347,10 @@ our $Sparse	= qr{
 			__force|
 			__iomem|
 			__must_check|
-			__init_refok|
 			__kprobes|
 			__ref|
+			__refconst|
+			__refdata|
 			__rcu|
 			__private
 		}x;
@@ -1026,11 +1028,11 @@ if (!$quiet) {
 	hash_show_words(\%use_type, "Used");
 	hash_show_words(\%ignore_type, "Ignored");
 
-	if ($^V lt 5.10.0) {
+	if (!$perl_version_ok) {
 		print << "EOM"
 
 NOTE: perl $^V is not modern enough to detect all possible issues.
-      An upgrade to at least perl v5.10.0 is suggested.
+      An upgrade to at least perl $minimum_perl_version is suggested.
 EOM
 	}
 	if ($exit) {
@@ -2235,6 +2237,8 @@ sub process {
 
 	our $clean = 1;
 	my $signoff = 0;
+	my $author = '';
+	my $authorsignoff = 0;
 	my $is_patch = 0;
 	my $in_header_lines = $file ? 0 : 1;
 	my $in_commit_log = 0;		#Scanning lines before patch
@@ -2517,10 +2521,23 @@ sub process {
 			}
 		}
 
+# Check the patch for a From:
+		if (decode("MIME-Header", $line) =~ /^From:\s*(.*)/) {
+			$author = encode("utf8", $1);
+			$author =~ s/"//g;
+		}
+
 # Check the patch for a signoff:
 		if ($line =~ /^\s*signed-off-by:/i) {
 			$signoff++;
 			$in_commit_log = 0;
+			if ($author ne '') {
+				my $l = $line;
+				$l =~ s/"//g;
+				if ($l =~ /^\s*signed-off-by:\s*\Q$author\E/i) {
+				    $authorsignoff = 1;
+				}
+			}
 		}
 
 # Check if MAINTAINERS is being updated.  If so, there's probably no need to
@@ -3079,7 +3096,7 @@ sub process {
 		}
 
 # check indentation starts on a tab stop
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    $sline =~ /^\+\t+( +)(?:$c90_Keywords\b|\{\s*$|\}\s*(?:else\b|while\b|\s*$)|$Declare\s*$Ident\s*[;=])/) {
 			my $indent = length($1);
 			if ($indent % 8) {
@@ -3092,7 +3109,7 @@ sub process {
 		}
 
 # check multi-line statement indentation matches previous line
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    $prevline =~ /^\+([ \t]*)((?:$c90_Keywords(?:\s+if)\s*)|(?:$Declare\s*)?(?:$Ident|\(\s*\*\s*$Ident\s*\))\s*|(?:\*\s*)*$Lval\s*=\s*$Ident\s*)\(.*(\&\&|\|\||,)\s*$/) {
 			$prevline =~ /^\+(\t*)(.*)$/;
 			my $oldindent = $1;
@@ -3967,7 +3984,7 @@ sub process {
 
 # function brace can't be on same line, except for #defines of do while,
 # or if closed on same line
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    $sline =~ /$Type\s*$Ident\s*$balanced_parens\s*\{/ &&
 		    $sline !~ /\#\s*define\b.*do\s*\{/ &&
 		    $sline !~ /}/) {
@@ -4578,7 +4595,7 @@ sub process {
 # check for unnecessary parentheses around comparisons in if uses
 # when !drivers/staging or command-line uses --strict
 		if (($realfile !~ m@^(?:drivers/staging/)@ || $check_orig) &&
-		    $^V && $^V ge 5.10.0 && defined($stat) &&
+		    $perl_version_ok && defined($stat) &&
 		    $stat =~ /(^.\s*if\s*($balanced_parens))/) {
 			my $if_stat = $1;
 			my $test = substr($2, 1, -1);
@@ -4615,7 +4632,7 @@ sub process {
 # return is not a function
 		if (defined($stat) && $stat =~ /^.\s*return(\s*)\(/s) {
 			my $spacing = $1;
-			if ($^V && $^V ge 5.10.0 &&
+			if ($perl_version_ok &&
 			    $stat =~ /^.\s*return\s*($balanced_parens)\s*;\s*$/) {
 				my $value = $1;
 				$value = deparenthesize($value);
@@ -4642,7 +4659,7 @@ sub process {
                }
 
 # if statements using unnecessary parentheses - ie: if ((foo == bar))
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    $line =~ /\bif\s*((?:\(\s*){2,})/) {
 			my $openparens = $1;
 			my $count = $openparens =~ tr@\(@\(@;
@@ -4659,7 +4676,7 @@ sub process {
 #	avoid cases like "foo + BAR < baz"
 #	only fix matches surrounded by parentheses to avoid incorrect
 #	conversions like "FOO < baz() + 5" being "misfixed" to "baz() > FOO + 5"
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    $line =~ /^\+(.*)\b($Constant|[A-Z_][A-Z0-9_]*)\s*($Compare)\s*($LvalOrFunc)/) {
 			my $lead = $1;
 			my $const = $2;
@@ -5084,7 +5101,7 @@ sub process {
 # do {} while (0) macro tests:
 # single-statement macros do not need to be enclosed in do while (0) loop,
 # macro should not end with a semicolon
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    $realfile !~ m@/vmlinux.lds.h$@ &&
 		    $line =~ /^.\s*\#\s*define\s+$Ident(\()?/) {
 			my $ln = $linenr;
@@ -5330,15 +5347,28 @@ sub process {
 		}
 
 # concatenated string without spaces between elements
-		if ($line =~ /$String[A-Z_]/ || $line =~ /[A-Za-z0-9_]$String/) {
-			CHK("CONCATENATED_STRING",
-			    "Concatenated strings should use spaces between elements\n" . $herecurr);
+		if ($line =~ /$String[A-Za-z0-9_]/ || $line =~ /[A-Za-z0-9_]$String/) {
+			if (CHK("CONCATENATED_STRING",
+				"Concatenated strings should use spaces between elements\n" . $herecurr) &&
+			    $fix) {
+				while ($line =~ /($String)/g) {
+					my $extracted_string = substr($rawline, $-[0], $+[0] - $-[0]);
+					$fixed[$fixlinenr] =~ s/\Q$extracted_string\E([A-Za-z0-9_])/$extracted_string $1/;
+					$fixed[$fixlinenr] =~ s/([A-Za-z0-9_])\Q$extracted_string\E/$1 $extracted_string/;
+				}
+			}
 		}
 
 # uncoalesced string fragments
 		if ($line =~ /$String\s*"/) {
-			WARN("STRING_FRAGMENTS",
-			     "Consecutive strings are generally better as a single string\n" . $herecurr);
+			if (WARN("STRING_FRAGMENTS",
+				 "Consecutive strings are generally better as a single string\n" . $herecurr) &&
+			    $fix) {
+				while ($line =~ /($String)(?=\s*")/g) {
+					my $extracted_string = substr($rawline, $-[0], $+[0] - $-[0]);
+					$fixed[$fixlinenr] =~ s/\Q$extracted_string\E\s*"/substr($extracted_string, 0, -1)/e;
+				}
+			}
 		}
 
 # check for non-standard and hex prefixed decimal printf formats
@@ -5447,7 +5477,7 @@ sub process {
 		}
 
 # check for mask then right shift without a parentheses
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    $line =~ /$LvalOrFunc\s*\&\s*($LvalOrFunc)\s*>>/ &&
 		    $4 !~ /^\&/) { # $LvalOrFunc may be &foo, ignore if so
 			WARN("MASK_THEN_SHIFT",
@@ -5455,7 +5485,7 @@ sub process {
 		}
 
 # check for pointer comparisons to NULL
-		if ($^V && $^V ge 5.10.0) {
+		if ($perl_version_ok) {
 			while ($line =~ /\b$LvalOrFunc\s*(==|\!=)\s*NULL\b/g) {
 				my $val = $1;
 				my $equal = "!";
@@ -5727,7 +5757,7 @@ sub process {
 		}
 
 # Check for __attribute__ weak, or __weak declarations (may have link issues)
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    $line =~ /(?:$Declare|$DeclareMisordered)\s*$Ident\s*$balanced_parens\s*(?:$Attribute)?\s*;/ &&
 		    ($line =~ /\b__attribute__\s*\(\s*\(.*\bweak\b/ ||
 		     $line =~ /\b__weak\b/)) {
@@ -5809,7 +5839,7 @@ sub process {
 		}
 
 # check for vsprintf extension %p<foo> misuses
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    defined $stat &&
 		    $stat =~ /^\+(?![^\{]*\{\s*).*\b(\w+)\s*\(.*$String\s*,/s &&
 		    $1 !~ /^_*volatile_*$/) {
@@ -5856,7 +5886,7 @@ sub process {
 		}
 
 # Check for misused memsets
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    defined $stat &&
 		    $stat =~ /^\+(?:.*?)\bmemset\s*\(\s*$FuncArg\s*,\s*$FuncArg\s*\,\s*$FuncArg\s*\)/) {
 
@@ -5874,7 +5904,7 @@ sub process {
 		}
 
 # Check for memcpy(foo, bar, ETH_ALEN) that could be ether_addr_copy(foo, bar)
-#		if ($^V && $^V ge 5.10.0 &&
+#		if ($perl_version_ok &&
 #		    defined $stat &&
 #		    $stat =~ /^\+(?:.*?)\bmemcpy\s*\(\s*$FuncArg\s*,\s*$FuncArg\s*\,\s*ETH_ALEN\s*\)/) {
 #			if (WARN("PREFER_ETHER_ADDR_COPY",
@@ -5885,7 +5915,7 @@ sub process {
 #		}
 
 # Check for memcmp(foo, bar, ETH_ALEN) that could be ether_addr_equal*(foo, bar)
-#		if ($^V && $^V ge 5.10.0 &&
+#		if ($perl_version_ok &&
 #		    defined $stat &&
 #		    $stat =~ /^\+(?:.*?)\bmemcmp\s*\(\s*$FuncArg\s*,\s*$FuncArg\s*\,\s*ETH_ALEN\s*\)/) {
 #			WARN("PREFER_ETHER_ADDR_EQUAL",
@@ -5894,7 +5924,7 @@ sub process {
 
 # check for memset(foo, 0x0, ETH_ALEN) that could be eth_zero_addr
 # check for memset(foo, 0xFF, ETH_ALEN) that could be eth_broadcast_addr
-#		if ($^V && $^V ge 5.10.0 &&
+#		if ($perl_version_ok &&
 #		    defined $stat &&
 #		    $stat =~ /^\+(?:.*?)\bmemset\s*\(\s*$FuncArg\s*,\s*$FuncArg\s*\,\s*ETH_ALEN\s*\)/) {
 #
@@ -5916,7 +5946,7 @@ sub process {
 #		}
 
 # typecasts on min/max could be min_t/max_t
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    defined $stat &&
 		    $stat =~ /^\+(?:.*?)\b(min|max)\s*\(\s*$FuncArg\s*,\s*$FuncArg\s*\)/) {
 			if (defined $2 || defined $7) {
@@ -5940,7 +5970,7 @@ sub process {
 		}
 
 # check usleep_range arguments
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    defined $stat &&
 		    $stat =~ /^\+(?:.*?)\busleep_range\s*\(\s*($FuncArg)\s*,\s*($FuncArg)\s*\)/) {
 			my $min = $1;
@@ -5956,7 +5986,7 @@ sub process {
 		}
 
 # check for naked sscanf
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    defined $stat &&
 		    $line =~ /\bsscanf\b/ &&
 		    ($stat !~ /$Ident\s*=\s*sscanf\s*$balanced_parens/ &&
@@ -5970,7 +6000,7 @@ sub process {
 		}
 
 # check for simple sscanf that should be kstrto<foo>
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    defined $stat &&
 		    $line =~ /\bsscanf\b/) {
 			my $lc = $stat =~ tr@\n@@;
@@ -6042,7 +6072,7 @@ sub process {
 		}
 
 # check for function definitions
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    defined $stat &&
 		    $stat =~ /^.\s*(?:$Storage\s+)?$Type\s*($Ident)\s*$balanced_parens\s*{/s) {
 			$context_function = $1;
@@ -6082,14 +6112,14 @@ sub process {
 
 # alloc style
 # p = alloc(sizeof(struct foo), ...) should be p = alloc(sizeof(*p), ...)
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    $line =~ /\b($Lval)\s*\=\s*(?:$balanced_parens)?\s*([kv][mz]alloc(?:_node)?)\s*\(\s*(sizeof\s*\(\s*struct\s+$Lval\s*\))/) {
 			CHK("ALLOC_SIZEOF_STRUCT",
 			    "Prefer $3(sizeof(*$1)...) over $3($4...)\n" . $herecurr);
 		}
 
 # check for k[mz]alloc with multiplies that could be kmalloc_array/kcalloc
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    defined $stat &&
 		    $stat =~ /^\+\s*($Lval)\s*\=\s*(?:$balanced_parens)?\s*(k[mz]alloc)\s*\(\s*($FuncArg)\s*\*\s*($FuncArg)\s*,/) {
 			my $oldfunc = $3;
@@ -6118,7 +6148,7 @@ sub process {
 		}
 
 # check for krealloc arg reuse
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    $line =~ /\b($Lval)\s*\=\s*(?:$balanced_parens)?\s*krealloc\s*\(\s*\1\s*,/) {
 			WARN("KREALLOC_ARG_REUSE",
 			     "Reusing the krealloc arg is almost always a bug\n" . $herecurr);
@@ -6187,7 +6217,7 @@ sub process {
 		}
 
 # check for switch/default statements without a break;
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    defined $stat &&
 		    $stat =~ /^\+[$;\s]*(?:case[$;\s]+\w+[$;\s]*:[$;\s]*|)*[$;\s]*\bdefault[$;\s]*:[$;\s]*;/g) {
 			my $cnt = statement_rawlines($stat);
@@ -6251,6 +6281,13 @@ sub process {
 			     "Avoid using bool as bitfield.  Prefer bool bitfields as unsigned int or u<8|16|32>\n" . $herecurr);
 		}
 
+# check for bool use in .h files
+		if ($realfile =~ /\.h$/ &&
+		    $sline =~ /^.\s+bool\s*$Ident\s*(?::\s*d+\s*)?;/) {
+			CHK("BOOL_MEMBER",
+			    "Avoid using bool structure members because of possible alignment issues - see: https://lkml.org/lkml/2017/11/21/384\n" . $herecurr);
+		}
+
 # check for semaphores initialized locked
 		if ($line =~ /^.\s*sema_init.+,\W?0\W?\)/) {
 			WARN("CONSIDER_COMPLETION",
@@ -6297,7 +6334,7 @@ sub process {
 		}
 
 # likely/unlikely comparisons similar to "(likely(foo) > 0)"
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    $line =~ /\b((?:un)?likely)\s*\(\s*$FuncArg\s*\)\s*$Compare/) {
 			WARN("LIKELY_MISUSE",
 			     "Using $1 should generally have parentheses around the comparison\n" . $herecurr);
@@ -6340,7 +6377,7 @@ sub process {
 # check for DEVICE_ATTR uses that could be DEVICE_ATTR_<FOO>
 # and whether or not function naming is typical and if
 # DEVICE_ATTR permissions uses are unusual too
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    defined $stat &&
 		    $stat =~ /\bDEVICE_ATTR\s*\(\s*(\w+)\s*,\s*\(?\s*(\s*(?:${multi_mode_perms_string_search}|0[0-7]{3,3})\s*)\s*\)?\s*,\s*(\w+)\s*,\s*(\w+)\s*\)/) {
 			my $var = $1;
@@ -6400,7 +6437,7 @@ sub process {
 #   specific definition of not visible in sysfs.
 # o Ignore proc_create*(...) uses with a decimal 0 permission as that means
 #   use the default permissions
-		if ($^V && $^V ge 5.10.0 &&
+		if ($perl_version_ok &&
 		    defined $stat &&
 		    $line =~ /$mode_perms_search/) {
 			foreach my $entry (@mode_permission_funcs) {
@@ -6486,9 +6523,14 @@ sub process {
 		ERROR("NOT_UNIFIED_DIFF",
 		      "Does not appear to be a unified-diff format patch\n");
 	}
-	if ($is_patch && $has_commit_log && $chk_signoff && $signoff == 0) {
-		ERROR("MISSING_SIGN_OFF",
-		      "Missing Signed-off-by: line(s)\n");
+	if ($is_patch && $has_commit_log && $chk_signoff) {
+		if ($signoff == 0) {
+			ERROR("MISSING_SIGN_OFF",
+			      "Missing Signed-off-by: line(s)\n");
+		} elsif (!$authorsignoff) {
+			WARN("NO_AUTHOR_SIGN_OFF",
+			     "Missing Signed-off-by: line by nominal patch author '$author'\n");
+		}
 	}
 
 	print report_dump();

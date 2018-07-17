@@ -20,6 +20,18 @@
 
 #include "internal.h"
 
+/*
+ * All anonymous VMAs have ->vm_ops set to anon_vm_ops.
+ * vma_is_anonymous() reiles on anon_vm_ops to detect anonymous VMA.
+ */
+const struct vm_operations_struct anon_vm_ops = {};
+
+/*
+ * All VMAs have to have ->vm_ops set. dummy_vm_ops can be used if the VMA
+ * doesn't need to handle any of the operations.
+ */
+const struct vm_operations_struct dummy_vm_ops = {};
+
 static inline int is_kernel_rodata(unsigned long addr)
 {
 	return addr >= (unsigned long)__start_rodata &&

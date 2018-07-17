@@ -603,6 +603,7 @@ static long hugetlbfs_fallocate(struct file *file, int mode, loff_t offset,
 	memset(&pseudo_vma, 0, sizeof(struct vm_area_struct));
 	pseudo_vma.vm_flags = (VM_HUGETLB | VM_MAYSHARE | VM_SHARED);
 	pseudo_vma.vm_file = file;
+	pseudo_vma.vm_ops = &dummy_vm_ops;
 
 	for (index = start; index < end; index++) {
 		/*

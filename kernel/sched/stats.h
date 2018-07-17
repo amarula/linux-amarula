@@ -55,10 +55,93 @@ static inline void rq_sched_info_depart  (struct rq *rq, unsigned long long delt
 # define   schedstat_val_or_zero(var)	0
 #endif /* CONFIG_SCHEDSTATS */
 
+#ifdef CONFIG_PSI
+/*
+ * PSI tracks state that persists across sleeps, such as iowaits and
+ * memory stalls. As a result, it has to distinguish between sleeps,
+ * where a task's runnable state changes, and requeues, where a task
+ * and its state are being moved between CPUs and runqueues.
+ */
+static inline void psi_enqueue(struct task_struct *p, u64 now, bool wakeup)
+{
+	int clear = 0, set = TSK_RUNNING;
+
+	if (psi_disabled)
+		return;
+
+	if (!wakeup || p->sched_psi_wake_requeue) {
+		if (p->flags & PF_MEMSTALL)
+			set |= TSK_MEMSTALL;
+		if (p->sched_psi_wake_requeue)
+			p->sched_psi_wake_requeue = 0;
+	} else {
+		if (p->in_iowait)
+			clear |= TSK_IOWAIT;
+	}
+
+	psi_task_change(p, now, clear, set);
+}
+
+static inline void psi_dequeue(struct task_struct *p, u64 now, bool sleep)
+{
+	int clear = TSK_RUNNING, set = 0;
+
+	if (psi_disabled)
+		return;
+
+	if (!sleep) {
+		if (p->flags & PF_MEMSTALL)
+			clear |= TSK_MEMSTALL;
+	} else {
+		if (p->in_iowait)
+			set |= TSK_IOWAIT;
+	}
+
+	psi_task_change(p, now, clear, set);
+}
+
+static inline void psi_ttwu_dequeue(struct task_struct *p)
+{
+	if (psi_disabled)
+		return;
+	/*
+	 * Is the task being migrated during a wakeup? Make sure to
+	 * deregister its sleep-persistent psi states from the old
+	 * queue, and let psi_enqueue() know it has to requeue.
+	 */
+	if (unlikely(p->in_iowait || (p->flags & PF_MEMSTALL))) {
+		struct rq_flags rf;
+		struct rq *rq;
+		int clear = 0;
+
+		if (p->in_iowait)
+			clear |= TSK_IOWAIT;
+		if (p->flags & PF_MEMSTALL)
+			clear |= TSK_MEMSTALL;
+
+		rq = __task_rq_lock(p, &rf);
+		update_rq_clock(rq);
+		psi_task_change(p, rq_clock(rq), clear, 0);
+		p->sched_psi_wake_requeue = 1;
+		__task_rq_unlock(rq, &rf);
+	}
+}
+#else /* CONFIG_PSI */
+static inline void psi_enqueue(struct task_struct *p, u64 now, bool wakeup) {}
+static inline void psi_dequeue(struct task_struct *p, u64 now, bool sleep) {}
+static inline void psi_ttwu_dequeue(struct task_struct *p) {}
+#endif /* CONFIG_PSI */
+
 #ifdef CONFIG_SCHED_INFO
 static inline void sched_info_reset_dequeued(struct task_struct *t)
 {
 	t->sched_info.last_queued = 0;
+}
+
+static inline void sched_info_reset_queued(struct task_struct *t, u64 now)
+{
+	if (!t->sched_info.last_queued)
+		t->sched_info.last_queued = now;
 }
 
 /*
@@ -67,13 +150,16 @@ static inline void sched_info_reset_dequeued(struct task_struct *t)
  * from dequeue_task() to account for possible rq->clock skew across CPUs. The
  * delta taken on each CPU would annul the skew.
  */
-static inline void sched_info_dequeued(struct rq *rq, struct task_struct *t)
+static inline void sched_info_dequeued(struct rq *rq, struct task_struct *t,
+				       bool sleep)
 {
 	unsigned long long now = rq_clock(rq), delta = 0;
 
-	if (unlikely(sched_info_on()))
+	if (unlikely(sched_info_on())) {
 		if (t->sched_info.last_queued)
 			delta = now - t->sched_info.last_queued;
+		psi_dequeue(t, now, sleep);
+	}
 	sched_info_reset_dequeued(t);
 	t->sched_info.run_delay += delta;
 
@@ -104,11 +190,14 @@ static void sched_info_arrive(struct rq *rq, struct task_struct *t)
  * the timestamp if it is already not set.  It's assumed that
  * sched_info_dequeued() will clear that stamp when appropriate.
  */
-static inline void sched_info_queued(struct rq *rq, struct task_struct *t)
+static inline void sched_info_queued(struct rq *rq, struct task_struct *t,
+				     bool wakeup)
 {
 	if (unlikely(sched_info_on())) {
-		if (!t->sched_info.last_queued)
-			t->sched_info.last_queued = rq_clock(rq);
+		unsigned long long now = rq_clock(rq);
+
+		sched_info_reset_queued(t, now);
+		psi_enqueue(t, now, wakeup);
 	}
 }
 
@@ -127,7 +216,8 @@ static inline void sched_info_depart(struct rq *rq, struct task_struct *t)
 	rq_sched_info_depart(rq, delta);
 
 	if (t->state == TASK_RUNNING)
-		sched_info_queued(rq, t);
+		if (unlikely(sched_info_on()))
+			sched_info_reset_queued(t, rq_clock(rq));
 }
 
 /*
@@ -158,10 +248,10 @@ sched_info_switch(struct rq *rq, struct task_struct *prev, struct task_struct *n
 }
 
 #else /* !CONFIG_SCHED_INFO: */
-# define sched_info_queued(rq, t)	do { } while (0)
-# define sched_info_reset_dequeued(t)	do { } while (0)
-# define sched_info_dequeued(rq, t)	do { } while (0)
-# define sched_info_depart(rq, t)	do { } while (0)
-# define sched_info_arrive(rq, next)	do { } while (0)
-# define sched_info_switch(rq, t, next)	do { } while (0)
+# define sched_info_queued(rq, t, wakeup)	do { } while (0)
+# define sched_info_reset_dequeued(t)		do { } while (0)
+# define sched_info_dequeued(rq, t, sleep)	do { } while (0)
+# define sched_info_depart(rq, t)		do { } while (0)
+# define sched_info_arrive(rq, next)		do { } while (0)
+# define sched_info_switch(rq, t, next)		do { } while (0)
 #endif /* CONFIG_SCHED_INFO */
