@@ -709,10 +709,10 @@ static int mei_txe_write(struct mei_device *dev,
 	struct mei_txe_hw *hw = to_txe_hw(dev);
 	unsigned long rem;
 	unsigned long length;
-	int slots = dev->hbuf_depth;
+	unsigned long i;
+	u32 slots = dev->hbuf_depth;
 	u32 *reg_buf = (u32 *)buf;
 	u32 dw_cnt;
-	int i;
 
 	if (WARN_ON(!header || !buf))
 		return -EINVAL;
