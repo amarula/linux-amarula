@@ -1,22 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
  * Freescale GPMI NAND Flash Driver
  *
  * Copyright (C) 2010-2015 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Embedded Alley Solutions, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 #include <linux/clk.h>
 #include <linux/slab.h>
@@ -957,7 +944,6 @@ static int gpmi_ecc_read_page_data(struct nand_chip *chip,
 	struct gpmi_nand_data *this = nand_get_controller_data(chip);
 	struct bch_geometry *nfc_geo = &this->bch_geometry;
 	struct mtd_info *mtd = nand_to_mtd(chip);
-	void          *payload_virt;
 	dma_addr_t    payload_phys;
 	unsigned int  i;
 	unsigned char *status;
@@ -967,7 +953,6 @@ static int gpmi_ecc_read_page_data(struct nand_chip *chip,
 
 	dev_dbg(this->dev, "page number is : %d\n", page);
 
-	payload_virt = this->payload_virt;
 	payload_phys = this->payload_phys;
 
 	if (virt_addr_valid(buf)) {
@@ -976,7 +961,6 @@ static int gpmi_ecc_read_page_data(struct nand_chip *chip,
 		dest_phys = dma_map_single(this->dev, buf, nfc_geo->payload_size,
 					   DMA_FROM_DEVICE);
 		if (!dma_mapping_error(this->dev, dest_phys)) {
-			payload_virt = buf;
 			payload_phys = dest_phys;
 			direct = true;
 		}
@@ -1947,7 +1931,7 @@ static int gpmi_nand_init(struct gpmi_nand_data *this)
 	ret = nand_boot_init(this);
 	if (ret)
 		goto err_nand_cleanup;
-	ret = chip->scan_bbt(mtd);
+	ret = nand_create_bbt(chip);
 	if (ret)
 		goto err_nand_cleanup;
 

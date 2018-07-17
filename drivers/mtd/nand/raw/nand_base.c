@@ -4965,8 +4965,6 @@ static void nand_set_defaults(struct nand_chip *chip)
 		chip->write_byte = busw ? nand_write_byte16 : nand_write_byte;
 	if (!chip->read_buf || chip->read_buf == nand_read_buf)
 		chip->read_buf = busw ? nand_read_buf16 : nand_read_buf;
-	if (!chip->scan_bbt)
-		chip->scan_bbt = nand_default_bbt;
 
 	if (!chip->controller) {
 		chip->controller = &chip->hwcontrol;
@@ -5168,17 +5166,21 @@ static int nand_flash_detect_onfi(struct nand_chip *chip)
 		}
 	}
 
+	if (chip->manufacturer.desc && chip->manufacturer.desc->ops &&
+	    chip->manufacturer.desc->ops->fixup_onfi_param_page)
+		chip->manufacturer.desc->ops->fixup_onfi_param_page(chip, p);
+
 	/* Check version */
 	val = le16_to_cpu(p->revision);
-	if (val & (1 << 5))
+	if (val & ONFI_VERSION_2_3)
 		chip->parameters.onfi.version = 23;
-	else if (val & (1 << 4))
+	else if (val & ONFI_VERSION_2_2)
 		chip->parameters.onfi.version = 22;
-	else if (val & (1 << 3))
+	else if (val & ONFI_VERSION_2_1)
 		chip->parameters.onfi.version = 21;
-	else if (val & (1 << 2))
+	else if (val & ONFI_VERSION_2_0)
 		chip->parameters.onfi.version = 20;
-	else if (val & (1 << 1))
+	else if (val & ONFI_VERSION_1_0)
 		chip->parameters.onfi.version = 10;
 
 	if (!chip->parameters.onfi.version) {
@@ -5777,6 +5779,7 @@ static int of_get_nand_ecc_mode(struct device_node *np)
 static const char * const nand_ecc_algos[] = {
 	[NAND_ECC_HAMMING]	= "hamming",
 	[NAND_ECC_BCH]		= "bch",
+	[NAND_ECC_RS]		= "rs",
 };
 
 static int of_get_nand_ecc_algo(struct device_node *np)
@@ -5857,6 +5860,9 @@ static int nand_dt_init(struct nand_chip *chip)
 
 	if (of_get_nand_bus_width(dn) == 16)
 		chip->options |= NAND_BUSWIDTH_16;
+
+	if (of_property_read_bool(dn, "nand-is-boot-medium"))
+		chip->options |= NAND_IS_BOOT_MEDIUM;
 
 	if (of_get_nand_on_flash_bbt(dn))
 		chip->bbt_options |= NAND_BBT_USE_FLASH;
@@ -6077,23 +6083,16 @@ static int nand_set_ecc_soft_ops(struct mtd_info *mtd)
  * by the controller and the calculated ECC bytes fit within the chip's OOB.
  * On success, the calculated ECC bytes is set.
  */
-int nand_check_ecc_caps(struct nand_chip *chip,
-			const struct nand_ecc_caps *caps, int oobavail)
+static int
+nand_check_ecc_caps(struct nand_chip *chip,
+		    const struct nand_ecc_caps *caps, int oobavail)
 {
 	struct mtd_info *mtd = nand_to_mtd(chip);
 	const struct nand_ecc_step_info *stepinfo;
 	int preset_step = chip->ecc.size;
 	int preset_strength = chip->ecc.strength;
-	int nsteps, ecc_bytes;
+	int ecc_bytes, nsteps = mtd->writesize / preset_step;
 	int i, j;
-
-	if (WARN_ON(oobavail < 0))
-		return -EINVAL;
-
-	if (!preset_step || !preset_strength)
-		return -ENODATA;
-
-	nsteps = mtd->writesize / preset_step;
 
 	for (i = 0; i < caps->nstepinfos; i++) {
 		stepinfo = &caps->stepinfos[i];
@@ -6127,7 +6126,6 @@ int nand_check_ecc_caps(struct nand_chip *chip,
 
 	return -ENOTSUPP;
 }
-EXPORT_SYMBOL_GPL(nand_check_ecc_caps);
 
 /**
  * nand_match_ecc_req - meet the chip's requirement with least ECC bytes
@@ -6139,8 +6137,9 @@ EXPORT_SYMBOL_GPL(nand_check_ecc_caps);
  * number of ECC bytes (i.e. with the largest number of OOB-free bytes).
  * On success, the chosen ECC settings are set.
  */
-int nand_match_ecc_req(struct nand_chip *chip,
-		       const struct nand_ecc_caps *caps, int oobavail)
+static int
+nand_match_ecc_req(struct nand_chip *chip,
+		   const struct nand_ecc_caps *caps, int oobavail)
 {
 	struct mtd_info *mtd = nand_to_mtd(chip);
 	const struct nand_ecc_step_info *stepinfo;
@@ -6150,9 +6149,6 @@ int nand_match_ecc_req(struct nand_chip *chip,
 	int best_step, best_strength, best_ecc_bytes;
 	int best_ecc_bytes_total = INT_MAX;
 	int i, j;
-
-	if (WARN_ON(oobavail < 0))
-		return -EINVAL;
 
 	/* No information provided by the NAND chip */
 	if (!req_step || !req_strength)
@@ -6212,7 +6208,6 @@ int nand_match_ecc_req(struct nand_chip *chip,
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(nand_match_ecc_req);
 
 /**
  * nand_maximize_ecc - choose the max ECC strength available
@@ -6223,8 +6218,9 @@ EXPORT_SYMBOL_GPL(nand_match_ecc_req);
  * Choose the max ECC strength that is supported on the controller, and can fit
  * within the chip's OOB.  On success, the chosen ECC settings are set.
  */
-int nand_maximize_ecc(struct nand_chip *chip,
-		      const struct nand_ecc_caps *caps, int oobavail)
+static int
+nand_maximize_ecc(struct nand_chip *chip,
+		  const struct nand_ecc_caps *caps, int oobavail)
 {
 	struct mtd_info *mtd = nand_to_mtd(chip);
 	const struct nand_ecc_step_info *stepinfo;
@@ -6233,9 +6229,6 @@ int nand_maximize_ecc(struct nand_chip *chip,
 	int best_step = 0;
 	int best_strength, best_ecc_bytes;
 	int i, j;
-
-	if (WARN_ON(oobavail < 0))
-		return -EINVAL;
 
 	for (i = 0; i < caps->nstepinfos; i++) {
 		stepinfo = &caps->stepinfos[i];
@@ -6285,7 +6278,44 @@ int nand_maximize_ecc(struct nand_chip *chip,
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(nand_maximize_ecc);
+
+/**
+ * nand_ecc_choose_conf - Set the ECC strength and ECC step size
+ * @chip: nand chip info structure
+ * @caps: ECC engine caps info structure
+ * @oobavail: OOB size that the ECC engine can use
+ *
+ * Choose the ECC configuration according to following logic
+ *
+ * 1. If both ECC step size and ECC strength are already set (usually by DT)
+ *    then check if it is supported by this controller.
+ * 2. If NAND_ECC_MAXIMIZE is set, then select maximum ECC strength.
+ * 3. Otherwise, try to match the ECC step size and ECC strength closest
+ *    to the chip's requirement. If available OOB size can't fit the chip
+ *    requirement then fallback to the maximum ECC step size and ECC strength.
+ *
+ * On success, the chosen ECC settings are set.
+ */
+int nand_ecc_choose_conf(struct nand_chip *chip,
+			 const struct nand_ecc_caps *caps, int oobavail)
+{
+	struct mtd_info *mtd = nand_to_mtd(chip);
+
+	if (WARN_ON(oobavail < 0 || oobavail > mtd->oobsize))
+		return -EINVAL;
+
+	if (chip->ecc.size && chip->ecc.strength)
+		return nand_check_ecc_caps(chip, caps, oobavail);
+
+	if (chip->ecc.options & NAND_ECC_MAXIMIZE)
+		return nand_maximize_ecc(chip, caps, oobavail);
+
+	if (!nand_match_ecc_req(chip, caps, oobavail))
+		return 0;
+
+	return nand_maximize_ecc(chip, caps, oobavail);
+}
+EXPORT_SYMBOL_GPL(nand_ecc_choose_conf);
 
 /*
  * Check if the chip configuration meet the datasheet requirements.
@@ -6636,7 +6666,7 @@ int nand_scan_tail(struct mtd_info *mtd)
 		return 0;
 
 	/* Build bad block table */
-	ret = chip->scan_bbt(mtd);
+	ret = nand_create_bbt(chip);
 	if (ret)
 		goto err_nand_manuf_cleanup;
 

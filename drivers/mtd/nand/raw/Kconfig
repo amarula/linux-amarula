@@ -77,7 +77,8 @@ config MTD_NAND_AMS_DELTA
 
 config MTD_NAND_OMAP2
 	tristate "NAND Flash device on OMAP2, OMAP3, OMAP4 and Keystone"
-	depends on (ARCH_OMAP2PLUS || ARCH_KEYSTONE)
+	depends on ARCH_OMAP2PLUS || ARCH_KEYSTONE || COMPILE_TEST
+	depends on HAS_IOMEM
 	help
           Support for NAND flash on Texas Instruments OMAP2, OMAP3, OMAP4
 	  and Keystone platforms.
@@ -152,6 +153,7 @@ config MTD_NAND_S3C2410_CLKSTOP
 config MTD_NAND_TANGO
 	tristate "NAND Flash support for Tango chips"
 	depends on ARCH_TANGO || COMPILE_TEST
+	depends on HAS_IOMEM
 	help
 	  Enables the NAND Flash controller on Tango chips.
 
@@ -247,7 +249,8 @@ config MTD_NAND_DOCG4
 
 config MTD_NAND_SHARPSL
 	tristate "Support for NAND Flash on Sharp SL Series (C7xx + others)"
-	depends on ARCH_PXA
+	depends on ARCH_PXA || COMPILE_TEST
+	depends on HAS_IOMEM
 
 config MTD_NAND_CAFE
 	tristate "NAND support for OLPC CAFÉ chip"
@@ -294,7 +297,8 @@ config MTD_NAND_MARVELL
 
 config MTD_NAND_SLC_LPC32XX
 	tristate "NXP LPC32xx SLC Controller"
-	depends on ARCH_LPC32XX
+	depends on ARCH_LPC32XX || COMPILE_TEST
+	depends on HAS_IOMEM
 	help
 	  Enables support for NXP's LPC32XX SLC (i.e. for Single Level Cell
 	  chips) NAND controller. This is the default for the PHYTEC 3250
@@ -305,7 +309,8 @@ config MTD_NAND_SLC_LPC32XX
 
 config MTD_NAND_MLC_LPC32XX
 	tristate "NXP LPC32xx MLC Controller"
-	depends on ARCH_LPC32XX
+	depends on ARCH_LPC32XX || COMPILE_TEST
+	depends on HAS_IOMEM
 	help
 	  Uses the LPC32XX MLC (i.e. for Multi Level Cell chips) NAND
 	  controller. This is the default for the WORK92105 controller
@@ -340,7 +345,7 @@ config MTD_NAND_NANDSIM
 
 config MTD_NAND_GPMI_NAND
         tristate "GPMI NAND Flash Controller driver"
-        depends on MTD_NAND && MXS_DMA
+        depends on MXS_DMA
         help
 	 Enables NAND Flash support for IMX23, IMX28 or IMX6.
 	 The GPMI controller is very powerful, with the help of BCH
@@ -349,7 +354,8 @@ config MTD_NAND_GPMI_NAND
 
 config MTD_NAND_BRCMNAND
 	tristate "Broadcom STB NAND controller"
-	depends on ARM || ARM64 || MIPS
+	depends on ARM || ARM64 || MIPS || COMPILE_TEST
+	depends on HAS_IOMEM
 	help
 	  Enables the Broadcom NAND controller driver. The controller was
 	  originally designed for Set-Top Box but is used on various BCM7xxx,
@@ -437,7 +443,8 @@ config MTD_NAND_VF610_NFC
 
 config MTD_NAND_MXC
 	tristate "MXC NAND support"
-	depends on ARCH_MXC
+	depends on ARCH_MXC || COMPILE_TEST
+	depends on HAS_IOMEM
 	help
 	  This enables the driver for the NAND flash controller on the
 	  MXC processors.
@@ -471,7 +478,8 @@ config MTD_NAND_SOCRATES
 
 config MTD_NAND_NUC900
 	tristate "Support for NAND on Nuvoton NUC9xx/w90p910 evaluation boards."
-	depends on ARCH_W90X900
+	depends on ARCH_W90X900 || COMPILE_TEST
+	depends on HAS_IOMEM
 	help
 	  This enables the driver for the NAND Flash on evaluation board based
 	  on w90p910 / NUC9xx.
@@ -513,12 +521,14 @@ config MTD_NAND_SUNXI
 config MTD_NAND_HISI504
 	tristate "Support for NAND controller on Hisilicon SoC Hip04"
 	depends on ARCH_HISI || COMPILE_TEST
+	depends on HAS_IOMEM
 	help
 	  Enables support for NAND controller on Hisilicon SoC Hip04.
 
 config MTD_NAND_QCOM
 	tristate "Support for NAND on QCOM SoCs"
-	depends on ARCH_QCOM
+	depends on ARCH_QCOM || COMPILE_TEST
+	depends on HAS_IOMEM
 	help
 	  Enables support for NAND flash chips on SoCs containing the EBI2 NAND
 	  controller. This controller is found on IPQ806x SoC.
@@ -526,8 +536,20 @@ config MTD_NAND_QCOM
 config MTD_NAND_MTK
 	tristate "Support for NAND controller on MTK SoCs"
 	depends on ARCH_MEDIATEK || COMPILE_TEST
+	depends on HAS_IOMEM
 	help
 	  Enables support for NAND controller on MTK SoCs.
 	  This controller is found on mt27xx, mt81xx, mt65xx SoCs.
+
+config MTD_NAND_TEGRA
+	tristate "Support for NAND controller on NVIDIA Tegra"
+	depends on ARCH_TEGRA || COMPILE_TEST
+	depends on HAS_IOMEM
+	help
+	  Enables support for NAND flash controller on NVIDIA Tegra SoC.
+	  The driver has been developed and tested on a Tegra 2 SoC. DMA
+	  support, raw read/write page as well as HW ECC read/write page
+	  is supported. Extra OOB bytes when using HW ECC are currently
+	  not supported.
 
 endif # MTD_NAND

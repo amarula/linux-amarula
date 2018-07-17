@@ -21,11 +21,10 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/flashchip.h>
 #include <linux/mtd/bbm.h>
+#include <linux/of.h>
 #include <linux/types.h>
 
-struct mtd_info;
 struct nand_flash_dev;
-struct device_node;
 
 /* Scan and identify a NAND device */
 int nand_scan_with_ids(struct mtd_info *mtd, int max_chips,
@@ -121,6 +120,7 @@ enum nand_ecc_algo {
 	NAND_ECC_UNKNOWN,
 	NAND_ECC_HAMMING,
 	NAND_ECC_BCH,
+	NAND_ECC_RS,
 };
 
 /*
@@ -218,6 +218,12 @@ enum nand_ecc_algo {
  */
 #define NAND_WAIT_TCCS		0x00200000
 
+/*
+ * Whether the NAND chip is a boot medium. Drivers might use this information
+ * to select ECC algorithms supported by the boot ROM or similar restrictions.
+ */
+#define NAND_IS_BOOT_MEDIUM	0x00400000
+
 /* Options set by nand scan */
 /* Nand scan has allocated controller struct */
 #define NAND_CONTROLLER_ALLOC	0x80000000
@@ -229,6 +235,17 @@ enum nand_ecc_algo {
 
 /* Keep gcc happy */
 struct nand_chip;
+
+/* ONFI version bits */
+#define ONFI_VERSION_1_0		BIT(1)
+#define ONFI_VERSION_2_0		BIT(2)
+#define ONFI_VERSION_2_1		BIT(3)
+#define ONFI_VERSION_2_2		BIT(4)
+#define ONFI_VERSION_2_3		BIT(5)
+#define ONFI_VERSION_3_0		BIT(6)
+#define ONFI_VERSION_3_1		BIT(7)
+#define ONFI_VERSION_3_2		BIT(8)
+#define ONFI_VERSION_4_0		BIT(9)
 
 /* ONFI features */
 #define ONFI_FEATURE_16_BIT_BUS		(1 << 0)
@@ -778,11 +795,15 @@ nand_get_sdr_timings(const struct nand_data_interface *conf)
  *	  implementation) if any.
  * @cleanup: the ->init() function may have allocated resources, ->cleanup()
  *	     is here to let vendor specific code release those resources.
+ * @fixup_onfi_param_page: apply vendor specific fixups to the ONFI parameter
+ *			   page. This is called after the checksum is verified.
  */
 struct nand_manufacturer_ops {
 	void (*detect)(struct nand_chip *chip);
 	int (*init)(struct nand_chip *chip);
 	void (*cleanup)(struct nand_chip *chip);
+	void (*fixup_onfi_param_page)(struct nand_chip *chip,
+				      struct nand_onfi_params *p);
 };
 
 /**
@@ -1271,7 +1292,6 @@ struct nand_chip {
 		       const struct nand_operation *op,
 		       bool check_only);
 	int (*erase)(struct mtd_info *mtd, int page);
-	int (*scan_bbt)(struct mtd_info *mtd);
 	int (*set_features)(struct mtd_info *mtd, struct nand_chip *chip,
 			    int feature_addr, uint8_t *subfeature_para);
 	int (*get_features)(struct mtd_info *mtd, struct nand_chip *chip,
@@ -1517,14 +1537,12 @@ extern const struct nand_manufacturer_ops micron_nand_manuf_ops;
 extern const struct nand_manufacturer_ops amd_nand_manuf_ops;
 extern const struct nand_manufacturer_ops macronix_nand_manuf_ops;
 
-int nand_default_bbt(struct mtd_info *mtd);
+int nand_create_bbt(struct nand_chip *chip);
 int nand_markbad_bbt(struct mtd_info *mtd, loff_t offs);
 int nand_isreserved_bbt(struct mtd_info *mtd, loff_t offs);
 int nand_isbad_bbt(struct mtd_info *mtd, loff_t offs, int allowbbt);
 int nand_erase_nand(struct mtd_info *mtd, struct erase_info *instr,
 		    int allowbbt);
-int nand_do_read(struct mtd_info *mtd, loff_t from, size_t len,
-		 size_t *retlen, uint8_t *buf);
 
 /**
  * struct platform_nand_chip - chip level device structure
@@ -1555,14 +1573,12 @@ struct platform_device;
  * struct platform_nand_ctrl - controller level device structure
  * @probe:		platform specific function to probe/setup hardware
  * @remove:		platform specific function to remove/teardown hardware
- * @hwcontrol:		platform specific hardware control structure
  * @dev_ready:		platform specific function to read ready/busy pin
  * @select_chip:	platform specific chip select function
  * @cmd_ctrl:		platform specific function for controlling
  *			ALE/CLE/nCE. Also used to write command and address
  * @write_buf:		platform specific function for write buffer
  * @read_buf:		platform specific function for read buffer
- * @read_byte:		platform specific function to read one byte from chip
  * @priv:		private data to transport driver specific settings
  *
  * All fields are optional and depend on the hardware driver requirements
@@ -1570,13 +1586,11 @@ struct platform_device;
 struct platform_nand_ctrl {
 	int (*probe)(struct platform_device *pdev);
 	void (*remove)(struct platform_device *pdev);
-	void (*hwcontrol)(struct mtd_info *mtd, int cmd);
 	int (*dev_ready)(struct mtd_info *mtd);
 	void (*select_chip)(struct mtd_info *mtd, int chip);
 	void (*cmd_ctrl)(struct mtd_info *mtd, int dat, unsigned int ctrl);
 	void (*write_buf)(struct mtd_info *mtd, const uint8_t *buf, int len);
 	void (*read_buf)(struct mtd_info *mtd, uint8_t *buf, int len);
-	unsigned char (*read_byte)(struct mtd_info *mtd);
 	void *priv;
 };
 
@@ -1641,14 +1655,8 @@ int nand_check_erased_ecc_chunk(void *data, int datalen,
 				void *extraoob, int extraooblen,
 				int threshold);
 
-int nand_check_ecc_caps(struct nand_chip *chip,
-			const struct nand_ecc_caps *caps, int oobavail);
-
-int nand_match_ecc_req(struct nand_chip *chip,
-		       const struct nand_ecc_caps *caps,  int oobavail);
-
-int nand_maximize_ecc(struct nand_chip *chip,
-		      const struct nand_ecc_caps *caps, int oobavail);
+int nand_ecc_choose_conf(struct nand_chip *chip,
+			 const struct nand_ecc_caps *caps, int oobavail);
 
 /* Default write_oob implementation */
 int nand_write_oob_std(struct mtd_info *mtd, struct nand_chip *chip, int page);
