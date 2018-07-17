@@ -631,6 +631,7 @@ typedef unsigned char *sk_buff_data_t;
  *	@queue_mapping: Queue mapping for multiqueue devices
  *	@xmit_more: More SKBs are pending for this queue
  *	@pfmemalloc: skbuff was allocated from PFMEMALLOC reserves
+ *	@decrypted: Decrypted SKB
  *	@ndisc_nodetype: router type (from link layer)
  *	@ooo_okay: allow the mapping of a socket to a queue to be changed
  *	@l4_hash: indicate hash is a canonical 4-tuple hash over transport
@@ -678,7 +679,8 @@ struct sk_buff {
 				int			ip_defrag_offset;
 			};
 		};
-		struct rb_node	rbnode; /* used in netem & tcp stack */
+		struct rb_node		rbnode; /* used in netem & tcp stack */
+		struct list_head	list;
 	};
 	struct sock		*sk;
 
@@ -737,6 +739,10 @@ struct sk_buff {
 				head_frag:1,
 				xmit_more:1,
 				pfmemalloc:1;
+#ifdef CONFIG_TLS_DEVICE
+	__u8			decrypted:1,
+				__unused:7;
+#endif
 
 	/* fields enclosed in headers_start/headers_end are copied
 	 * using a single memcpy() in __copy_skb_header()
