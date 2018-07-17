@@ -1682,6 +1682,9 @@ static int f2fs_ioc_start_atomic_write(struct file *filp)
 	if (!S_ISREG(inode->i_mode))
 		return -EINVAL;
 
+	if (is_sbi_flag_set(F2FS_I_SB(inode), SBI_DISABLE_ATOMIC_WRITE))
+		return -EINVAL;
+
 	ret = mnt_want_write_file(filp);
 	if (ret)
 		return ret;
@@ -1750,7 +1753,6 @@ static int f2fs_ioc_commit_atomic_write(struct file *filp)
 		ret = f2fs_do_sync_file(filp, 0, LLONG_MAX, 0, true);
 		if (!ret) {
 			clear_inode_flag(inode, FI_ATOMIC_FILE);
-			F2FS_I(inode)->i_gc_failures[GC_FAILURE_ATOMIC] = 0;
 			stat_dec_atomic_write(inode);
 		}
 	} else {
@@ -1853,6 +1855,8 @@ static int f2fs_ioc_abort_volatile_write(struct file *filp)
 		ret = f2fs_do_sync_file(filp, 0, LLONG_MAX, 0, true);
 	}
 
+	clear_inode_flag(inode, FI_ATOMIC_REVOKE_REQUEST);
+
 	inode_unlock(inode);
 
 	mnt_drop_write_file(filp);
@@ -1889,6 +1893,7 @@ static int f2fs_ioc_shutdown(struct file *filp, unsigned long arg)
 		}
 		if (sb) {
 			f2fs_stop_checkpoint(sbi, false);
+			set_sbi_flag(sbi, SBI_IS_SHUTDOWN);
 			thaw_bdev(sb->s_bdev, sb);
 		}
 		break;
@@ -1898,13 +1903,16 @@ static int f2fs_ioc_shutdown(struct file *filp, unsigned long arg)
 		if (ret)
 			goto out;
 		f2fs_stop_checkpoint(sbi, false);
+		set_sbi_flag(sbi, SBI_IS_SHUTDOWN);
 		break;
 	case F2FS_GOING_DOWN_NOSYNC:
 		f2fs_stop_checkpoint(sbi, false);
+		set_sbi_flag(sbi, SBI_IS_SHUTDOWN);
 		break;
 	case F2FS_GOING_DOWN_METAFLUSH:
 		f2fs_sync_meta_pages(sbi, META, LONG_MAX, FS_META_IO);
 		f2fs_stop_checkpoint(sbi, false);
+		set_sbi_flag(sbi, SBI_IS_SHUTDOWN);
 		break;
 	default:
 		ret = -EINVAL;

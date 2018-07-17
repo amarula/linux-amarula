@@ -1146,7 +1146,8 @@ static int read_node_page(struct page *page, int op_flags)
 
 	f2fs_get_node_info(sbi, page->index, &ni);
 
-	if (unlikely(ni.blk_addr == NULL_ADDR)) {
+	if (unlikely(ni.blk_addr == NULL_ADDR) ||
+			is_sbi_flag_set(sbi, SBI_IS_SHUTDOWN)) {
 		ClearPageUptodate(page);
 		return -ENOENT;
 	}
@@ -2581,6 +2582,13 @@ void f2fs_flush_nat_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	unsigned int found;
 	nid_t set_idx = 0;
 	LIST_HEAD(sets);
+
+	/* during unmount, let's flush nat_bits before checking dirty_nat_cnt */
+	if (enabled_nat_bits(sbi, cpc)) {
+		down_write(&nm_i->nat_tree_lock);
+		remove_nats_in_journal(sbi);
+		up_write(&nm_i->nat_tree_lock);
+	}
 
 	if (!nm_i->dirty_nat_cnt)
 		return;

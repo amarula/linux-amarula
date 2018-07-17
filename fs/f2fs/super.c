@@ -57,8 +57,7 @@ char *fault_name[FAULT_MAX] = {
 	[FAULT_CHECKPOINT]	= "checkpoint error",
 };
 
-static void f2fs_build_fault_attr(struct f2fs_sb_info *sbi,
-						unsigned int rate)
+void f2fs_build_fault_attr(struct f2fs_sb_info *sbi, unsigned int rate)
 {
 	struct f2fs_fault_info *ffi = &F2FS_OPTION(sbi).fault_info;
 
@@ -1379,9 +1378,7 @@ static void default_options(struct f2fs_sb_info *sbi)
 	set_opt(sbi, POSIX_ACL);
 #endif
 
-#ifdef CONFIG_F2FS_FAULT_INJECTION
 	f2fs_build_fault_attr(sbi, 0);
-#endif
 }
 
 #ifdef CONFIG_QUOTA
@@ -3089,9 +3086,19 @@ static struct dentry *f2fs_mount(struct file_system_type *fs_type, int flags,
 static void kill_f2fs_super(struct super_block *sb)
 {
 	if (sb->s_root) {
-		set_sbi_flag(F2FS_SB(sb), SBI_IS_CLOSE);
-		f2fs_stop_gc_thread(F2FS_SB(sb));
-		f2fs_stop_discard_thread(F2FS_SB(sb));
+		struct f2fs_sb_info *sbi = F2FS_SB(sb);
+
+		set_sbi_flag(sbi, SBI_IS_CLOSE);
+		f2fs_stop_gc_thread(sbi);
+		f2fs_stop_discard_thread(sbi);
+
+		if (is_sbi_flag_set(sbi, SBI_IS_DIRTY) ||
+				!is_set_ckpt_flags(sbi, CP_UMOUNT_FLAG)) {
+			struct cp_control cpc = {
+				.reason = CP_UMOUNT,
+			};
+			f2fs_write_checkpoint(sbi, &cpc);
+		}
 	}
 	kill_block_super(sb);
 }

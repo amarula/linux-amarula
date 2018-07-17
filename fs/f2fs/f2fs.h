@@ -621,7 +621,6 @@ enum {
 
 enum {
 	GC_FAILURE_PIN,
-	GC_FAILURE_ATOMIC,
 	MAX_GC_FAILURE
 };
 
@@ -1066,6 +1065,8 @@ enum {
 	SBI_POR_DOING,				/* recovery is doing or not */
 	SBI_NEED_SB_WRITE,			/* need to recover superblock */
 	SBI_NEED_CP,				/* need to checkpoint */
+	SBI_DISABLE_ATOMIC_WRITE,		/* turn off atomic write */
+	SBI_IS_SHUTDOWN,			/* shutdown by ioctl */
 };
 
 enum {
@@ -2833,7 +2834,7 @@ void f2fs_destroy_node_manager_caches(void);
  */
 bool f2fs_need_SSR(struct f2fs_sb_info *sbi);
 void f2fs_register_inmem_page(struct inode *inode, struct page *page);
-void f2fs_drop_inmem_pages_all(struct f2fs_sb_info *sbi, bool gc_failure);
+void f2fs_disable_atomic_write(struct f2fs_sb_info *sbi);
 void f2fs_drop_inmem_pages(struct inode *inode);
 void f2fs_drop_inmem_page(struct inode *inode, struct page *page);
 int f2fs_commit_inmem_pages(struct inode *inode);
@@ -3372,5 +3373,11 @@ static inline bool f2fs_force_buffered_io(struct inode *inode, int rw)
 			(rw == WRITE && test_opt(F2FS_I_SB(inode), LFS)) ||
 			F2FS_I_SB(inode)->s_ndevs);
 }
+
+#ifdef CONFIG_F2FS_FAULT_INJECTION
+extern void f2fs_build_fault_attr(struct f2fs_sb_info *sbi, unsigned int rate);
+#else
+#define f2fs_build_fault_attr(sbi, rate)		do { } while (0)
+#endif
 
 #endif
