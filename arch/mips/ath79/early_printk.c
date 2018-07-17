@@ -13,6 +13,7 @@
 #include <linux/errno.h>
 #include <linux/serial_reg.h>
 #include <asm/addrspace.h>
+#include <asm/setup.h>
 
 #include <asm/mach-ath79/ath79.h>
 #include <asm/mach-ath79/ar71xx_regs.h>
