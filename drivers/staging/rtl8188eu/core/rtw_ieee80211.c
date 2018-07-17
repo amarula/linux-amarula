@@ -1,15 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of version 2 of the GNU General Public License as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
  *
  ******************************************************************************/
 #define _IEEE80211_C
@@ -81,9 +73,9 @@ int rtw_get_bit_value_from_ieee_value(u8 val)
 	return 0;
 }
 
-uint	rtw_is_cckrates_included(u8 *rate)
+uint rtw_is_cckrates_included(u8 *rate)
 {
-	u32	i = 0;
+	u32 i = 0;
 
 	while (rate[i] != 0) {
 		if  ((((rate[i]) & 0x7f) == 2) || (((rate[i]) & 0x7f) == 4) ||
@@ -94,7 +86,7 @@ uint	rtw_is_cckrates_included(u8 *rate)
 	return false;
 }
 
-uint	rtw_is_cckratesonly_included(u8 *rate)
+uint rtw_is_cckratesonly_included(u8 *rate)
 {
 	u32 i = 0;
 
@@ -186,7 +178,6 @@ u8 *rtw_get_ie(u8 *pbuf, int index, uint *len, int limit)
 
 void rtw_set_supported_rate(u8 *SupportedRates, uint mode)
 {
-
 	memset(SupportedRates, 0, NDIS_802_11_LENGTH_RATES_EX);
 
 	switch (mode) {
@@ -209,25 +200,21 @@ void rtw_set_supported_rate(u8 *SupportedRates, uint mode)
 	}
 }
 
-uint	rtw_get_rateset_len(u8	*rateset)
+uint rtw_get_rateset_len(u8 *rateset)
 {
-	uint i = 0;
+	uint i;
 
-	while (1) {
-		if ((rateset[i]) == 0)
+	for (i = 0; i < 13; i++)
+		if (rateset[i] == 0)
 			break;
-		if (i > 12)
-			break;
-		i++;
-	}
 	return i;
 }
 
 int rtw_generate_ie(struct registry_priv *pregistrypriv)
 {
-	u8	wireless_mode;
-	int	rateLen;
-	uint    sz = 0;
+	u8 wireless_mode;
+	int rateLen;
+	uint sz = 0;
 	struct wlan_bssid_ex *pdev_network = &pregistrypriv->dev_network;
 	u8 *ie = pdev_network->ies;
 
@@ -334,7 +321,6 @@ check_next_ie:
 
 unsigned char *rtw_get_wpa2_ie(unsigned char *pie, uint *rsn_ie_len, int limit)
 {
-
 	return rtw_get_ie(pie, _WPA2_IE_ID_, rsn_ie_len, limit);
 }
 
@@ -931,25 +917,15 @@ void rtw_macaddr_cfg(u8 *mac_addr)
 
 	if (rtw_initmac && mac_pton(rtw_initmac, mac)) {
 		/* Users specify the mac address */
-		memcpy(mac_addr, mac, ETH_ALEN);
+		ether_addr_copy(mac_addr, mac);
 	} else {
 		/* Use the mac address stored in the Efuse */
-		memcpy(mac, mac_addr, ETH_ALEN);
+		ether_addr_copy(mac, mac_addr);
 	}
 
-	if (((mac[0] == 0xff) && (mac[1] == 0xff) && (mac[2] == 0xff) &&
-	     (mac[3] == 0xff) && (mac[4] == 0xff) && (mac[5] == 0xff)) ||
-	    ((mac[0] == 0x0) && (mac[1] == 0x0) && (mac[2] == 0x0) &&
-	     (mac[3] == 0x0) && (mac[4] == 0x0) && (mac[5] == 0x0))) {
-		mac[0] = 0x00;
-		mac[1] = 0xe0;
-		mac[2] = 0x4c;
-		mac[3] = 0x87;
-		mac[4] = 0x00;
-		mac[5] = 0x00;
-		/*  use default mac address */
-		memcpy(mac_addr, mac, ETH_ALEN);
-		DBG_88E("MAC Address from efuse error, assign default one !!!\n");
+	if (is_broadcast_ether_addr(mac) || is_zero_ether_addr(mac)) {
+		eth_random_addr(mac_addr);
+		DBG_88E("MAC Address from efuse error, assign random one !!!\n");
 	}
 
 	DBG_88E("%s MAC Address  = %pM\n", __func__, (mac_addr));
