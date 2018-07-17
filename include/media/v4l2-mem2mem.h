@@ -40,19 +40,14 @@
  *		v4l2_m2m_job_finish() (as if the transaction ended normally).
  *		This function does not have to (and will usually not) wait
  *		until the device enters a state when it can be stopped.
- * @lock:	optional. Define a driver's own lock callback, instead of using
- *		&v4l2_m2m_ctx->q_lock.
- * @unlock:	optional. Define a driver's own unlock callback, instead of
- *		using &v4l2_m2m_ctx->q_lock.
  */
 struct v4l2_m2m_ops {
 	void (*device_run)(void *priv);
 	int (*job_ready)(void *priv);
 	void (*job_abort)(void *priv);
-	void (*lock)(void *priv);
-	void (*unlock)(void *priv);
 };
 
+struct video_device;
 struct v4l2_m2m_dev;
 
 /**
@@ -327,6 +322,24 @@ int v4l2_m2m_mmap(struct file *file, struct v4l2_m2m_ctx *m2m_ctx,
  * Return: returns an opaque pointer to the internal data to handle M2M context
  */
 struct v4l2_m2m_dev *v4l2_m2m_init(const struct v4l2_m2m_ops *m2m_ops);
+
+#if defined(CONFIG_MEDIA_CONTROLLER)
+void v4l2_m2m_unregister_media_controller(struct v4l2_m2m_dev *m2m_dev);
+int v4l2_m2m_register_media_controller(struct v4l2_m2m_dev *m2m_dev,
+			struct video_device *vdev, int function);
+#else
+static inline void
+v4l2_m2m_unregister_media_controller(struct v4l2_m2m_dev *m2m_dev)
+{
+}
+
+static inline int
+v4l2_m2m_register_media_controller(struct v4l2_m2m_dev *m2m_dev,
+		struct video_device *vdev, int function)
+{
+	return 0;
+}
+#endif
 
 /**
  * v4l2_m2m_release() - cleans up and frees a m2m_dev structure

@@ -223,7 +223,7 @@ static int venc_v4l2_to_hfi(int id, int value)
 		case V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC:
 			return HFI_H264_ENTROPY_CABAC;
 		}
-	case V4L2_CID_MPEG_VIDEO_VPX_PROFILE:
+	case V4L2_CID_MPEG_VIDEO_VP8_PROFILE:
 		switch (value) {
 		case 0:
 		default:
@@ -297,8 +297,6 @@ venc_try_fmt_common(struct venus_inst *inst, struct v4l2_format *f)
 		else
 			return NULL;
 		fmt = find_format(inst, pixmp->pixelformat, f->type);
-		pixmp->width = 1280;
-		pixmp->height = 720;
 	}
 
 	pixmp->width = clamp(pixmp->width, inst->cap_width.min,
@@ -756,7 +754,7 @@ static int venc_set_properties(struct venus_inst *inst)
 		level = venc_v4l2_to_hfi(V4L2_CID_MPEG_VIDEO_H264_LEVEL,
 					 ctr->level.h264);
 	} else if (inst->fmt_cap->pixfmt == V4L2_PIX_FMT_VP8) {
-		profile = venc_v4l2_to_hfi(V4L2_CID_MPEG_VIDEO_VPX_PROFILE,
+		profile = venc_v4l2_to_hfi(V4L2_CID_MPEG_VIDEO_VP8_PROFILE,
 					   ctr->profile.vpx);
 		level = 0;
 	} else if (inst->fmt_cap->pixfmt == V4L2_PIX_FMT_MPEG4) {

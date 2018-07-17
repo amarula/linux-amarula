@@ -351,8 +351,9 @@ static struct platform_device migor_ceu_device = {
 static struct gpiod_lookup_table ov7725_gpios = {
 	.dev_id		= "0-0021",
 	.table		= {
-		GPIO_LOOKUP("sh7722_pfc", GPIO_PTT0, "pwdn", GPIO_ACTIVE_HIGH),
-		GPIO_LOOKUP("sh7722_pfc", GPIO_PTT3, "rstb", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("sh7722_pfc", GPIO_PTT0, "powerdown",
+			    GPIO_ACTIVE_HIGH),
+		GPIO_LOOKUP("sh7722_pfc", GPIO_PTT3, "reset", GPIO_ACTIVE_LOW),
 	},
 };
 
@@ -592,7 +593,7 @@ static int __init migor_devices_setup(void)
 	}
 
 	/* Add a clock alias for ov7725 xclk source. */
-	clk_add_alias("xclk", "0-0021", "video_clk", NULL);
+	clk_add_alias(NULL, "0-0021", "video_clk", NULL);
 
 	/* Register GPIOs for video sources. */
 	gpiod_add_lookup_table(&ov7725_gpios);

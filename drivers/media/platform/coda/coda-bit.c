@@ -261,11 +261,12 @@ void coda_fill_bitstream(struct coda_ctx *ctx, struct list_head *buffer_list)
 
 	while (v4l2_m2m_num_src_bufs_ready(ctx->fh.m2m_ctx) > 0) {
 		/*
-		 * Only queue a single JPEG into the bitstream buffer, except
-		 * to increase payload over 512 bytes or if in hold state.
+		 * Only queue two JPEGs into the bitstream buffer to keep
+		 * latency low. We need at least one complete buffer and the
+		 * header of another buffer (for prescan) in the bitstream.
 		 */
 		if (ctx->codec->src_fourcc == V4L2_PIX_FMT_JPEG &&
-		    (coda_get_bitstream_payload(ctx) >= 512) && !ctx->hold)
+		    ctx->num_metas > 1)
 			break;
 
 		src_buf = v4l2_m2m_next_src_buf(ctx->fh.m2m_ctx);
@@ -721,6 +722,7 @@ static u32 coda_supported_firmwares[] = {
 	CODA_FIRMWARE_VERNUM(CODA_HX4, 1, 4, 50),
 	CODA_FIRMWARE_VERNUM(CODA_7541, 1, 4, 50),
 	CODA_FIRMWARE_VERNUM(CODA_960, 2, 1, 5),
+	CODA_FIRMWARE_VERNUM(CODA_960, 2, 1, 9),
 	CODA_FIRMWARE_VERNUM(CODA_960, 2, 3, 10),
 	CODA_FIRMWARE_VERNUM(CODA_960, 3, 1, 1),
 };
@@ -1362,7 +1364,8 @@ static int coda_prepare_encode(struct coda_ctx *ctx)
 
 	if (dev->devtype->product == CODA_960) {
 		coda_write(dev, 4/*FIXME: 0*/, CODA9_CMD_ENC_PIC_SRC_INDEX);
-		coda_write(dev, q_data_src->width, CODA9_CMD_ENC_PIC_SRC_STRIDE);
+		coda_write(dev, q_data_src->bytesperline,
+			   CODA9_CMD_ENC_PIC_SRC_STRIDE);
 		coda_write(dev, 0, CODA9_CMD_ENC_PIC_SUB_FRAME_SYNC);
 
 		reg = CODA9_CMD_ENC_PIC_SRC_ADDR_Y;
@@ -1582,10 +1585,8 @@ static int coda_decoder_reqbufs(struct coda_ctx *ctx,
 
 static bool coda_reorder_enable(struct coda_ctx *ctx)
 {
-	const char * const *profile_names;
-	const char * const *level_names;
 	struct coda_dev *dev = ctx->dev;
-	int profile, level;
+	int profile;
 
 	if (dev->devtype->product != CODA_HX4 &&
 	    dev->devtype->product != CODA_7541 &&
@@ -1599,24 +1600,9 @@ static bool coda_reorder_enable(struct coda_ctx *ctx)
 		return true;
 
 	profile = coda_h264_profile(ctx->params.h264_profile_idc);
-	if (profile < 0) {
-		v4l2_warn(&dev->v4l2_dev, "Invalid H264 Profile: %d\n",
-			 ctx->params.h264_profile_idc);
-		return false;
-	}
-
-	level = coda_h264_level(ctx->params.h264_level_idc);
-	if (level < 0) {
-		v4l2_warn(&dev->v4l2_dev, "Invalid H264 Level: %d\n",
-			 ctx->params.h264_level_idc);
-		return false;
-	}
-
-	profile_names = v4l2_ctrl_get_menu(V4L2_CID_MPEG_VIDEO_H264_PROFILE);
-	level_names = v4l2_ctrl_get_menu(V4L2_CID_MPEG_VIDEO_H264_LEVEL);
-
-	v4l2_dbg(1, coda_debug, &dev->v4l2_dev, "H264 Profile/Level: %s L%s\n",
-		 profile_names[profile], level_names[level]);
+	if (profile < 0)
+		v4l2_warn(&dev->v4l2_dev, "Unknown H264 Profile: %u\n",
+			  ctx->params.h264_profile_idc);
 
 	/* Baseline profile does not support reordering */
 	return profile > V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE;
@@ -1694,6 +1680,8 @@ static int __coda_start_decoding(struct coda_ctx *ctx)
 			coda_write(dev, 512, CODA_CMD_DEC_SEQ_SPP_CHUNK_SIZE);
 		}
 	}
+	if (src_fourcc == V4L2_PIX_FMT_JPEG)
+		coda_write(dev, 0, CODA_CMD_DEC_SEQ_JPG_THUMB_EN);
 	if (dev->devtype->product != CODA_960)
 		coda_write(dev, 0, CODA_CMD_DEC_SEQ_SRC_SIZE);
 

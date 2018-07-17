@@ -41,14 +41,7 @@ module_param(debug, int, 0644);
 
 static void job_abort(void *prv)
 {
-	struct rga_ctx *ctx = prv;
-	struct rockchip_rga *rga = ctx->rga;
-
-	if (!rga->curr)	/* No job currently running */
-		return;
-
-	wait_event_timeout(rga->irq_queue,
-			   !rga->curr, msecs_to_jiffies(RGA_TIMEOUT));
+	/* Can't do anything rational here */
 }
 
 static void device_run(void *prv)
@@ -104,8 +97,6 @@ static irqreturn_t rga_isr(int irq, void *prv)
 		v4l2_m2m_buf_done(src, VB2_BUF_STATE_DONE);
 		v4l2_m2m_buf_done(dst, VB2_BUF_STATE_DONE);
 		v4l2_m2m_job_finish(rga->m2m_dev, ctx->fh.m2m_ctx);
-
-		wake_up(&rga->irq_queue);
 	}
 
 	return IRQ_HANDLED;
@@ -838,8 +829,6 @@ static int rga_probe(struct platform_device *pdev)
 	spin_lock_init(&rga->ctrl_lock);
 	mutex_init(&rga->mutex);
 
-	init_waitqueue_head(&rga->irq_queue);
-
 	ret = rga_parse_dt(rga);
 	if (ret)
 		dev_err(&pdev->dev, "Unable to parse OF data\n");
@@ -882,7 +871,6 @@ static int rga_probe(struct platform_device *pdev)
 	vfd->v4l2_dev = &rga->v4l2_dev;
 
 	video_set_drvdata(vfd, rga);
-	snprintf(vfd->name, sizeof(vfd->name), "%s", rga_videodev.name);
 	rga->vfd = vfd;
 
 	platform_set_drvdata(pdev, rga);

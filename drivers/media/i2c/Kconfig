@@ -326,6 +326,16 @@ config VIDEO_AD5820
 	  This is a driver for the AD5820 camera lens voice coil.
 	  It is used for example in Nokia N900 (RX-51).
 
+config VIDEO_AK7375
+	tristate "AK7375 lens voice coil support"
+	depends on I2C && VIDEO_V4L2 && MEDIA_CONTROLLER
+	depends on VIDEO_V4L2_SUBDEV_API
+	help
+	  This is a driver for the AK7375 camera lens voice coil.
+	  AK7375 is a 12 bit DAC with 120mA output current sink
+	  capability. This is designed for linear control of
+	  voice coil motors, controlled via I2C serial interface.
+
 config VIDEO_DW9714
 	tristate "DW9714 lens voice coil support"
 	depends on I2C && VIDEO_V4L2 && MEDIA_CONTROLLER
@@ -333,6 +343,16 @@ config VIDEO_DW9714
 	---help---
 	  This is a driver for the DW9714 camera lens voice coil.
 	  DW9714 is a 10 bit DAC with 120mA output current sink
+	  capability. This is designed for linear control of
+	  voice coil motors, controlled via I2C serial interface.
+
+config VIDEO_DW9807
+	tristate "DW9807 lens voice coil support"
+	depends on I2C && VIDEO_V4L2 && MEDIA_CONTROLLER
+	depends on VIDEO_V4L2_SUBDEV_API
+	---help---
+	  This is a driver for the DW9807 camera lens voice coil.
+	  DW9807 is a 10 bit DAC with 100mA output current sink
 	  capability. This is designed for linear control of
 	  voice coil motors, controlled via I2C serial interface.
 
@@ -856,6 +876,17 @@ config VIDEO_NOON010PC30
 	  This driver supports NOON010PC30 CIF camera from Siliconfile
 
 source "drivers/media/i2c/m5mols/Kconfig"
+
+config VIDEO_RJ54N1
+	tristate "Sharp RJ54N1CB0C sensor support"
+	depends on I2C && VIDEO_V4L2
+	depends on MEDIA_CAMERA_SUPPORT
+	help
+	  This is a V4L2 sensor-level driver for Sharp RJ54N1CB0C CMOS image
+	  sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called rj54n1.
 
 config VIDEO_S5K6AA
 	tristate "Samsung S5K6AAFX sensor support"
