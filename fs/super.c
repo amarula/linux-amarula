@@ -551,7 +551,7 @@ retry:
 	hlist_add_head(&s->s_instances, &s->s_type->fs_supers);
 	spin_unlock(&sb_lock);
 	get_filesystem(s->s_type);
-	register_shrinker(&s->s_shrink);
+	register_shrinker_prepared(&s->s_shrink);
 	return s;
 }
 EXPORT_SYMBOL(sget_fc);
