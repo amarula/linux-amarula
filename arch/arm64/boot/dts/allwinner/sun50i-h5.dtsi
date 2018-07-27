@@ -92,6 +92,13 @@
 			     <GIC_PPI 10
 				(GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>;
 	};
+
+	soc {
+		sid: eeprom@1c14000 {
+			compatible = "allwinner,sun50i-h5-sid";
+			reg = <0x1c14000 0x400>;
+		};
+	};
 };
 
 &ccu {
