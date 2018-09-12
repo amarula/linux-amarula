@@ -1479,6 +1479,12 @@ u32 pm8001_mpi_msg_consume(struct pm8001_hba_info *pm8001_ha,
 		} else {
 			u32 producer_index;
 			void *pi_virt = circularQ->pi_virt;
+			/* spurious interrupt during setup if
+			 * kexec-ing and driver doing a doorbell access
+			 * with the pre-kexec oq interrupt setup
+			 */
+			if (!pi_virt)
+				break;
 			/* Update the producer index from SPC */
 			producer_index = pm8001_read_32(pi_virt);
 			circularQ->producer_index = cpu_to_le32(producer_index);
@@ -3810,7 +3816,8 @@ static int mpi_hw_event(struct pm8001_hba_info *pm8001_ha, void* piomb)
 			" status = %x\n", status));
 		if (status == 0) {
 			phy->phy_state = 1;
-			if (pm8001_ha->flags == PM8001F_RUN_TIME)
+			if (pm8001_ha->flags == PM8001F_RUN_TIME &&
+					phy->enable_completion != NULL)
 				complete(phy->enable_completion);
 		}
 		break;
