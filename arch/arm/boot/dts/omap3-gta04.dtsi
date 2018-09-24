@@ -619,6 +619,19 @@
 	status = "disabled";
 };
 
+#define BIT(x) (1 << (x))
+&twl_gpio {
+	/* pullups: BIT(2) */
+	ti,pullups = <BIT(2)>;
+	/*
+	 * pulldowns:
+	 * BIT(0),  BIT(1), BIT(6), BIT(7), BIT(8), BIT(13)
+	 * BIT(15), BIT(16), BIT(17)
+	 */
+	ti,pulldowns = <(BIT(0) | BIT(1) | BIT(6) | BIT(7) | BIT(8) |
+			 BIT(13) | BIT(15) | BIT(16) | BIT(17))>;
+};
+
 &twl_keypad {
 	status = "disabled";
 };
@@ -636,6 +649,7 @@
 &uart3 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart3_pins>;
+	interrupts-extended = <&intc 74 &omap3_pmx_core OMAP3_UART3_RX>;
 };
 
 &charger {
