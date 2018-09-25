@@ -1,0 +1,69 @@
+next/soc
+	patch
+		ARM: u300: Delete dummy SPI chip
+
+next/dt
+	socfgpa/updates
+		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/socfpga_updates_for_v4.20_part1
+	renesas/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-dt-for-v4.20
+	renesas/dt64
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-dt-for-v4.20
+	rockchip/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.20-rockchip-dts64-1
+	amlogic/dt64
+		https://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt64
+	broadcom/dt
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.20/devicetree
+	broadcom/dt64
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.20/devicetree-arm64
+	arm/juno-dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/juno-updates-4.20
+	ti/am654-dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/kristo/linux tags/am654-for-v4.20
+	aspeed/devicetree
+		git://git.kernel.org/pub/scm/linux/kernel/git/joel/aspeed tags/aspeed-4.20-devicetree
+	ux500/dts
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-stericsson tags/ux500-dts-arm-soc
+	stm32/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/atorgue/stm32 tags/stm32-dt-for-v4.20-1
+	hisi/dt64
+		git://github.com/hisilicon/linux-hisi tags/hisi-arm64-dt-for-4.20
+	hisi/dt
+		git://github.com/hisilicon/linux-hisi tags/hisi-arm32-dt-for-4.20
+	samsung/soc
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-soc-4.20
+	patch
+		arm64: dts: broadcom: Use the .dtb name in the rule, rather than .dts
+
+next/drivers
+	drivers/tee
+		git://git.linaro.org/people/jens.wiklander/linux-tee tags/tee-drv-for-4.20
+	amlogic/drivers
+		https://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-drivers
+	<no branch> (11da3a7f84f19c26da6f86af878298694ede0804)
+		Merge tag 'v4.19-rc3' into next/drivers
+	drivers/scmi
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/scmi-updates-4.20
+	keystone/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/ssantosh/linux-keystone tags/drivers_soc_for_4.20
+	fsl/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-next-v4.20
+
+next/defconfig
+	broadcom/defconfig
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.20/defconfig
+	stm32/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/atorgue/stm32 tags/stm32-defconfig-for-v4.20-1
+	hisi/defconfig
+		git://github.com/hisilicon/linux-hisi tags/hisi-defconfig-for-4.20
+
+next/late
+
+fixes
+	patch
+		MAINTAINERS: update the Annapurna Labs maintainer email
+	<no branch> (13b91ed77a65cf3bf23353880245d0cbd9138294)
+		https://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-fixes-for-4.19-2
+	<no branch> (379e36d3f591cb62e781907edafea17d75e8c1fa)
+		git://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-4.19-fixes
