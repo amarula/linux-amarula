@@ -4,6 +4,8 @@ next/soc
 		MAINTAINERS: Update stm32 entry
 	at91/soc
 		git://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-4.20-soc
+	zynq/soc
+		https://github.com/Xilinx/linux-xlnx tags/zynq-soc-for-v4.20
 
 next/dt
 	socfgpa/updates
@@ -46,6 +48,8 @@ next/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/socfpga_updates_for_v4.20_part2
 	samsung/dt-2
 		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt-4.20-2
+	zynq/dt
+		https://github.com/Xilinx/linux-xlnx tags/zynq-dt-for-v4.20
 
 next/drivers
 	drivers/tee
@@ -62,6 +66,8 @@ next/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-next-v4.20
 	at91/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-4.20-drivers
+	zynq/firmware
+		https://github.com/Xilinx/linux-xlnx tags/zynqmp-soc-for-v4.20-v2
 
 next/defconfig
 	broadcom/defconfig
@@ -87,4 +93,3 @@ fixes
 	patch
 		soc: fsl: qbman: qman: avoid allocating from non existing gen_pool
 		soc: fsl: qe: Fix copy/paste bug in ucc_get_tdm_sync_shift()
-
