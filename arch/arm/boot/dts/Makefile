@@ -322,6 +322,7 @@ dtb-$(CONFIG_MACH_MESON6) += \
 	meson6-atv1200.dtb
 dtb-$(CONFIG_MACH_MESON8) += \
 	meson8-minix-neo-x8.dtb \
+	meson8b-ec100.dtb \
 	meson8b-mxq.dtb \
 	meson8b-odroidc1.dtb \
 	meson8m2-mxiii-plus.dtb
@@ -650,6 +651,7 @@ dtb-$(CONFIG_ARCH_OMAP3) += \
 	omap3-gta04a3.dtb \
 	omap3-gta04a4.dtb \
 	omap3-gta04a5.dtb \
+	omap3-gta04a5one.dtb \
 	omap3-ha.dtb \
 	omap3-ha-lcd.dtb \
 	omap3-igep0020.dtb \
@@ -1062,6 +1064,7 @@ dtb-$(CONFIG_ARCH_TANGO) += \
 	tango4-vantage-1172.dtb
 dtb-$(CONFIG_ARCH_TEGRA_2x_SOC) += \
 	tegra20-harmony.dtb \
+	tegra20-colibri-eval-v3.dtb \
 	tegra20-colibri-iris.dtb \
 	tegra20-medcom-wide.dtb \
 	tegra20-paz00.dtb \
@@ -1072,6 +1075,7 @@ dtb-$(CONFIG_ARCH_TEGRA_2x_SOC) += \
 	tegra20-ventana.dtb
 dtb-$(CONFIG_ARCH_TEGRA_3x_SOC) += \
 	tegra30-apalis-eval.dtb \
+	tegra30-apalis-v1.1-eval.dtb \
 	tegra30-beaver.dtb \
 	tegra30-cardhu-a02.dtb \
 	tegra30-cardhu-a04.dtb \
