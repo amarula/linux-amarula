@@ -16,8 +16,15 @@ next/soc
 		ARM: Assume maintainership of ARM reference designs
 	renesas/soc
 		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-soc-for-v4.20
-	omap/dt
-		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.20/dt-signed-v2
+	patch
+		MAINTAINERS: Drop dt-bindings/genpd/k2g.h
+		MAINTAINERS: fix pattern in ARM/Synaptics berlin SoC section
+	actions/arm64
+		git://git.kernel.org/pub/scm/linux/kernel/git/afaerber/linux-actions tags/actions-arm64-soc-for-4.20
+	imx/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-soc-4.20
+	mvebu/soc
+		git://git.infradead.org/linux-mvebu tags/mvebu-soc-4.20-1
 
 next/dt
 	socfgpa/updates
@@ -88,6 +95,32 @@ next/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-dt2-for-v4.20
 	renesas/dt-bindings
 		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-dt-bindings-for-v4.20
+	sunxi/dt-h3-h5
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-h3-h5-for-4.20
+	sunxi/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt-for-4.20
+	sunxi/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt64-for-4.20
+	mediatek/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v4.19-next-dts64
+	actions/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/afaerber/linux-actions tags/actions-arm-dt-for-4.20
+	actions/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/afaerber/linux-actions tags/actions-arm64-dt-for-4.20
+	qcom/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-arm64-for-4.20
+	qcom/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-dts-for-4.20
+	imx/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-dt-4.20
+	imx/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-dt64-4.20
+	mvebu/dt
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-4.20-1
+	mvebu/dt64
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt64-4.20-1
+	omap/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.20/dt-signed-v2
 
 next/drivers
 	drivers/tee
@@ -111,6 +144,16 @@ next/drivers
 		contains tegra/bindings
 	renesas/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-drivers-for-v4.20
+	sunxi/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-drivers-for-4.20
+	mediatek/soc-drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v4.19-next-soc
+	actions/soc-drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/afaerber/linux-actions tags/actions-drivers+s900-sps-for-4.20
+	qcom/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-drivers-for-4.20
+	<no branch> (8d8e3b7d8f06f69005d829d4a195b00ef976004b)
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-drivers-4.20
 
 next/defconfig
 	broadcom/defconfig
@@ -125,18 +168,17 @@ next/defconfig
 		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-defconfig-for-v4.20
 	renesas/defconfig-32
 		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-defconfig-for-v4.20
+	qcom/defconfig64
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-arm64-defconfig-for-4.20
+	qcom/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-defconfig-for-4.20
+	patch
+		arm64: defconfig: Enable USB phys for UniPhier SoCs
+	sunxi/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-config64-for-4.20
+	patch
+		ARM: multi_v7_defconfig: Enable USB phys for UniPhier SoCs
 
 next/late
 
 fixes
-	patch
-		MAINTAINERS: update the Annapurna Labs maintainer email
-	<no branch> (13b91ed77a65cf3bf23353880245d0cbd9138294)
-		https://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-fixes-for-4.19-2
-	<no branch> (379e36d3f591cb62e781907edafea17d75e8c1fa)
-		git://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-4.19-fixes
-	<no branch> (3ab97942d0213b6583a5408630a8cbbfbf54730f)
-		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.19/devicetree-fixes
-	patch
-		soc: fsl: qbman: qman: avoid allocating from non existing gen_pool
-		soc: fsl: qe: Fix copy/paste bug in ucc_get_tdm_sync_shift()
