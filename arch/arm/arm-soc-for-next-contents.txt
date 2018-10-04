@@ -25,6 +25,9 @@ next/soc
 		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-soc-4.20
 	mvebu/soc
 		git://git.infradead.org/linux-mvebu tags/mvebu-soc-4.20-1
+	renesas/arm64-soc
+renesas/soc64
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-soc-for-v4.20
 
 next/dt
 	socfgpa/updates
@@ -121,6 +124,22 @@ next/dt
 		git://git.infradead.org/linux-mvebu tags/mvebu-dt64-4.20-1
 	omap/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.20/dt-signed-v2
+	omap/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.20/dt-signed-part2
+	rockchip/dt64-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.20-rockchip-dts64-2
+	rockchip/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.20-rockchip-dts32-1
+	mediatek/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v4.19-next-dts32
+	at91/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-4.20-dt2
+	uniphier/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/masahiroy/linux-uniphier tags/uniphier-dt-v4.20
+	amlogic/dt-3
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt64-3
+	davinci/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v4.20/dt
 
 next/drivers
 	drivers/tee
@@ -152,8 +171,10 @@ next/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/afaerber/linux-actions tags/actions-drivers+s900-sps-for-4.20
 	qcom/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-drivers-for-4.20
-	<no branch> (8d8e3b7d8f06f69005d829d4a195b00ef976004b)
+	imx/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-drivers-4.20
+	omap/ti-sysc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.20/ti-sysc-take2-signed
 
 next/defconfig
 	broadcom/defconfig
@@ -178,7 +199,15 @@ next/defconfig
 		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-config64-for-4.20
 	patch
 		ARM: multi_v7_defconfig: Enable USB phys for UniPhier SoCs
+		arm64: defconfig: enable CONFIG_MMC_UNIPHIER
+		ARM: multi_v7_defconfig: enable CONFIG_MMC_UNIPHIER
+	rockchip/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.20-rockchip-defconfig64-1
 
 next/late
 
 fixes
+	imx/fixes
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-fixes-4.19-2
+	soc-fsl-fixes
+		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-fix-v4.19-2
