@@ -1884,8 +1884,11 @@ static int bnxt_poll_work(struct bnxt *bp, struct bnxt_napi *bnapi, int budget)
 		if (TX_CMP_TYPE(txcmp) == CMP_TYPE_TX_L2_CMP) {
 			tx_pkts++;
 			/* return full budget so NAPI will complete. */
-			if (unlikely(tx_pkts > bp->tx_wake_thresh))
+			if (unlikely(tx_pkts > bp->tx_wake_thresh)) {
 				rx_pkts = budget;
+				raw_cons = NEXT_RAW_CMP(raw_cons);
+				break;
+			}
 		} else if ((TX_CMP_TYPE(txcmp) & 0x30) == 0x10) {
 			if (likely(budget))
 				rc = bnxt_rx_pkt(bp, bnapi, &raw_cons, &event);
@@ -1913,7 +1916,7 @@ static int bnxt_poll_work(struct bnxt *bp, struct bnxt_napi *bnapi, int budget)
 		}
 		raw_cons = NEXT_RAW_CMP(raw_cons);
 
-		if (rx_pkts == budget)
+		if (rx_pkts && rx_pkts == budget)
 			break;
 	}
 
@@ -2027,8 +2030,12 @@ static int bnxt_poll(struct napi_struct *napi, int budget)
 	while (1) {
 		work_done += bnxt_poll_work(bp, bnapi, budget - work_done);
 
-		if (work_done >= budget)
+		if (work_done >= budget) {
+			if (!budget)
+				BNXT_CP_DB_REARM(cpr->cp_doorbell,
+						 cpr->cp_raw_cons);
 			break;
+		}
 
 		if (!bnxt_has_work(bp, cpr)) {
 			if (napi_complete_done(napi, work_done))
@@ -7672,21 +7679,6 @@ static void bnxt_tx_timeout(struct net_device *dev)
 	bnxt_queue_sp_work(bp);
 }
 
-#ifdef CONFIG_NET_POLL_CONTROLLER
-static void bnxt_poll_controller(struct net_device *dev)
-{
-	struct bnxt *bp = netdev_priv(dev);
-	int i;
-
-	/* Only process tx rings/combined rings in netpoll mode. */
-	for (i = 0; i < bp->tx_nr_rings; i++) {
-		struct bnxt_tx_ring_info *txr = &bp->tx_ring[i];
-
-		napi_schedule(&txr->bnapi->napi);
-	}
-}
-#endif
-
 static void bnxt_timer(struct timer_list *t)
 {
 	struct bnxt *bp = from_timer(bp, t, timer);
@@ -8519,9 +8511,6 @@ static const struct net_device_ops bnxt_netdev_ops = {
 	.ndo_set_vf_link_state	= bnxt_set_vf_link_state,
 	.ndo_set_vf_spoofchk	= bnxt_set_vf_spoofchk,
 	.ndo_set_vf_trust	= bnxt_set_vf_trust,
-#endif
-#ifdef CONFIG_NET_POLL_CONTROLLER
-	.ndo_poll_controller	= bnxt_poll_controller,
 #endif
 	.ndo_setup_tc           = bnxt_setup_tc,
 #ifdef CONFIG_RFS_ACCEL
