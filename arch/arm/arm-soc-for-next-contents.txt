@@ -26,8 +26,9 @@ next/soc
 	mvebu/soc
 		git://git.infradead.org/linux-mvebu tags/mvebu-soc-4.20-1
 	renesas/arm64-soc
-renesas/soc64
 		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-soc-for-v4.20
+	patch
+		MAINTAINERS: remove non-exsiting email address of Baoyou
 
 next/dt
 	socfgpa/updates
@@ -140,6 +141,12 @@ next/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt64-3
 	davinci/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v4.20/dt
+	mvebu/dt64-2
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt64-4.20-2
+	mvebu/dt-2
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-4.20-2
+	mediatek/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v4.19-next-dts32-2
 
 next/drivers
 	drivers/tee
@@ -175,6 +182,9 @@ next/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-drivers-4.20
 	omap/ti-sysc
 		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.20/ti-sysc-take2-signed
+	<no branch> (6d06009cb216d071e955b3814086595851627910)
+		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-next-v4.20-2
+		contains soc-fsl-fixes
 
 next/defconfig
 	broadcom/defconfig
@@ -203,6 +213,9 @@ next/defconfig
 		ARM: multi_v7_defconfig: enable CONFIG_MMC_UNIPHIER
 	rockchip/defconfig
 		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.20-rockchip-defconfig64-1
+	patch
+		arm64: defconfig: Enable TI_SCI related configs
+		arm64: defconfig: Enable SERIAL_8250_OMAP
 
 next/late
 
