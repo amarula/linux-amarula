@@ -182,9 +182,15 @@ next/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-drivers-4.20
 	omap/ti-sysc
 		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.20/ti-sysc-take2-signed
-	<no branch> (6d06009cb216d071e955b3814086595851627910)
+	soc-fsl-drivers-2
 		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-next-v4.20-2
 		contains soc-fsl-fixes
+	imx/firmware
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-drivers-4.20-2
+	drivers/reset
+		git://git.pengutronix.de/git/pza/linux tags/reset-for-4.20
+	zynq/clk
+		https://github.com/Xilinx/linux-xlnx tags/zynqmp-soc-clk-for-v4.20
 
 next/defconfig
 	broadcom/defconfig
