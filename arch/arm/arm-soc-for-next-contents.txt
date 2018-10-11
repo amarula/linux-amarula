@@ -29,6 +29,12 @@ next/soc
 		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-soc-for-v4.20
 	patch
 		MAINTAINERS: remove non-exsiting email address of Baoyou
+		arm64: exynos: Enable generic power domain support
+	samsung/soc-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-soc-4.20-2
+		contains samsung/soc
+	patch
+		MAINTAINERS: Assign myself as a maintainer of ARM/LPC18XX architecture
 
 next/dt
 	socfgpa/updates
@@ -147,6 +153,12 @@ next/dt
 		git://git.infradead.org/linux-mvebu tags/mvebu-dt-4.20-2
 	mediatek/dt-2
 		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v4.19-next-dts32-2
+	samsung/dt-3
+		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt-4.20-3
+	samsung/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt64-4.20
+	socfpga/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/socfpga_updates_for_v4.20_part3
 
 next/drivers
 	drivers/tee
@@ -191,6 +203,8 @@ next/drivers
 		git://git.pengutronix.de/git/pza/linux tags/reset-for-4.20
 	zynq/clk
 		https://github.com/Xilinx/linux-xlnx tags/zynqmp-soc-clk-for-v4.20
+	tegra/firmware
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.20-firmware-2
 
 next/defconfig
 	broadcom/defconfig
@@ -222,6 +236,8 @@ next/defconfig
 	patch
 		arm64: defconfig: Enable TI_SCI related configs
 		arm64: defconfig: Enable SERIAL_8250_OMAP
+	imx/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-defconfig-4.20
 
 next/late
 
