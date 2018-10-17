@@ -377,7 +377,7 @@ void workingset_update_node(struct radix_tree_node *node)
 	 * already where they should be. The list_empty() test is safe
 	 * as node->private_list is protected by the i_pages lock.
 	 */
-	WARN_ON_ONCE(!irqs_disabled());	/* For __inc_lruvec_page_state */
+	VM_WARN_ON_ONCE(!irqs_disabled());  /* For __inc_lruvec_page_state */
 
 	if (node->count && node->count == node->exceptional) {
 		if (list_empty(&node->private_list)) {
