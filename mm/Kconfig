@@ -145,9 +145,6 @@ config HAVE_GENERIC_GUP
 config ARCH_DISCARD_MEMBLOCK
 	bool
 
-config NO_BOOTMEM
-	bool
-
 config MEMORY_ISOLATION
 	bool
 

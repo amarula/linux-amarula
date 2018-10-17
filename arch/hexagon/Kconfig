@@ -33,7 +33,6 @@ config HEXAGON
 	select GENERIC_CPU_DEVICES
 	select HAVE_MEMBLOCK
 	select ARCH_DISCARD_MEMBLOCK
-	select NO_BOOTMEM
 	---help---
 	  Qualcomm Hexagon is a processor architecture designed for high
 	  performance and low power across a wide variety of applications.
