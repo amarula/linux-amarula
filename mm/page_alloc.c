@@ -314,6 +314,10 @@ static inline bool defer_init(int nid, unsigned long pfn, unsigned long end_pfn)
 {
 	static unsigned long prev_end_pfn, nr_initialised;
 
+	/*
+	 * prev_end_pfn static that contains the end of previous zone
+	 * No need to protect because called very early in boot before smp_init.
+	 */
 	if (prev_end_pfn != end_pfn) {
 		prev_end_pfn = end_pfn;
 		nr_initialised = 0;
