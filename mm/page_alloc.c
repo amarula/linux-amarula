@@ -310,7 +310,8 @@ static inline bool __meminit early_page_uninitialised(unsigned long pfn)
  * Returns true when the remaining initialisation should be deferred until
  * later in the boot cycle when it can be parallelised.
  */
-static inline bool defer_init(int nid, unsigned long pfn, unsigned long end_pfn)
+static bool __meminit
+defer_init(int nid, unsigned long pfn, unsigned long end_pfn)
 {
 	static unsigned long prev_end_pfn, nr_initialised;
 
