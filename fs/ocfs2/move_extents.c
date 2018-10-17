@@ -25,6 +25,7 @@
 #include "ocfs2_ioctl.h"
 
 #include "alloc.h"
+#include "localalloc.h"
 #include "aops.h"
 #include "dlmglue.h"
 #include "extent_map.h"
@@ -227,7 +228,6 @@ static int ocfs2_defrag_extent(struct ocfs2_move_extents_context *context,
 	u32 new_phys_cpos, new_len;
 	u64 phys_blkno = ocfs2_clusters_to_blocks(inode->i_sb, phys_cpos);
 	int need_free = 0;
-	struct ocfs2_alloc_context *data_ac;
 
 	if ((ext_flags & OCFS2_EXT_REFCOUNTED) && *len) {
 		BUG_ON(!ocfs2_is_refcount_inode(inode));
@@ -345,7 +345,8 @@ static int ocfs2_defrag_extent(struct ocfs2_move_extents_context *context,
 
 out_commit:
 	if (need_free && context->data_ac) {
-		data_ac = context->data_ac;
+		struct ocfs2_alloc_context *data_ac = context->data_ac;
+
 		if (context->data_ac->ac_which == OCFS2_AC_USE_LOCAL)
 			ocfs2_free_local_alloc_bits(osb, handle, data_ac,
 					new_phys_cpos, new_len);
