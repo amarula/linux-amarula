@@ -566,12 +566,15 @@ SYSCALL_DEFINE5(mremap, unsigned long, addr, unsigned long, old_len,
 	 * downgrades mmap_sem to read if so directed.
 	 */
 	if (old_len >= new_len) {
-		ret = __do_munmap(mm, addr+new_len, old_len - new_len,
+		int retval;
+
+		retval = __do_munmap(mm, addr+new_len, old_len - new_len,
 				  &uf_unmap, true);
-		if (ret < 0 && old_len != new_len)
+		if (retval < 0 && old_len != new_len) {
+			ret = retval;
 			goto out;
 		/* Returning 1 indicates mmap_sem is downgraded to read. */
-		else if (ret == 1)
+		} else if (retval == 1)
 			downgraded = true;
 		ret = addr;
 		goto out;
