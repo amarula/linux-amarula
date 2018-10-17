@@ -111,8 +111,8 @@ static u64 memtrace_alloc_node(u32 nid, u64 size)
 	/* Trace memory needs to be aligned to the size */
 	end_pfn = round_down(end_pfn - nr_pages, nr_pages);
 
+	lock_device_hotplug();
 	for (base_pfn = end_pfn; base_pfn > start_pfn; base_pfn -= nr_pages) {
-		lock_device_hotplug();
 		if (memtrace_offline_pages(nid, base_pfn, nr_pages) == true) {
 			/*
 			 * Remove memory in memory block size chunks so that
@@ -127,8 +127,8 @@ static u64 memtrace_alloc_node(u32 nid, u64 size)
 			unlock_device_hotplug();
 			return base_pfn << PAGE_SHIFT;
 		}
-		unlock_device_hotplug();
 	}
+	unlock_device_hotplug();
 
 	return 0;
 }
