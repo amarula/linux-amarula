@@ -439,11 +439,6 @@ static inline void early_memtest(phys_addr_t start, phys_addr_t end)
 {
 }
 #endif
-#else
-static inline phys_addr_t memblock_alloc(phys_addr_t size, phys_addr_t align)
-{
-	return 0;
-}
 
 #endif /* __KERNEL__ */
 
