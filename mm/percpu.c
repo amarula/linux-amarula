@@ -1101,7 +1101,8 @@ static struct pcpu_chunk * __init pcpu_alloc_first_chunk(unsigned long tmp_addr,
 	region_size = ALIGN(start_offset + map_size, lcm_align);
 
 	/* allocate chunk */
-	chunk = memblock_alloc(sizeof(struct pcpu_chunk) + BITS_TO_LONGS(region_size >> PAGE_SHIFT),
+	chunk = memblock_alloc(sizeof(struct pcpu_chunk) +
+			       BITS_TO_LONGS(region_size >> PAGE_SHIFT),
 			       SMP_CACHE_BYTES);
 
 	INIT_LIST_HEAD(&chunk->list);
