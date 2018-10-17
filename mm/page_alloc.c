@@ -5447,7 +5447,8 @@ void __ref build_all_zonelists(pg_data_t *pgdat)
 }
 
 /* If zone is ZONE_MOVABLE but memory is mirrored, it is an overlapped init */
-static inline bool overlap_memmap_init(unsigned long zone, unsigned long *pfn)
+static bool __meminit
+overlap_memmap_init(unsigned long zone, unsigned long *pfn)
 {
 #ifdef CONFIG_HAVE_MEMBLOCK_NODE_MAP
 	static struct memblock_region *r;
