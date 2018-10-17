@@ -3993,13 +3993,11 @@ should_reclaim_retry(gfp_t gfp_mask, unsigned order,
 
 out:
 	/*
-	 * Memory allocation/reclaim might be called from a WQ
-	 * context and the current implementation of the WQ
-	 * concurrency control doesn't recognize that
-	 * a particular WQ is congested if the worker thread is
-	 * looping without ever sleeping. Therefore we have to
-	 * do a short sleep here rather than calling
-	 * cond_resched().
+	 * Memory allocation/reclaim might be called from a WQ context and the
+	 * current implementation of the WQ concurrency control doesn't
+	 * recognize that a particular WQ is congested if the worker thread is
+	 * looping without ever sleeping. Therefore we have to do a short sleep
+	 * here rather than calling cond_resched().
 	 */
 	if (current->flags & PF_WQ_WORKER)
 		schedule_timeout_uninterruptible(1);
