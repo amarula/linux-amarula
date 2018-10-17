@@ -378,11 +378,17 @@ void workingset_update_node(struct radix_tree_node *node)
 	 * as node->private_list is protected by the i_pages lock.
 	 */
 	if (node->count && node->count == node->exceptional) {
-		if (list_empty(&node->private_list))
+		if (list_empty(&node->private_list)) {
 			list_lru_add(&shadow_nodes, &node->private_list);
+			__inc_lruvec_page_state(virt_to_page(node),
+						WORKINGSET_NODES);
+		}
 	} else {
-		if (!list_empty(&node->private_list))
+		if (!list_empty(&node->private_list)) {
 			list_lru_del(&shadow_nodes, &node->private_list);
+			__dec_lruvec_page_state(virt_to_page(node),
+						WORKINGSET_NODES);
+		}
 	}
 }
 
@@ -473,6 +479,8 @@ static enum lru_status shadow_lru_isolate(struct list_head *item,
 	}
 
 	list_lru_isolate(lru, item);
+	__dec_lruvec_page_state(virt_to_page(node), WORKINGSET_NODES);
+
 	spin_unlock(lru_lock);
 
 	/*
