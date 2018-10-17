@@ -1299,6 +1299,7 @@ static phys_addr_t __init memblock_alloc_range_nid(phys_addr_t size,
 	phys_addr_t found;
 
 	if (!align) {
+		/* Can't use WARNs this early in boot on powerpc */
 		dump_stack();
 		align = SMP_CACHE_BYTES;
 	}
