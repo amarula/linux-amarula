@@ -1298,8 +1298,10 @@ static phys_addr_t __init memblock_alloc_range_nid(phys_addr_t size,
 {
 	phys_addr_t found;
 
-	if (WARN_ON_ONCE(!align))
+	if (!align) {
+		dump_stack();
 		align = SMP_CACHE_BYTES;
+	}
 
 	found = memblock_find_in_range_node(size, align, start, end, nid,
 					    flags);
@@ -1423,8 +1425,10 @@ static void * __init memblock_alloc_internal(
 	if (WARN_ON_ONCE(slab_is_available()))
 		return kzalloc_node(size, GFP_NOWAIT, nid);
 
-	if (WARN_ON_ONCE(!align))
+	if (!align) {
+		dump_stack();
 		align = SMP_CACHE_BYTES;
+	}
 
 	if (max_addr > memblock.current_limit)
 		max_addr = memblock.current_limit;
