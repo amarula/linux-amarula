@@ -2041,16 +2041,15 @@ int migrate_misplaced_transhuge_page(struct mm_struct *mm,
 	flush_cache_range(vma, mmun_start, mmun_end);
 	page_add_anon_rmap(new_page, vma, mmun_start, true);
 	/*
-	 * At this point the pmd is numa/protnone (i.e. non present)
-	 * and the TLB has already been flushed globally. So no TLB
-	 * can be currently caching this non present pmd mapping.
-	 * There's no need of clearing the pmd before doing
-	 * set_pmd_at(), nor to flush the TLB after
-	 * set_pmd_at(). Clearing the pmd here would introduce a race
-	 * condition against MADV_DONTNEED, beacuse MADV_DONTNEED only
-	 * holds the mmap_sem for reading. If the pmd is set to NULL
-	 * at any given time, MADV_DONTNEED won't wait on the pmd lock
-	 * and it'll skip clearing this pmd.
+	 * At this point the pmd is numa/protnone (i.e. non present) and the TLB
+	 * has already been flushed globally.  So no TLB can be currently
+	 * caching this non present pmd mapping.  There's no need to clear the
+	 * pmd before doing set_pmd_at(), nor to flush the TLB after
+	 * set_pmd_at().  Clearing the pmd here would introduce a race
+	 * condition against MADV_DONTNEED, because MADV_DONTNEED only holds the
+	 * mmap_sem for reading.  If the pmd is set to NULL at any given time,
+	 * MADV_DONTNEED won't wait on the pmd lock and it'll skip clearing this
+	 * pmd.
 	 */
 	set_pmd_at(mm, mmun_start, pmd, entry);
 	update_mmu_cache_pmd(vma, address, &entry);
