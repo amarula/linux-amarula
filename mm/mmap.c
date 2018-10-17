@@ -243,9 +243,9 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 	 */
 	if (brk <= mm->brk) {
 		/*
-		 * mm->brk need to be protected by write mmap_sem, update it
-		 * before downgrading mmap_sem.
-		 * When __do_munmap fail, it will be restored from origbrk.
+		 * mm->brk must to be protected by write mmap_sem so update it
+		 * before downgrading mmap_sem. When __do_munmap() fails,
+		 * mm->brk will be restored from origbrk.
 		 */
 		mm->brk = brk;
 		retval = __do_munmap(mm, newbrk, oldbrk-newbrk, &uf, true);
