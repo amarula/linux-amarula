@@ -1465,6 +1465,10 @@ static void node_states_check_changes_offline(unsigned long nr_pages,
 	unsigned long present_pages = 0;
 	enum zone_type zt;
 
+	arg->status_change_nid = -1;
+	arg->status_change_nid_normal = -1;
+	arg->status_change_nid_high = -1;
+
 	/*
 	 * Check whether node_states[N_NORMAL_MEMORY] will be changed.
 	 * If the memory to be offline is within the range
@@ -1477,8 +1481,6 @@ static void node_states_check_changes_offline(unsigned long nr_pages,
 		present_pages += pgdat->node_zones[zt].present_pages;
 	if (zone_idx(zone) <= ZONE_NORMAL && nr_pages >= present_pages)
 		arg->status_change_nid_normal = zone_to_nid(zone);
-	else
-		arg->status_change_nid_normal = -1;
 
 #ifdef CONFIG_HIGHMEM
 	/*
@@ -1489,15 +1491,9 @@ static void node_states_check_changes_offline(unsigned long nr_pages,
 	 * we determine that the zones in that range become empty,
 	 * we need to clear the node for N_HIGH_MEMORY.
 	 */
-	zt = ZONE_HIGHMEM;
-	present_pages += pgdat->node_zones[zt].present_pages;
-
-	if (zone_idx(zone) <= zt && nr_pages >= present_pages)
+	present_pages += pgdat->node_zones[ZONE_HIGHMEM].present_pages;
+	if (zone_idx(zone) <= ZONE_HIGHMEM && nr_pages >= present_pages)
 		arg->status_change_nid_high = zone_to_nid(zone);
-	else
-		arg->status_change_nid_high = -1;
-#else
-	arg->status_change_nid_high = arg->status_change_nid_normal;
 #endif
 
 	/*
@@ -1510,13 +1506,10 @@ static void node_states_check_changes_offline(unsigned long nr_pages,
 	 * we know that the node will become empty, and so, we can clear
 	 * it for N_MEMORY as well.
 	 */
-	zt = ZONE_MOVABLE;
-	present_pages += pgdat->node_zones[zt].present_pages;
+	present_pages += pgdat->node_zones[ZONE_MOVABLE].present_pages;
 
 	if (nr_pages >= present_pages)
 		arg->status_change_nid = zone_to_nid(zone);
-	else
-		arg->status_change_nid = -1;
 }
 
 static void node_states_clear_node(int node, struct memory_notify *arg)
