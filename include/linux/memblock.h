@@ -2,7 +2,6 @@
 #define _LINUX_MEMBLOCK_H
 #ifdef __KERNEL__
 
-#ifdef CONFIG_HAVE_MEMBLOCK
 /*
  * Logical memory blocks.
  *
@@ -445,7 +444,6 @@ static inline phys_addr_t memblock_alloc(phys_addr_t size, phys_addr_t align)
 {
 	return 0;
 }
-#endif /* CONFIG_HAVE_MEMBLOCK */
 
 #endif /* __KERNEL__ */
 
