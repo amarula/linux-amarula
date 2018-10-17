@@ -242,18 +242,21 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 	 * __do_munmap() may downgrade mmap_sem to read.
 	 */
 	if (brk <= mm->brk) {
+		int ret;
+
 		/*
 		 * mm->brk must to be protected by write mmap_sem so update it
 		 * before downgrading mmap_sem. When __do_munmap() fails,
 		 * mm->brk will be restored from origbrk.
 		 */
 		mm->brk = brk;
-		retval = __do_munmap(mm, newbrk, oldbrk-newbrk, &uf, true);
-		if (retval < 0) {
+		ret = __do_munmap(mm, newbrk, oldbrk-newbrk, &uf, true);
+		if (ret < 0) {
 			mm->brk = origbrk;
 			goto out;
-		} else if (retval == 1)
+		} else if (ret == 1) {
 			downgraded = true;
+		}
 		goto success;
 	}
 
