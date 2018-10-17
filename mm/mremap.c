@@ -563,7 +563,7 @@ SYSCALL_DEFINE5(mremap, unsigned long, addr, unsigned long, old_len,
 	 * Always allow a shrinking remap: that just unmaps
 	 * the unnecessary pages..
 	 * __do_munmap does all the needed commit accounting, and
-	 * downgrade mmap_sem to read.
+	 * downgrades mmap_sem to read if so directed.
 	 */
 	if (old_len >= new_len) {
 		ret = __do_munmap(mm, addr+new_len, old_len - new_len,
