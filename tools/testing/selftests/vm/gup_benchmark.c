@@ -71,8 +71,10 @@ int main(int argc, char **argv)
 	}
 
 	filed = open(file, O_RDWR|O_CREAT);
-	if (filed < 0)
-		perror("open"), exit(filed);
+	if (filed < 0) {
+		perror("open");
+		exit(filed);
+	}
 
 	gup.nr_pages_per_call = nr_pages;
 	gup.flags = write;
