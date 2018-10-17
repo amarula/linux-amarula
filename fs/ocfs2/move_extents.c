@@ -192,13 +192,6 @@ static int ocfs2_lock_allocators_move_extents(struct inode *inode,
 		goto out;
 	}
 
-	if (data_ac) {
-		ret = ocfs2_reserve_clusters(osb, clusters_to_move, data_ac);
-		if (ret) {
-			mlog_errno(ret);
-			goto out;
-		}
-	}
 
 	*credits += ocfs2_calc_extend_credits(osb->sb, et->et_root_el);
 
@@ -281,6 +274,12 @@ static int ocfs2_defrag_extent(struct ocfs2_move_extents_context *context,
 			mlog_errno(ret);
 			goto out_unlock_mutex;
 		}
+	}
+
+	ret = ocfs2_reserve_clusters(osb, *len, &context->data_ac);
+	if (ret) {
+		mlog_errno(ret);
+		goto out_unlock_mutex;
 	}
 
 	handle = ocfs2_start_trans(osb, credits);
