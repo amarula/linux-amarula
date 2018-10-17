@@ -688,40 +688,18 @@ static void node_states_check_changes_online(unsigned long nr_pages,
 {
 	int nid = zone_to_nid(zone);
 
-	/*
-	 * zone_for_pfn_range() can only return a zone within
-	 * (0..ZONE_NORMAL] or ZONE_MOVABLE.
-	 * If the zone is within the range (0..ZONE_NORMAL],
-	 * we need to check if:
-	 * 1) We need to set the node for N_NORMAL_MEMORY
-	 * 2) On CONFIG_HIGHMEM systems, we need to also set
-	 *    the node for N_HIGH_MEMORY.
-	 * 3) On !CONFIG_HIGHMEM, we can disregard N_HIGH_MEMORY,
-	 *    as N_HIGH_MEMORY falls back to N_NORMAL_MEMORY.
-	 */
+	arg->status_change_nid = -1;
+	arg->status_change_nid_normal = -1;
+	arg->status_change_nid_high = -1;
 
-	if (zone_idx(zone) <= ZONE_NORMAL) {
-		if (!node_state(nid, N_NORMAL_MEMORY))
-			arg->status_change_nid_normal = nid;
-		else
-			arg->status_change_nid_normal = -1;
-
-		if (IS_ENABLED(CONFIG_HIGHMEM)) {
-			if (!node_state(nid, N_HIGH_MEMORY))
-				arg->status_change_nid_high = nid;
-		} else
-			arg->status_change_nid_high = -1;
-	}
-
-	/*
-	 * if the node doesn't have memory before onlining it, we will need
-	 * to set the node to node_states[N_MEMORY] after the memory
-	 * gets onlined.
-	 */
 	if (!node_state(nid, N_MEMORY))
 		arg->status_change_nid = nid;
-	else
-		arg->status_change_nid = -1;
+	if (zone_idx(zone) <= ZONE_NORMAL && !node_state(nid, N_NORMAL_MEMORY))
+		arg->status_change_nid_normal = nid;
+#ifdef CONFIG_HIGHMEM
+	if (zone_idx(zone) <= N_HIGH_MEMORY && !node_state(nid, N_HIGH_MEMORY))
+		arg->status_change_nid_high = nid;
+#endif
 }
 
 static void node_states_set_node(int node, struct memory_notify *arg)
