@@ -2374,8 +2374,7 @@ static int rbd_obj_issue_copyup(struct rbd_obj_request *obj_req, u32 bytes)
 	if (!obj_req->osd_req)
 		return -ENOMEM;
 
-	ret = osd_req_op_cls_init(obj_req->osd_req, 0, CEPH_OSD_OP_CALL, "rbd",
-				  "copyup");
+	ret = osd_req_op_cls_init(obj_req->osd_req, 0, "rbd", "copyup");
 	if (ret)
 		return ret;
 
@@ -6067,7 +6066,7 @@ static ssize_t rbd_remove_single_major(struct bus_type *bus,
  * create control files in sysfs
  * /sys/bus/rbd/...
  */
-static int rbd_sysfs_init(void)
+static int __init rbd_sysfs_init(void)
 {
 	int ret;
 
@@ -6082,13 +6081,13 @@ static int rbd_sysfs_init(void)
 	return ret;
 }
 
-static void rbd_sysfs_cleanup(void)
+static void __exit rbd_sysfs_cleanup(void)
 {
 	bus_unregister(&rbd_bus_type);
 	device_unregister(&rbd_root_dev);
 }
 
-static int rbd_slab_init(void)
+static int __init rbd_slab_init(void)
 {
 	rbd_assert(!rbd_img_request_cache);
 	rbd_img_request_cache = KMEM_CACHE(rbd_img_request, 0);

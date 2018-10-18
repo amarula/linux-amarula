@@ -126,6 +126,9 @@ static void ceph_osd_data_init(struct ceph_osd_data *osd_data)
 	osd_data->type = CEPH_OSD_DATA_TYPE_NONE;
 }
 
+/*
+ * Consumes @pages if @own_pages is true.
+ */
 static void ceph_osd_data_pages_init(struct ceph_osd_data *osd_data,
 			struct page **pages, u64 length, u32 alignment,
 			bool pages_from_pool, bool own_pages)
@@ -138,6 +141,9 @@ static void ceph_osd_data_pages_init(struct ceph_osd_data *osd_data,
 	osd_data->own_pages = own_pages;
 }
 
+/*
+ * Consumes a ref on @pagelist.
+ */
 static void ceph_osd_data_pagelist_init(struct ceph_osd_data *osd_data,
 			struct ceph_pagelist *pagelist)
 {
@@ -362,6 +368,8 @@ static void ceph_osd_data_release(struct ceph_osd_data *osd_data)
 		num_pages = calc_pages_for((u64)osd_data->alignment,
 						(u64)osd_data->length);
 		ceph_release_page_vector(osd_data->pages, num_pages);
+	} else if (osd_data->type == CEPH_OSD_DATA_TYPE_PAGELIST) {
+		ceph_pagelist_release(osd_data->pagelist);
 	}
 	ceph_osd_data_init(osd_data);
 }
@@ -767,21 +775,18 @@ void osd_req_op_extent_dup_last(struct ceph_osd_request *osd_req,
 EXPORT_SYMBOL(osd_req_op_extent_dup_last);
 
 int osd_req_op_cls_init(struct ceph_osd_request *osd_req, unsigned int which,
-			u16 opcode, const char *class, const char *method)
+			const char *class, const char *method)
 {
-	struct ceph_osd_req_op *op = _osd_req_op_init(osd_req, which,
-						      opcode, 0);
+	struct ceph_osd_req_op *op;
 	struct ceph_pagelist *pagelist;
 	size_t payload_len = 0;
 	size_t size;
 
-	BUG_ON(opcode != CEPH_OSD_OP_CALL);
+	op = _osd_req_op_init(osd_req, which, CEPH_OSD_OP_CALL, 0);
 
-	pagelist = kmalloc(sizeof (*pagelist), GFP_NOFS);
+	pagelist = ceph_pagelist_alloc(GFP_NOFS);
 	if (!pagelist)
 		return -ENOMEM;
-
-	ceph_pagelist_init(pagelist);
 
 	op->cls.class_name = class;
 	size = strlen(class);
@@ -815,11 +820,9 @@ int osd_req_op_xattr_init(struct ceph_osd_request *osd_req, unsigned int which,
 
 	BUG_ON(opcode != CEPH_OSD_OP_SETXATTR && opcode != CEPH_OSD_OP_CMPXATTR);
 
-	pagelist = kmalloc(sizeof(*pagelist), GFP_NOFS);
+	pagelist = ceph_pagelist_alloc(GFP_NOFS);
 	if (!pagelist)
 		return -ENOMEM;
-
-	ceph_pagelist_init(pagelist);
 
 	payload_len = strlen(name);
 	op->xattr.name_len = payload_len;
@@ -4599,11 +4602,10 @@ static int osd_req_op_notify_ack_init(struct ceph_osd_request *req, int which,
 
 	op = _osd_req_op_init(req, which, CEPH_OSD_OP_NOTIFY_ACK, 0);
 
-	pl = kmalloc(sizeof(*pl), GFP_NOIO);
+	pl = ceph_pagelist_alloc(GFP_NOIO);
 	if (!pl)
 		return -ENOMEM;
 
-	ceph_pagelist_init(pl);
 	ret = ceph_pagelist_encode_64(pl, notify_id);
 	ret |= ceph_pagelist_encode_64(pl, cookie);
 	if (payload) {
@@ -4670,11 +4672,10 @@ static int osd_req_op_notify_init(struct ceph_osd_request *req, int which,
 	op = _osd_req_op_init(req, which, CEPH_OSD_OP_NOTIFY, 0);
 	op->notify.cookie = cookie;
 
-	pl = kmalloc(sizeof(*pl), GFP_NOIO);
+	pl = ceph_pagelist_alloc(GFP_NOIO);
 	if (!pl)
 		return -ENOMEM;
 
-	ceph_pagelist_init(pl);
 	ret = ceph_pagelist_encode_32(pl, 1); /* prot_ver */
 	ret |= ceph_pagelist_encode_32(pl, timeout);
 	ret |= ceph_pagelist_encode_32(pl, payload_len);
@@ -4962,7 +4963,7 @@ int ceph_osdc_call(struct ceph_osd_client *osdc,
 	if (ret)
 		goto out_put_req;
 
-	ret = osd_req_op_cls_init(req, 0, CEPH_OSD_OP_CALL, class, method);
+	ret = osd_req_op_cls_init(req, 0, class, method);
 	if (ret)
 		goto out_put_req;
 
