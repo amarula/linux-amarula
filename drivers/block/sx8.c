@@ -197,7 +197,6 @@ enum {
 	FL_NON_RAID		= FW_VER_NON_RAID,
 	FL_4PORT		= FW_VER_4PORT,
 	FL_FW_VER_MASK		= (FW_VER_NON_RAID | FW_VER_4PORT),
-	FL_DAC			= (1 << 16),
 	FL_DYN_MAJOR		= (1 << 17),
 };
 
@@ -862,9 +861,9 @@ static blk_status_t carm_queue_rq(struct blk_mq_hw_ctx *hctx,
 
 	if (rq_data_dir(rq) == WRITE) {
 		writing = 1;
-		pci_dir = PCI_DMA_TODEVICE;
+		pci_dir = DMA_TO_DEVICE;
 	} else {
-		pci_dir = PCI_DMA_FROMDEVICE;
+		pci_dir = DMA_FROM_DEVICE;
 	}
 
 	/* get scatterlist from block layer */
@@ -878,7 +877,7 @@ static blk_status_t carm_queue_rq(struct blk_mq_hw_ctx *hctx,
 	}
 
 	/* map scatterlist to PCI bus addresses */
-	n_elem = pci_map_sg(host->pdev, sg, n_elem, pci_dir);
+	n_elem = dma_map_sg(&host->pdev->dev, sg, n_elem, pci_dir);
 	if (n_elem <= 0) {
 		/* request with no s/g entries? */
 		carm_end_rq(host, crq, BLK_STS_IOERR);
@@ -1059,11 +1058,11 @@ static inline void carm_handle_rw(struct carm_host *host,
 	VPRINTK("ENTER\n");
 
 	if (rq_data_dir(crq->rq) == WRITE)
-		pci_dir = PCI_DMA_TODEVICE;
+		pci_dir = DMA_TO_DEVICE;
 	else
-		pci_dir = PCI_DMA_FROMDEVICE;
+		pci_dir = DMA_FROM_DEVICE;
 
-	pci_unmap_sg(host->pdev, &crq->sg[0], crq->n_elem, pci_dir);
+	dma_unmap_sg(&host->pdev->dev, &crq->sg[0], crq->n_elem, pci_dir);
 
 	carm_end_rq(host, crq, error);
 }
@@ -1568,8 +1567,8 @@ static void carm_free_disks(struct carm_host *host)
 
 static int carm_init_shm(struct carm_host *host)
 {
-	host->shm = pci_alloc_consistent(host->pdev, CARM_SHM_SIZE,
-					 &host->shm_dma);
+	host->shm = dma_alloc_coherent(&host->pdev->dev, CARM_SHM_SIZE,
+				       &host->shm_dma, GFP_KERNEL);
 	if (!host->shm)
 		return -ENOMEM;
 
@@ -1585,7 +1584,6 @@ static int carm_init_shm(struct carm_host *host)
 static int carm_init_one (struct pci_dev *pdev, const struct pci_device_id *ent)
 {
 	struct carm_host *host;
-	unsigned int pci_dac;
 	int rc;
 	struct request_queue *q;
 	unsigned int i;
@@ -1600,28 +1598,12 @@ static int carm_init_one (struct pci_dev *pdev, const struct pci_device_id *ent)
 	if (rc)
 		goto err_out;
 
-#ifdef IF_64BIT_DMA_IS_POSSIBLE /* grrrr... */
-	rc = pci_set_dma_mask(pdev, DMA_BIT_MASK(64));
-	if (!rc) {
-		rc = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64));
-		if (rc) {
-			printk(KERN_ERR DRV_NAME "(%s): consistent DMA mask failure\n",
-				pci_name(pdev));
-			goto err_out_regions;
-		}
-		pci_dac = 1;
-	} else {
-#endif
-		rc = pci_set_dma_mask(pdev, DMA_BIT_MASK(32));
-		if (rc) {
-			printk(KERN_ERR DRV_NAME "(%s): DMA mask failure\n",
-				pci_name(pdev));
-			goto err_out_regions;
-		}
-		pci_dac = 0;
-#ifdef IF_64BIT_DMA_IS_POSSIBLE /* grrrr... */
+	rc = dma_set_mask(&pdev->dev, DMA_BIT_MASK(32));
+	if (rc) {
+		printk(KERN_ERR DRV_NAME "(%s): DMA mask failure\n",
+			pci_name(pdev));
+		goto err_out_regions;
 	}
-#endif
 
 	host = kzalloc(sizeof(*host), GFP_KERNEL);
 	if (!host) {
@@ -1632,7 +1614,6 @@ static int carm_init_one (struct pci_dev *pdev, const struct pci_device_id *ent)
 	}
 
 	host->pdev = pdev;
-	host->flags = pci_dac ? FL_DAC : 0;
 	spin_lock_init(&host->lock);
 	INIT_WORK(&host->fsm_task, carm_fsm_task);
 	init_completion(&host->probe_comp);
@@ -1662,7 +1643,7 @@ static int carm_init_one (struct pci_dev *pdev, const struct pci_device_id *ent)
 		printk(KERN_ERR DRV_NAME "(%s): OOB queue alloc failure\n",
 		       pci_name(pdev));
 		rc = PTR_ERR(q);
-		goto err_out_pci_free;
+		goto err_out_dma_free;
 	}
 	host->oob_q = q;
 	q->queuedata = host;
@@ -1727,8 +1708,8 @@ err_out_free_majors:
 		clear_bit(1, &carm_major_alloc);
 	blk_cleanup_queue(host->oob_q);
 	blk_mq_free_tag_set(&host->tag_set);
-err_out_pci_free:
-	pci_free_consistent(pdev, CARM_SHM_SIZE, host->shm, host->shm_dma);
+err_out_dma_free:
+	dma_free_coherent(&pdev->dev, CARM_SHM_SIZE, host->shm, host->shm_dma);
 err_out_iounmap:
 	iounmap(host->mmio);
 err_out_kfree:
@@ -1759,7 +1740,7 @@ static void carm_remove_one (struct pci_dev *pdev)
 		clear_bit(1, &carm_major_alloc);
 	blk_cleanup_queue(host->oob_q);
 	blk_mq_free_tag_set(&host->tag_set);
-	pci_free_consistent(pdev, CARM_SHM_SIZE, host->shm, host->shm_dma);
+	dma_free_coherent(&pdev->dev, CARM_SHM_SIZE, host->shm, host->shm_dma);
 	iounmap(host->mmio);
 	kfree(host);
 	pci_release_regions(pdev);
