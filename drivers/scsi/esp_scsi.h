@@ -473,7 +473,6 @@ struct esp {
 	u32			flags;
 #define ESP_FLAG_DIFFERENTIAL	0x00000001
 #define ESP_FLAG_RESETTING	0x00000002
-#define ESP_FLAG_DOING_SLOWCMD	0x00000004
 #define ESP_FLAG_WIDE_CAPABLE	0x00000008
 #define ESP_FLAG_QUICKIRQ_CHECK	0x00000010
 #define ESP_FLAG_DISABLE_SYNC	0x00000020
@@ -516,7 +515,7 @@ struct esp {
 	u32			min_period;
 	u32			radelay;
 
-	/* Slow command state.  */
+	/* ESP_CMD_SELAS command state */
 	u8			*cmd_bytes_ptr;
 	int			cmd_bytes_left;
 
@@ -524,6 +523,11 @@ struct esp {
 
 	void			*dma;
 	int			dmarev;
+
+	/* These are used by esp_send_pio_cmd() */
+	u8 __iomem		*fifo_reg;
+	int			send_cmd_error;
+	u32			send_cmd_residual;
 };
 
 /* A front-end driver for the ESP chip should do the following in
@@ -562,5 +566,8 @@ extern int scsi_esp_register(struct esp *);
 extern void scsi_esp_unregister(struct esp *);
 extern irqreturn_t scsi_esp_intr(int, void *);
 extern void scsi_esp_cmd(struct esp *, u8);
+
+extern void esp_send_pio_cmd(struct esp *esp, u32 dma_addr, u32 esp_count,
+			     u32 dma_count, int write, u8 cmd);
 
 #endif /* !(_ESP_SCSI_H) */

@@ -482,17 +482,6 @@ static void esp_restore_pointers(struct esp *esp, struct esp_cmd_entry *ent)
 	spriv->tot_residue = ent->saved_tot_residue;
 }
 
-static void esp_check_command_len(struct esp *esp, struct scsi_cmnd *cmd)
-{
-	if (cmd->cmd_len == 6 ||
-	    cmd->cmd_len == 10 ||
-	    cmd->cmd_len == 12) {
-		esp->flags &= ~ESP_FLAG_DOING_SLOWCMD;
-	} else {
-		esp->flags |= ESP_FLAG_DOING_SLOWCMD;
-	}
-}
-
 static void esp_write_tgt_config3(struct esp *esp, int tgt)
 {
 	if (esp->rev > ESP100A) {
@@ -736,10 +725,10 @@ static struct esp_cmd_entry *find_and_prep_issuable_command(struct esp *esp)
 static void esp_maybe_execute_command(struct esp *esp)
 {
 	struct esp_target_data *tp;
-	struct esp_lun_data *lp;
 	struct scsi_device *dev;
 	struct scsi_cmnd *cmd;
 	struct esp_cmd_entry *ent;
+	bool select_and_stop = false;
 	int tgt, lun, i;
 	u32 val, start_cmd;
 	u8 *p;
@@ -762,7 +751,6 @@ static void esp_maybe_execute_command(struct esp *esp)
 	tgt = dev->id;
 	lun = dev->lun;
 	tp = &esp->target[tgt];
-	lp = dev->hostdata;
 
 	list_move(&ent->list, &esp->active_cmds);
 
@@ -771,7 +759,8 @@ static void esp_maybe_execute_command(struct esp *esp)
 	esp_map_dma(esp, cmd);
 	esp_save_pointers(esp, ent);
 
-	esp_check_command_len(esp, cmd);
+	if (!(cmd->cmd_len == 6 || cmd->cmd_len == 10 || cmd->cmd_len == 12))
+		select_and_stop = true;
 
 	p = esp->command_block;
 
@@ -812,42 +801,22 @@ static void esp_maybe_execute_command(struct esp *esp)
 			tp->flags &= ~ESP_TGT_CHECK_NEGO;
 		}
 
-		/* Process it like a slow command.  */
-		if (tp->flags & (ESP_TGT_NEGO_WIDE | ESP_TGT_NEGO_SYNC))
-			esp->flags |= ESP_FLAG_DOING_SLOWCMD;
+		/* If there are multiple message bytes, use Select and Stop */
+		if (esp->msg_out_len)
+			select_and_stop = true;
 	}
 
 build_identify:
-	/* If we don't have a lun-data struct yet, we're probing
-	 * so do not disconnect.  Also, do not disconnect unless
-	 * we have a tag on this command.
-	 */
-	if (lp && (tp->flags & ESP_TGT_DISCONNECT) && ent->tag[0])
-		*p++ = IDENTIFY(1, lun);
-	else
-		*p++ = IDENTIFY(0, lun);
+	*p++ = IDENTIFY(tp->flags & ESP_TGT_DISCONNECT, lun);
 
 	if (ent->tag[0] && esp->rev == ESP100) {
 		/* ESP100 lacks select w/atn3 command, use select
 		 * and stop instead.
 		 */
-		esp->flags |= ESP_FLAG_DOING_SLOWCMD;
+		select_and_stop = true;
 	}
 
-	if (!(esp->flags & ESP_FLAG_DOING_SLOWCMD)) {
-		start_cmd = ESP_CMD_SELA;
-		if (ent->tag[0]) {
-			*p++ = ent->tag[0];
-			*p++ = ent->tag[1];
-
-			start_cmd = ESP_CMD_SA3;
-		}
-
-		for (i = 0; i < cmd->cmd_len; i++)
-			*p++ = cmd->cmnd[i];
-
-		esp->select_state = ESP_SELECT_BASIC;
-	} else {
+	if (select_and_stop) {
 		esp->cmd_bytes_left = cmd->cmd_len;
 		esp->cmd_bytes_ptr = &cmd->cmnd[0];
 
@@ -862,6 +831,19 @@ build_identify:
 
 		start_cmd = ESP_CMD_SELAS;
 		esp->select_state = ESP_SELECT_MSGOUT;
+	} else {
+		start_cmd = ESP_CMD_SELA;
+		if (ent->tag[0]) {
+			*p++ = ent->tag[0];
+			*p++ = ent->tag[1];
+
+			start_cmd = ESP_CMD_SA3;
+		}
+
+		for (i = 0; i < cmd->cmd_len; i++)
+			*p++ = cmd->cmnd[i];
+
+		esp->select_state = ESP_SELECT_BASIC;
 	}
 	val = tgt;
 	if (esp->rev == FASHME)
@@ -1269,7 +1251,6 @@ static int esp_finish_select(struct esp *esp)
 			esp_unmap_dma(esp, cmd);
 			esp_free_lun_tag(ent, cmd->device->hostdata);
 			tp->flags &= ~(ESP_TGT_NEGO_SYNC | ESP_TGT_NEGO_WIDE);
-			esp->flags &= ~ESP_FLAG_DOING_SLOWCMD;
 			esp->cmd_bytes_ptr = NULL;
 			esp->cmd_bytes_left = 0;
 		} else {
@@ -1317,9 +1298,8 @@ static int esp_finish_select(struct esp *esp)
 				esp_flush_fifo(esp);
 		}
 
-		/* If we are doing a slow command, negotiation, etc.
-		 * we'll do the right thing as we transition to the
-		 * next phase.
+		/* If we are doing a Select And Stop command, negotiation, etc.
+		 * we'll do the right thing as we transition to the next phase.
 		 */
 		esp_event(esp, ESP_EVENT_CHECK_PHASE);
 		return 0;
@@ -1352,6 +1332,7 @@ static int esp_data_bytes_sent(struct esp *esp, struct esp_cmd_entry *ent,
 
 	bytes_sent = esp->data_dma_len;
 	bytes_sent -= ecount;
+	bytes_sent -= esp->send_cmd_residual;
 
 	/*
 	 * The am53c974 has a DMA 'pecularity'. The doc states:
@@ -2801,3 +2782,131 @@ MODULE_PARM_DESC(esp_debug,
 
 module_init(esp_init);
 module_exit(esp_exit);
+
+#ifdef CONFIG_SCSI_ESP_PIO
+static inline unsigned int esp_wait_for_fifo(struct esp *esp)
+{
+	int i = 500000;
+
+	do {
+		unsigned int fbytes = esp_read8(ESP_FFLAGS) & ESP_FF_FBYTES;
+
+		if (fbytes)
+			return fbytes;
+
+		udelay(1);
+	} while (--i);
+
+	shost_printk(KERN_ERR, esp->host, "FIFO is empty. sreg [%02x]\n",
+		     esp_read8(ESP_STATUS));
+	return 0;
+}
+
+static inline int esp_wait_for_intr(struct esp *esp)
+{
+	int i = 500000;
+
+	do {
+		esp->sreg = esp_read8(ESP_STATUS);
+		if (esp->sreg & ESP_STAT_INTR)
+			return 0;
+
+		udelay(1);
+	} while (--i);
+
+	shost_printk(KERN_ERR, esp->host, "IRQ timeout. sreg [%02x]\n",
+		     esp->sreg);
+	return 1;
+}
+
+#define ESP_FIFO_SIZE 16
+
+void esp_send_pio_cmd(struct esp *esp, u32 addr, u32 esp_count,
+		      u32 dma_count, int write, u8 cmd)
+{
+	u8 phase = esp->sreg & ESP_STAT_PMASK;
+
+	cmd &= ~ESP_CMD_DMA;
+	esp->send_cmd_error = 0;
+
+	if (write) {
+		u8 *dst = (u8 *)addr;
+		u8 mask = ~(phase == ESP_MIP ? ESP_INTR_FDONE : ESP_INTR_BSERV);
+
+		scsi_esp_cmd(esp, cmd);
+
+		while (1) {
+			if (!esp_wait_for_fifo(esp))
+				break;
+
+			*dst++ = readb(esp->fifo_reg);
+			--esp_count;
+
+			if (!esp_count)
+				break;
+
+			if (esp_wait_for_intr(esp)) {
+				esp->send_cmd_error = 1;
+				break;
+			}
+
+			if ((esp->sreg & ESP_STAT_PMASK) != phase)
+				break;
+
+			esp->ireg = esp_read8(ESP_INTRPT);
+			if (esp->ireg & mask) {
+				esp->send_cmd_error = 1;
+				break;
+			}
+
+			if (phase == ESP_MIP)
+				esp_write8(ESP_CMD_MOK, ESP_CMD);
+
+			esp_write8(ESP_CMD_TI, ESP_CMD);
+		}
+	} else {
+		unsigned int n = ESP_FIFO_SIZE;
+		u8 *src = (u8 *)addr;
+
+		scsi_esp_cmd(esp, ESP_CMD_FLUSH);
+
+		if (n > esp_count)
+			n = esp_count;
+		writesb(esp->fifo_reg, src, n);
+		src += n;
+		esp_count -= n;
+
+		scsi_esp_cmd(esp, cmd);
+
+		while (esp_count) {
+			if (esp_wait_for_intr(esp)) {
+				esp->send_cmd_error = 1;
+				break;
+			}
+
+			if ((esp->sreg & ESP_STAT_PMASK) != phase)
+				break;
+
+			esp->ireg = esp_read8(ESP_INTRPT);
+			if (esp->ireg & ~ESP_INTR_BSERV) {
+				esp->send_cmd_error = 1;
+				break;
+			}
+
+			n = ESP_FIFO_SIZE -
+			    (esp_read8(ESP_FFLAGS) & ESP_FF_FBYTES);
+
+			if (n > esp_count)
+				n = esp_count;
+			writesb(esp->fifo_reg, src, n);
+			src += n;
+			esp_count -= n;
+
+			esp_write8(ESP_CMD_TI, ESP_CMD);
+		}
+	}
+
+	esp->send_cmd_residual = esp_count;
+}
+EXPORT_SYMBOL(esp_send_pio_cmd);
+#endif

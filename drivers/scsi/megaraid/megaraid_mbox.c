@@ -202,13 +202,6 @@ module_param_named(debug_level, mraid_debug_level, int, 0);
 MODULE_PARM_DESC(debug_level, "Debug level for driver (default=0)");
 
 /*
- * ### global data ###
- */
-static uint8_t megaraid_mbox_version[8] =
-	{ 0x02, 0x20, 0x04, 0x06, 3, 7, 20, 5 };
-
-
-/*
  * PCI table for all supported controllers.
  */
 static struct pci_device_id pci_id_table_g[] =  {
@@ -457,10 +450,9 @@ megaraid_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	// Setup the default DMA mask. This would be changed later on
 	// depending on hardware capabilities
-	if (pci_set_dma_mask(adapter->pdev, DMA_BIT_MASK(32)) != 0) {
-
+	if (dma_set_mask(&adapter->pdev->dev, DMA_BIT_MASK(32))) {
 		con_log(CL_ANN, (KERN_WARNING
-			"megaraid: pci_set_dma_mask failed:%d\n", __LINE__));
+			"megaraid: dma_set_mask failed:%d\n", __LINE__));
 
 		goto out_free_adapter;
 	}
@@ -878,11 +870,12 @@ megaraid_init_mbox(adapter_t *adapter)
 		adapter->pdev->device == PCI_DEVICE_ID_PERC4_DI_EVERGLADES) ||
 		(adapter->pdev->vendor == PCI_VENDOR_ID_DELL &&
 		adapter->pdev->device == PCI_DEVICE_ID_PERC4E_DI_KOBUK)) {
-		if (pci_set_dma_mask(adapter->pdev, DMA_BIT_MASK(64))) {
+		if (dma_set_mask(&adapter->pdev->dev, DMA_BIT_MASK(64))) {
 			con_log(CL_ANN, (KERN_WARNING
 				"megaraid: DMA mask for 64-bit failed\n"));
 
-			if (pci_set_dma_mask (adapter->pdev, DMA_BIT_MASK(32))) {
+			if (dma_set_mask(&adapter->pdev->dev,
+						DMA_BIT_MASK(32))) {
 				con_log(CL_ANN, (KERN_WARNING
 					"megaraid: 32-bit DMA mask failed\n"));
 				goto out_free_sysfs_res;
@@ -975,9 +968,9 @@ megaraid_alloc_cmd_packets(adapter_t *adapter)
 	 * Allocate the common 16-byte aligned memory for the handshake
 	 * mailbox.
 	 */
-	raid_dev->una_mbox64 = pci_zalloc_consistent(adapter->pdev,
-						     sizeof(mbox64_t),
-						     &raid_dev->una_mbox64_dma);
+	raid_dev->una_mbox64 = dma_zalloc_coherent(&adapter->pdev->dev,
+			sizeof(mbox64_t), &raid_dev->una_mbox64_dma,
+			GFP_KERNEL);
 
 	if (!raid_dev->una_mbox64) {
 		con_log(CL_ANN, (KERN_WARNING
@@ -1003,8 +996,8 @@ megaraid_alloc_cmd_packets(adapter_t *adapter)
 			align;
 
 	// Allocate memory for commands issued internally
-	adapter->ibuf = pci_zalloc_consistent(pdev, MBOX_IBUF_SIZE,
-					      &adapter->ibuf_dma_h);
+	adapter->ibuf = dma_zalloc_coherent(&pdev->dev, MBOX_IBUF_SIZE,
+			&adapter->ibuf_dma_h, GFP_KERNEL);
 	if (!adapter->ibuf) {
 
 		con_log(CL_ANN, (KERN_WARNING
@@ -1082,7 +1075,7 @@ megaraid_alloc_cmd_packets(adapter_t *adapter)
 
 		scb->scp		= NULL;
 		scb->state		= SCB_FREE;
-		scb->dma_direction	= PCI_DMA_NONE;
+		scb->dma_direction	= DMA_NONE;
 		scb->dma_type		= MRAID_DMA_NONE;
 		scb->dev_channel	= -1;
 		scb->dev_target		= -1;
@@ -1098,10 +1091,10 @@ out_teardown_dma_pools:
 out_free_scb_list:
 	kfree(adapter->kscb_list);
 out_free_ibuf:
-	pci_free_consistent(pdev, MBOX_IBUF_SIZE, (void *)adapter->ibuf,
+	dma_free_coherent(&pdev->dev, MBOX_IBUF_SIZE, (void *)adapter->ibuf,
 		adapter->ibuf_dma_h);
 out_free_common_mbox:
-	pci_free_consistent(adapter->pdev, sizeof(mbox64_t),
+	dma_free_coherent(&adapter->pdev->dev, sizeof(mbox64_t),
 		(caddr_t)raid_dev->una_mbox64, raid_dev->una_mbox64_dma);
 
 	return -1;
@@ -1123,10 +1116,10 @@ megaraid_free_cmd_packets(adapter_t *adapter)
 
 	kfree(adapter->kscb_list);
 
-	pci_free_consistent(adapter->pdev, MBOX_IBUF_SIZE,
+	dma_free_coherent(&adapter->pdev->dev, MBOX_IBUF_SIZE,
 		(void *)adapter->ibuf, adapter->ibuf_dma_h);
 
-	pci_free_consistent(adapter->pdev, sizeof(mbox64_t),
+	dma_free_coherent(&adapter->pdev->dev, sizeof(mbox64_t),
 		(caddr_t)raid_dev->una_mbox64, raid_dev->una_mbox64_dma);
 	return;
 }
@@ -2544,7 +2537,6 @@ megaraid_reset_handler(struct scsi_cmnd *scp)
 	uint8_t		raw_mbox[sizeof(mbox_t)];
 	int		rval;
 	int		recovery_window;
-	int		recovering;
 	int		i;
 	uioc_t		*kioc;
 
@@ -2557,7 +2549,6 @@ megaraid_reset_handler(struct scsi_cmnd *scp)
 			"megaraid: hw error, cannot reset\n"));
 		return FAILED;
 	}
-
 
 	// Under exceptional conditions, FW can take up to 3 minutes to
 	// complete command processing. Wait for additional 2 minutes for the
@@ -2606,8 +2597,6 @@ megaraid_reset_handler(struct scsi_cmnd *scp)
 	}
 
 	recovery_window = MBOX_RESET_WAIT + MBOX_RESET_EXT_WAIT;
-
-	recovering = adapter->outstanding_cmds;
 
 	for (i = 0; i < recovery_window; i++) {
 
@@ -2692,13 +2681,10 @@ static int
 mbox_post_sync_cmd(adapter_t *adapter, uint8_t raw_mbox[])
 {
 	mraid_device_t	*raid_dev = ADAP2RAIDDEV(adapter);
-	mbox64_t	*mbox64;
 	mbox_t		*mbox;
 	uint8_t		status;
 	int		i;
 
-
-	mbox64	= raid_dev->mbox64;
 	mbox	= raid_dev->mbox;
 
 	/*
@@ -2915,9 +2901,8 @@ megaraid_mbox_product_info(adapter_t *adapter)
 	 * Issue an ENQUIRY3 command to find out certain adapter parameters,
 	 * e.g., max channels, max commands etc.
 	 */
-	pinfo = pci_zalloc_consistent(adapter->pdev, sizeof(mraid_pinfo_t),
-				      &pinfo_dma_h);
-
+	pinfo = dma_zalloc_coherent(&adapter->pdev->dev, sizeof(mraid_pinfo_t),
+			&pinfo_dma_h, GFP_KERNEL);
 	if (pinfo == NULL) {
 		con_log(CL_ANN, (KERN_WARNING
 			"megaraid: out of memory, %s %d\n", __func__,
@@ -2938,7 +2923,7 @@ megaraid_mbox_product_info(adapter_t *adapter)
 
 		con_log(CL_ANN, (KERN_WARNING "megaraid: Inquiry3 failed\n"));
 
-		pci_free_consistent(adapter->pdev, sizeof(mraid_pinfo_t),
+		dma_free_coherent(&adapter->pdev->dev, sizeof(mraid_pinfo_t),
 			pinfo, pinfo_dma_h);
 
 		return -1;
@@ -2969,7 +2954,7 @@ megaraid_mbox_product_info(adapter_t *adapter)
 		con_log(CL_ANN, (KERN_WARNING
 			"megaraid: product info failed\n"));
 
-		pci_free_consistent(adapter->pdev, sizeof(mraid_pinfo_t),
+		dma_free_coherent(&adapter->pdev->dev, sizeof(mraid_pinfo_t),
 			pinfo, pinfo_dma_h);
 
 		return -1;
@@ -3005,7 +2990,7 @@ megaraid_mbox_product_info(adapter_t *adapter)
 		"megaraid: fw version:[%s] bios version:[%s]\n",
 		adapter->fw_version, adapter->bios_version));
 
-	pci_free_consistent(adapter->pdev, sizeof(mraid_pinfo_t), pinfo,
+	dma_free_coherent(&adapter->pdev->dev, sizeof(mraid_pinfo_t), pinfo,
 			pinfo_dma_h);
 
 	return 0;
@@ -3102,7 +3087,6 @@ megaraid_mbox_support_ha(adapter_t *adapter, uint16_t *init_id)
 static int
 megaraid_mbox_support_random_del(adapter_t *adapter)
 {
-	mbox_t		*mbox;
 	uint8_t		raw_mbox[sizeof(mbox_t)];
 	int		rval;
 
@@ -3123,8 +3107,6 @@ megaraid_mbox_support_random_del(adapter_t *adapter)
 		con_log(CL_DLEVEL1, ("megaraid: disable random deletion\n"));
 		return 0;
 	}
-
-	mbox = (mbox_t *)raw_mbox;
 
 	memset((caddr_t)raw_mbox, 0, sizeof(mbox_t));
 
@@ -3230,11 +3212,7 @@ megaraid_mbox_enum_raid_scsi(adapter_t *adapter)
 static void
 megaraid_mbox_flush_cache(adapter_t *adapter)
 {
-	mbox_t	*mbox;
 	uint8_t	raw_mbox[sizeof(mbox_t)];
-
-
-	mbox = (mbox_t *)raw_mbox;
 
 	memset((caddr_t)raw_mbox, 0, sizeof(mbox_t));
 
@@ -3266,7 +3244,6 @@ megaraid_mbox_fire_sync_cmd(adapter_t *adapter)
 	mbox_t	*mbox;
 	uint8_t	raw_mbox[sizeof(mbox_t)];
 	mraid_device_t	*raid_dev = ADAP2RAIDDEV(adapter);
-	mbox64_t *mbox64;
 	int	status = 0;
 	int i;
 	uint32_t dword;
@@ -3277,7 +3254,6 @@ megaraid_mbox_fire_sync_cmd(adapter_t *adapter)
 
 	raw_mbox[0] = 0xFF;
 
-	mbox64	= raid_dev->mbox64;
 	mbox	= raid_dev->mbox;
 
 	/* Wait until mailbox is free */
@@ -3482,7 +3458,7 @@ megaraid_cmm_register(adapter_t *adapter)
 
 		scb->scp		= NULL;
 		scb->state		= SCB_FREE;
-		scb->dma_direction	= PCI_DMA_NONE;
+		scb->dma_direction	= DMA_NONE;
 		scb->dma_type		= MRAID_DMA_NONE;
 		scb->dev_channel	= -1;
 		scb->dev_target		= -1;
@@ -3620,7 +3596,7 @@ megaraid_mbox_mm_command(adapter_t *adapter, uioc_t *kioc)
 
 	scb->state		= SCB_ACTIVE;
 	scb->dma_type		= MRAID_DMA_NONE;
-	scb->dma_direction	= PCI_DMA_NONE;
+	scb->dma_direction	= DMA_NONE;
 
 	ccb		= (mbox_ccb_t *)scb->ccb;
 	mbox64		= (mbox64_t *)(unsigned long)kioc->cmdbuf;
@@ -3761,10 +3737,6 @@ megaraid_mbox_mm_done(adapter_t *adapter, scb_t *scb)
 static int
 gather_hbainfo(adapter_t *adapter, mraid_hba_info_t *hinfo)
 {
-	uint8_t	dmajor;
-
-	dmajor			= megaraid_mbox_version[0];
-
 	hinfo->pci_vendor_id	= adapter->pdev->vendor;
 	hinfo->pci_device_id	= adapter->pdev->device;
 	hinfo->subsys_vendor_id	= adapter->pdev->subsystem_vendor;
@@ -3810,8 +3782,8 @@ megaraid_sysfs_alloc_resources(adapter_t *adapter)
 
 	raid_dev->sysfs_mbox64 = kmalloc(sizeof(mbox64_t), GFP_KERNEL);
 
-	raid_dev->sysfs_buffer = pci_alloc_consistent(adapter->pdev,
-			PAGE_SIZE, &raid_dev->sysfs_buffer_dma);
+	raid_dev->sysfs_buffer = dma_alloc_coherent(&adapter->pdev->dev,
+			PAGE_SIZE, &raid_dev->sysfs_buffer_dma, GFP_KERNEL);
 
 	if (!raid_dev->sysfs_uioc || !raid_dev->sysfs_mbox64 ||
 		!raid_dev->sysfs_buffer) {
@@ -3848,7 +3820,7 @@ megaraid_sysfs_free_resources(adapter_t *adapter)
 	kfree(raid_dev->sysfs_mbox64);
 
 	if (raid_dev->sysfs_buffer) {
-		pci_free_consistent(adapter->pdev, PAGE_SIZE,
+		dma_free_coherent(&adapter->pdev->dev, PAGE_SIZE,
 			raid_dev->sysfs_buffer, raid_dev->sysfs_buffer_dma);
 	}
 }
