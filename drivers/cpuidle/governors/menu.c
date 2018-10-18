@@ -196,10 +196,11 @@ static void menu_update(struct cpuidle_driver *drv, struct cpuidle_device *dev);
  * of points is below a threshold. If it is... then use the
  * average of these 8 points as the estimated value.
  */
-static unsigned int get_typical_interval(struct menu_device *data)
+static unsigned int get_typical_interval(struct menu_device *data,
+					 unsigned int predicted_us)
 {
 	int i, divisor;
-	unsigned int max, thresh, avg;
+	unsigned int min, max, thresh, avg;
 	uint64_t sum, variance;
 
 	thresh = UINT_MAX; /* Discard outliers above this value */
@@ -207,6 +208,7 @@ static unsigned int get_typical_interval(struct menu_device *data)
 again:
 
 	/* First calculate the average of past intervals */
+	min = UINT_MAX;
 	max = 0;
 	sum = 0;
 	divisor = 0;
@@ -217,8 +219,19 @@ again:
 			divisor++;
 			if (value > max)
 				max = value;
+
+			if (value < min)
+				min = value;
 		}
 	}
+
+	/*
+	 * If the result of the computation is going to be discarded anyway,
+	 * avoid the computation altogether.
+	 */
+	if (min >= predicted_us)
+		return UINT_MAX;
+
 	if (divisor == INTERVALS)
 		avg = sum >> INTERVAL_SHIFT;
 	else
@@ -287,7 +300,6 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 	int i;
 	int idx;
 	unsigned int interactivity_req;
-	unsigned int expected_interval;
 	unsigned int predicted_us;
 	unsigned long nr_iowaiters, cpu_load;
 	ktime_t delta_next;
@@ -323,14 +335,10 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 	predicted_us = DIV_ROUND_CLOSEST_ULL((uint64_t)data->next_timer_us *
 					 data->correction_factor[data->bucket],
 					 RESOLUTION * DECAY);
-
-	expected_interval = get_typical_interval(data);
-	expected_interval = min(expected_interval, data->next_timer_us);
-
 	/*
 	 * Use the lowest expected idle interval to pick the idle state.
 	 */
-	predicted_us = min(predicted_us, expected_interval);
+	predicted_us = min(predicted_us, get_typical_interval(data, predicted_us));
 
 	if (tick_nohz_tick_stopped()) {
 		/*
