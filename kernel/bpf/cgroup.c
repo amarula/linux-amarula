@@ -554,6 +554,7 @@ int __cgroup_bpf_run_filter_skb(struct sock *sk,
 	unsigned int offset = skb->data - skb_network_header(skb);
 	struct sock *save_sk;
 	struct cgroup *cgrp;
+	void *saved_pointers[2];
 	int ret;
 
 	if (!sk || !sk_fullsock(sk))
@@ -566,8 +567,13 @@ int __cgroup_bpf_run_filter_skb(struct sock *sk,
 	save_sk = skb->sk;
 	skb->sk = sk;
 	__skb_push(skb, offset);
+
+	/* compute pointers for the bpf prog */
+	bpf_compute_and_save_data_pointers(skb, saved_pointers);
+
 	ret = BPF_PROG_RUN_ARRAY(cgrp->bpf.effective[type], skb,
 				 bpf_prog_run_save_cb);
+	bpf_restore_data_pointers(skb, saved_pointers);
 	__skb_pull(skb, offset);
 	skb->sk = save_sk;
 	return ret == 1 ? 0 : -EPERM;
