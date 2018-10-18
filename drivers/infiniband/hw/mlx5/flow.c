@@ -160,7 +160,7 @@ static int UVERBS_HANDLER(MLX5_IB_METHOD_CREATE_FLOW)(
 			ret = -EINVAL;
 			goto err_out;
 		}
-		flow_act.has_flow_tag = true;
+		flow_act.flags |= FLOW_ACT_HAS_TAG;
 	}
 
 	flow_handler = mlx5_ib_raw_fs_rule_add(dev, fs_matcher, &flow_act,

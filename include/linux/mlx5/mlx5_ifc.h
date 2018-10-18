@@ -584,7 +584,9 @@ struct mlx5_ifc_flow_table_nic_cap_bits {
 struct mlx5_ifc_flow_table_eswitch_cap_bits {
 	u8      reserved_at_0[0x1c];
 	u8      fdb_multi_path_to_table[0x1];
-	u8      reserved_at_1d[0x1e3];
+	u8      reserved_at_1d[0x1];
+	u8      multi_fdb_encap[0x1];
+	u8      reserved_at_1e[0x1e1];
 
 	struct mlx5_ifc_flow_table_prop_layout_bits flow_table_properties_nic_esw_fdb;
 
@@ -906,7 +908,8 @@ struct mlx5_ifc_cmd_hca_cap_bits {
 	u8         log_max_mkey[0x6];
 	u8         reserved_at_f0[0x8];
 	u8         dump_fill_mkey[0x1];
-	u8         reserved_at_f9[0x3];
+	u8         reserved_at_f9[0x2];
+	u8         fast_teardown[0x1];
 	u8         log_max_eq[0x4];
 
 	u8         max_indirection[0x8];
@@ -1005,7 +1008,8 @@ struct mlx5_ifc_cmd_hca_cap_bits {
 	u8         umr_modify_atomic_disabled[0x1];
 	u8         umr_indirect_mkey_disabled[0x1];
 	u8         umr_fence[0x2];
-	u8         reserved_at_20c[0x3];
+	u8         dc_req_scat_data_cqe[0x1];
+	u8         reserved_at_20d[0x2];
 	u8         drain_sigerr[0x1];
 	u8         cmdif_checksum[0x2];
 	u8         sigerr_cqe[0x1];
@@ -3369,12 +3373,13 @@ struct mlx5_ifc_teardown_hca_out_bits {
 
 	u8         reserved_at_40[0x3f];
 
-	u8         force_state[0x1];
+	u8         state[0x1];
 };
 
 enum {
 	MLX5_TEARDOWN_HCA_IN_PROFILE_GRACEFUL_CLOSE  = 0x0,
 	MLX5_TEARDOWN_HCA_IN_PROFILE_FORCE_CLOSE     = 0x1,
+	MLX5_TEARDOWN_HCA_IN_PROFILE_PREPARE_FAST_TEARDOWN = 0x2,
 };
 
 struct mlx5_ifc_teardown_hca_in_bits {
