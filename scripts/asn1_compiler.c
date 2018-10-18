@@ -413,7 +413,7 @@ static void tokenise(char *buffer, char *end)
 
 			/* Handle string tokens */
 			if (isalpha(*p)) {
-				const char **dir, *start = p;
+				const char **dir;
 
 				/* Can be a directive, type name or element
 				 * name.  Find the end of the name.
@@ -454,10 +454,10 @@ static void tokenise(char *buffer, char *end)
 
 				tokens[tix++].token_type = TOKEN_TYPE_NAME;
 				continue;
-			}
 
-			/* Handle numbers */
-			if (isdigit(*p)) {
+			} else if (isdigit(*p)) {
+				/* Handle numbers */
+
 				/* Find the end of the number */
 				q = p + 1;
 				while (q < nl && (isdigit(*q)))
