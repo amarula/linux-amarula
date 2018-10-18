@@ -1,0 +1,248 @@
+next/soc
+	patch
+		ARM: u300: Delete dummy SPI chip
+		MAINTAINERS: Update stm32 entry
+	at91/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-4.20-soc
+	zynq/soc
+		https://github.com/Xilinx/linux-xlnx tags/zynq-soc-for-v4.20
+	patch
+		ARM: support big-endian for the virt architecture
+	omap/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.20/soc-signed
+	omap/omap1-gpio
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.20/omap1-signed
+	patch
+		ARM: Assume maintainership of ARM reference designs
+	renesas/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-soc-for-v4.20
+	patch
+		MAINTAINERS: Drop dt-bindings/genpd/k2g.h
+		MAINTAINERS: fix pattern in ARM/Synaptics berlin SoC section
+	actions/arm64
+		git://git.kernel.org/pub/scm/linux/kernel/git/afaerber/linux-actions tags/actions-arm64-soc-for-4.20
+	imx/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-soc-4.20
+	mvebu/soc
+		git://git.infradead.org/linux-mvebu tags/mvebu-soc-4.20-1
+	renesas/arm64-soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-soc-for-v4.20
+	patch
+		MAINTAINERS: remove non-exsiting email address of Baoyou
+		arm64: exynos: Enable generic power domain support
+	samsung/soc-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-soc-4.20-2
+		contains samsung/soc
+	patch
+		MAINTAINERS: Assign myself as a maintainer of ARM/LPC18XX architecture
+
+next/dt
+	socfgpa/updates
+		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/socfpga_updates_for_v4.20_part1
+	renesas/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-dt-for-v4.20
+	renesas/dt64
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-dt-for-v4.20
+	rockchip/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.20-rockchip-dts64-1
+	amlogic/dt64
+		https://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt64
+	broadcom/dt
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.20/devicetree
+	broadcom/dt64
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.20/devicetree-arm64
+	arm/juno-dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/juno-updates-4.20
+	ti/am654-dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/kristo/linux tags/am654-for-v4.20
+	aspeed/devicetree
+		git://git.kernel.org/pub/scm/linux/kernel/git/joel/aspeed tags/aspeed-4.20-devicetree
+	ux500/dts
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-stericsson tags/ux500-dts-arm-soc
+	stm32/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/atorgue/stm32 tags/stm32-dt-for-v4.20-1
+	hisi/dt64
+		git://github.com/hisilicon/linux-hisi tags/hisi-arm64-dt-for-4.20
+	hisi/dt
+		git://github.com/hisilicon/linux-hisi tags/hisi-arm32-dt-for-4.20
+	samsung/soc
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-soc-4.20
+	patch
+		arm64: dts: broadcom: Use the .dtb name in the rule, rather than .dts
+	at91/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-4.20-dt
+	sti/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/pchotard/sti tags/sti-dt-for-v4.20-round1
+	socfpga/dt2
+		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/socfpga_updates_for_v4.20_part2
+	samsung/dt-2
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt-4.20-2
+	zynq/dt
+		https://github.com/Xilinx/linux-xlnx tags/zynq-dt-for-v4.20
+	patch
+		arm64: dts: amd: Fix SPI bus warnings
+		arm64: dts: lg: Fix SPI controller node names
+		ARM: dts: lpc32xx: Fix SPI controller node names
+	realview/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-integrator tags/realview-dts-v4.20
+	berlin/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/jszhang/linux-berlin tags/berlin64-dt-for-v4.20
+	amlogic/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt
+	amlogic/dt64-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt64-2
+	pxa/dt
+		https://github.com/rjarzmik/linux tags/pxa-dt-4.20
+	tegra/bindings
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.20-dt-bindings
+	tegra/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.20-arm-dt
+	tegra/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.20-arm64-dt
+	renesas/dt64-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-dt2-for-v4.20
+	renesas/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-dt2-for-v4.20
+	renesas/dt-bindings
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-dt-bindings-for-v4.20
+	sunxi/dt-h3-h5
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-h3-h5-for-4.20
+	sunxi/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt-for-4.20
+	sunxi/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt64-for-4.20
+	mediatek/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v4.19-next-dts64
+	actions/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/afaerber/linux-actions tags/actions-arm-dt-for-4.20
+	actions/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/afaerber/linux-actions tags/actions-arm64-dt-for-4.20
+	qcom/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-arm64-for-4.20
+	qcom/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-dts-for-4.20
+	imx/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-dt-4.20
+	imx/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-dt64-4.20
+	mvebu/dt
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-4.20-1
+	mvebu/dt64
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt64-4.20-1
+	omap/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.20/dt-signed-v2
+	omap/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.20/dt-signed-part2
+	rockchip/dt64-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.20-rockchip-dts64-2
+	rockchip/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.20-rockchip-dts32-1
+	mediatek/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v4.19-next-dts32
+	at91/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-4.20-dt2
+	uniphier/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/masahiroy/linux-uniphier tags/uniphier-dt-v4.20
+	amlogic/dt-3
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt64-3
+	davinci/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v4.20/dt
+	mvebu/dt64-2
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt64-4.20-2
+	mvebu/dt-2
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-4.20-2
+	mediatek/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v4.19-next-dts32-2
+	samsung/dt-3
+		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt-4.20-3
+	samsung/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt64-4.20
+	socfpga/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/socfpga_updates_for_v4.20_part3
+
+next/drivers
+	drivers/tee
+		git://git.linaro.org/people/jens.wiklander/linux-tee tags/tee-drv-for-4.20
+	amlogic/drivers
+		https://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-drivers
+	<no branch> (11da3a7f84f19c26da6f86af878298694ede0804)
+		Merge tag 'v4.19-rc3' into next/drivers
+	drivers/scmi
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/scmi-updates-4.20
+	keystone/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/ssantosh/linux-keystone tags/drivers_soc_for_4.20
+	fsl/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-next-v4.20
+	at91/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-4.20-drivers
+	zynq/firmware
+		https://github.com/Xilinx/linux-xlnx tags/zynqmp-soc-for-v4.20-v2
+	tegra/soc-driver
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.20-soc
+		contains tegra/bindings
+	renesas/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-drivers-for-v4.20
+	sunxi/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-drivers-for-4.20
+	mediatek/soc-drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v4.19-next-soc
+	actions/soc-drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/afaerber/linux-actions tags/actions-drivers+s900-sps-for-4.20
+	qcom/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-drivers-for-4.20
+	imx/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-drivers-4.20
+	omap/ti-sysc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v4.20/ti-sysc-take2-signed
+	soc-fsl-drivers-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-next-v4.20-2
+		contains soc-fsl-fixes
+	imx/firmware
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-drivers-4.20-2
+	drivers/reset
+		git://git.pengutronix.de/git/pza/linux tags/reset-for-4.20
+	zynq/clk
+		https://github.com/Xilinx/linux-xlnx tags/zynqmp-soc-clk-for-v4.20
+	tegra/firmware
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-4.20-firmware-2
+
+next/defconfig
+	broadcom/defconfig
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-4.20/defconfig
+	stm32/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/atorgue/stm32 tags/stm32-defconfig-for-v4.20-1
+	hisi/defconfig
+		git://github.com/hisilicon/linux-hisi tags/hisi-defconfig-for-4.20
+	at91/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-4.20-defconfig
+	renesas/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-defconfig-for-v4.20
+	renesas/defconfig-32
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-defconfig-for-v4.20
+	qcom/defconfig64
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-arm64-defconfig-for-4.20
+	qcom/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-defconfig-for-4.20
+	patch
+		arm64: defconfig: Enable USB phys for UniPhier SoCs
+	sunxi/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-config64-for-4.20
+	patch
+		ARM: multi_v7_defconfig: Enable USB phys for UniPhier SoCs
+		arm64: defconfig: enable CONFIG_MMC_UNIPHIER
+		ARM: multi_v7_defconfig: enable CONFIG_MMC_UNIPHIER
+	rockchip/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v4.20-rockchip-defconfig64-1
+	patch
+		arm64: defconfig: Enable TI_SCI related configs
+		arm64: defconfig: Enable SERIAL_8250_OMAP
+	imx/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-defconfig-4.20
+
+next/late
+
+fixes
+	imx/fixes
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-fixes-4.19-2
+	soc-fsl-fixes
+		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-fix-v4.19-2
