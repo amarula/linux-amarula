@@ -94,6 +94,11 @@
 	};
 
 	soc {
+		sid: eeprom@1c14000 {
+			compatible = "allwinner,sun50i-h5-sid";
+			reg = <0x1c14000 0x400>;
+		};
+
 		mali: gpu@1e80000 {
 			compatible = "allwinner,sun50i-h5-mali", "arm,mali-450";
 			reg = <0x01e80000 0x30000>;
