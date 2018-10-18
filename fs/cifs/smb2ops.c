@@ -74,6 +74,12 @@ smb2_add_credits(struct TCP_Server_Info *server, const unsigned int add,
 	int *val, rc = 0;
 	spin_lock(&server->req_lock);
 	val = server->ops->get_credits_field(server, optype);
+
+	/* eg found case where write overlapping reconnect messed up credits */
+	if (((optype & CIFS_OP_MASK) == CIFS_NEG_OP) && (*val != 0))
+		trace_smb3_reconnect_with_invalid_credits(server->CurrentMid,
+			server->hostname, *val);
+
 	*val += add;
 	if (*val > 65000) {
 		*val = 65000; /* Don't get near 64K credits, avoid srv bugs */
@@ -104,7 +110,12 @@ smb2_set_credits(struct TCP_Server_Info *server, const int val)
 {
 	spin_lock(&server->req_lock);
 	server->credits = val;
+	if (val == 1)
+		server->reconnect_instance++;
 	spin_unlock(&server->req_lock);
+	/* don't log while holding the lock */
+	if (val == 1)
+		cifs_dbg(FYI, "set credits to 1 due to smb2 reconnect\n");
 }
 
 static int *
@@ -270,6 +281,31 @@ smb2_negotiate_wsize(struct cifs_tcon *tcon, struct smb_vol *volume_info)
 }
 
 static unsigned int
+smb3_negotiate_wsize(struct cifs_tcon *tcon, struct smb_vol *volume_info)
+{
+	struct TCP_Server_Info *server = tcon->ses->server;
+	unsigned int wsize;
+
+	/* start with specified wsize, or default */
+	wsize = volume_info->wsize ? volume_info->wsize : SMB3_DEFAULT_IOSIZE;
+	wsize = min_t(unsigned int, wsize, server->max_write);
+#ifdef CONFIG_CIFS_SMB_DIRECT
+	if (server->rdma) {
+		if (server->sign)
+			wsize = min_t(unsigned int,
+				wsize, server->smbd_conn->max_fragmented_send_size);
+		else
+			wsize = min_t(unsigned int,
+				wsize, server->smbd_conn->max_readwrite_size);
+	}
+#endif
+	if (!(server->capabilities & SMB2_GLOBAL_CAP_LARGE_MTU))
+		wsize = min_t(unsigned int, wsize, SMB2_MAX_BUFFER_SIZE);
+
+	return wsize;
+}
+
+static unsigned int
 smb2_negotiate_rsize(struct cifs_tcon *tcon, struct smb_vol *volume_info)
 {
 	struct TCP_Server_Info *server = tcon->ses->server;
@@ -295,6 +331,31 @@ smb2_negotiate_rsize(struct cifs_tcon *tcon, struct smb_vol *volume_info)
 	return rsize;
 }
 
+static unsigned int
+smb3_negotiate_rsize(struct cifs_tcon *tcon, struct smb_vol *volume_info)
+{
+	struct TCP_Server_Info *server = tcon->ses->server;
+	unsigned int rsize;
+
+	/* start with specified rsize, or default */
+	rsize = volume_info->rsize ? volume_info->rsize : SMB3_DEFAULT_IOSIZE;
+	rsize = min_t(unsigned int, rsize, server->max_read);
+#ifdef CONFIG_CIFS_SMB_DIRECT
+	if (server->rdma) {
+		if (server->sign)
+			rsize = min_t(unsigned int,
+				rsize, server->smbd_conn->max_fragmented_recv_size);
+		else
+			rsize = min_t(unsigned int,
+				rsize, server->smbd_conn->max_readwrite_size);
+	}
+#endif
+
+	if (!(server->capabilities & SMB2_GLOBAL_CAP_LARGE_MTU))
+		rsize = min_t(unsigned int, rsize, SMB2_MAX_BUFFER_SIZE);
+
+	return rsize;
+}
 
 static int
 parse_server_interfaces(struct network_interface_info_ioctl_rsp *buf,
@@ -1057,6 +1118,86 @@ req_res_key_exit:
 	return rc;
 }
 
+static int
+smb2_ioctl_query_info(const unsigned int xid,
+		      struct cifsFileInfo *file,
+		      unsigned long p)
+{
+	struct cifs_tcon *tcon = tlink_tcon(file->tlink);
+	struct cifs_ses *ses = tcon->ses;
+	char __user *arg = (char __user *)p;
+	struct smb_query_info qi;
+	struct smb_query_info __user *pqi;
+	int rc = 0;
+	int flags = 0;
+	struct smb_rqst rqst;
+	struct kvec iov[1];
+	struct kvec rsp_iov;
+	int resp_buftype = CIFS_NO_BUFFER;
+	struct smb2_query_info_rsp *rsp = NULL;
+	void *buffer;
+
+	if (copy_from_user(&qi, arg, sizeof(struct smb_query_info)))
+		return -EFAULT;
+
+	if (qi.output_buffer_length > 1024)
+		return -EINVAL;
+
+	if (!ses || !(ses->server))
+		return -EIO;
+
+	if (smb3_encryption_required(tcon))
+		flags |= CIFS_TRANSFORM_REQ;
+
+	buffer = kmalloc(qi.output_buffer_length, GFP_KERNEL);
+	if (buffer == NULL)
+		return -ENOMEM;
+
+	if (copy_from_user(buffer, arg + sizeof(struct smb_query_info),
+			   qi.output_buffer_length)) {
+		kfree(buffer);
+		return -EFAULT;
+	}
+
+	memset(&rqst, 0, sizeof(struct smb_rqst));
+	memset(&iov, 0, sizeof(iov));
+	rqst.rq_iov = iov;
+	rqst.rq_nvec = 1;
+
+	rc = SMB2_query_info_init(tcon, &rqst, file->fid.persistent_fid,
+				  file->fid.volatile_fid,
+				  qi.file_info_class, qi.info_type,
+				  qi.additional_information,
+				  qi.input_buffer_length,
+				  qi.output_buffer_length, buffer);
+	kfree(buffer);
+	if (rc)
+		goto iqinf_exit;
+
+	rc = cifs_send_recv(xid, ses, &rqst, &resp_buftype, flags, &rsp_iov);
+	rsp = (struct smb2_query_info_rsp *)rsp_iov.iov_base;
+	if (rc)
+		goto iqinf_exit;
+
+	pqi = (struct smb_query_info __user *)arg;
+	if (le32_to_cpu(rsp->OutputBufferLength) < qi.input_buffer_length)
+		qi.input_buffer_length = le32_to_cpu(rsp->OutputBufferLength);
+	if (copy_to_user(&pqi->input_buffer_length, &qi.input_buffer_length,
+			 sizeof(qi.input_buffer_length))) {
+		rc = -EFAULT;
+		goto iqinf_exit;
+	}
+	if (copy_to_user(pqi + 1, rsp->Buffer, qi.input_buffer_length)) {
+		rc = -EFAULT;
+		goto iqinf_exit;
+	}
+
+ iqinf_exit:
+	SMB2_query_info_free(&rqst);
+	free_rsp_buf(resp_buftype, rsp);
+	return rc;
+}
+
 static ssize_t
 smb2_copychunk_range(const unsigned int xid,
 			struct cifsFileInfo *srcfile,
@@ -1301,7 +1442,7 @@ smb2_set_file_size(const unsigned int xid, struct cifs_tcon *tcon,
 	}
 
 	return SMB2_set_eof(xid, tcon, cfile->fid.persistent_fid,
-			    cfile->fid.volatile_fid, cfile->pid, &eof, false);
+			    cfile->fid.volatile_fid, cfile->pid, &eof);
 }
 
 static int
@@ -1556,7 +1697,7 @@ smb2_oplock_response(struct cifs_tcon *tcon, struct cifs_fid *fid,
 				 CIFS_CACHE_READ(cinode) ? 1 : 0);
 }
 
-static void
+void
 smb2_set_related(struct smb_rqst *rqst)
 {
 	struct smb2_sync_hdr *shdr;
@@ -1567,7 +1708,7 @@ smb2_set_related(struct smb_rqst *rqst)
 
 char smb2_padding[7] = {0, 0, 0, 0, 0, 0, 0};
 
-static void
+void
 smb2_set_next_command(struct TCP_Server_Info *server, struct smb_rqst *rqst)
 {
 	struct smb2_sync_hdr *shdr;
@@ -1610,7 +1751,7 @@ smb2_queryfs(const unsigned int xid, struct cifs_tcon *tcon,
 		flags |= CIFS_TRANSFORM_REQ;
 
 	memset(rqst, 0, sizeof(rqst));
-	memset(resp_buftype, 0, sizeof(resp_buftype));
+	resp_buftype[0] = resp_buftype[1] = resp_buftype[2] = CIFS_NO_BUFFER;
 	memset(rsp_iov, 0, sizeof(rsp_iov));
 
 	memset(&open_iov, 0, sizeof(open_iov));
@@ -1636,7 +1777,8 @@ smb2_queryfs(const unsigned int xid, struct cifs_tcon *tcon,
 	rc = SMB2_query_info_init(tcon, &rqst[1], COMPOUND_FID, COMPOUND_FID,
 				  FS_FULL_SIZE_INFORMATION,
 				  SMB2_O_INFO_FILESYSTEM, 0,
-				  sizeof(struct smb2_fs_full_size_info));
+				  sizeof(struct smb2_fs_full_size_info), 0,
+				  NULL);
 	if (rc)
 		goto qfs_exit;
 	smb2_set_next_command(server, &rqst[1]);
@@ -3303,6 +3445,7 @@ struct smb_version_operations smb20_operations = {
 	.set_acl = set_smb2_acl,
 #endif /* CIFS_ACL */
 	.next_header = smb2_next_header,
+	.ioctl_query_info = smb2_ioctl_query_info,
 };
 
 struct smb_version_operations smb21_operations = {
@@ -3398,6 +3541,7 @@ struct smb_version_operations smb21_operations = {
 	.set_acl = set_smb2_acl,
 #endif /* CIFS_ACL */
 	.next_header = smb2_next_header,
+	.ioctl_query_info = smb2_ioctl_query_info,
 };
 
 struct smb_version_operations smb30_operations = {
@@ -3425,8 +3569,8 @@ struct smb_version_operations smb30_operations = {
 	.downgrade_oplock = smb2_downgrade_oplock,
 	.need_neg = smb2_need_neg,
 	.negotiate = smb2_negotiate,
-	.negotiate_wsize = smb2_negotiate_wsize,
-	.negotiate_rsize = smb2_negotiate_rsize,
+	.negotiate_wsize = smb3_negotiate_wsize,
+	.negotiate_rsize = smb3_negotiate_rsize,
 	.sess_setup = SMB2_sess_setup,
 	.logoff = SMB2_logoff,
 	.tree_connect = SMB2_tcon,
@@ -3502,6 +3646,7 @@ struct smb_version_operations smb30_operations = {
 	.set_acl = set_smb2_acl,
 #endif /* CIFS_ACL */
 	.next_header = smb2_next_header,
+	.ioctl_query_info = smb2_ioctl_query_info,
 };
 
 struct smb_version_operations smb311_operations = {
@@ -3529,8 +3674,8 @@ struct smb_version_operations smb311_operations = {
 	.downgrade_oplock = smb2_downgrade_oplock,
 	.need_neg = smb2_need_neg,
 	.negotiate = smb2_negotiate,
-	.negotiate_wsize = smb2_negotiate_wsize,
-	.negotiate_rsize = smb2_negotiate_rsize,
+	.negotiate_wsize = smb3_negotiate_wsize,
+	.negotiate_rsize = smb3_negotiate_rsize,
 	.sess_setup = SMB2_sess_setup,
 	.logoff = SMB2_logoff,
 	.tree_connect = SMB2_tcon,
@@ -3607,6 +3752,7 @@ struct smb_version_operations smb311_operations = {
 	.set_acl = set_smb2_acl,
 #endif /* CIFS_ACL */
 	.next_header = smb2_next_header,
+	.ioctl_query_info = smb2_ioctl_query_info,
 };
 
 struct smb_version_values smb20_values = {

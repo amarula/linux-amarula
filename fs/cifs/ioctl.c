@@ -34,6 +34,24 @@
 #include "cifs_ioctl.h"
 #include <linux/btrfs.h>
 
+static long cifs_ioctl_query_info(unsigned int xid, struct file *filep,
+				  unsigned long p)
+{
+	struct cifsFileInfo *pSMBFile = filep->private_data;
+	struct cifs_tcon *tcon;
+
+	cifs_dbg(FYI, "%s %p\n", __func__, pSMBFile);
+	if (pSMBFile == NULL)
+		return -EISDIR;
+	tcon = tlink_tcon(pSMBFile->tlink);
+
+	if (tcon->ses->server->ops->ioctl_query_info)
+		return tcon->ses->server->ops->ioctl_query_info(
+				xid, pSMBFile, p);
+	else
+		return -EOPNOTSUPP;
+}
+
 static long cifs_ioctl_copychunk(unsigned int xid, struct file *dst_file,
 			unsigned long srcfd)
 {
@@ -123,7 +141,6 @@ long cifs_ioctl(struct file *filep, unsigned int command, unsigned long arg)
 	struct inode *inode = file_inode(filep);
 	int rc = -ENOTTY; /* strange error - but the precedent */
 	unsigned int xid;
-	struct cifs_sb_info *cifs_sb;
 	struct cifsFileInfo *pSMBFile = filep->private_data;
 	struct cifs_tcon *tcon;
 	__u64	ExtAttrBits = 0;
@@ -131,7 +148,6 @@ long cifs_ioctl(struct file *filep, unsigned int command, unsigned long arg)
 
 	xid = get_xid();
 
-	cifs_sb = CIFS_SB(inode->i_sb);
 	cifs_dbg(FYI, "cifs ioctl 0x%x\n", command);
 	switch (command) {
 		case FS_IOC_GETFLAGS:
@@ -195,6 +211,9 @@ long cifs_ioctl(struct file *filep, unsigned int command, unsigned long arg)
 			break;
 		case CIFS_IOC_COPYCHUNK_FILE:
 			rc = cifs_ioctl_copychunk(xid, filep, arg);
+			break;
+		case CIFS_QUERY_INFO:
+			rc = cifs_ioctl_query_info(xid, filep, arg);
 			break;
 		case CIFS_IOC_SET_INTEGRITY:
 			if (pSMBFile == NULL)
