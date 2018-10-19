@@ -2855,7 +2855,6 @@ static int smk_fill_super(struct super_block *sb, void *data, size_t data_size,
 			  int silent)
 {
 	int rc;
-	struct inode *root_inode;
 
 	static const struct tree_descr smack_files[] = {
 		[SMK_LOAD] = {
@@ -2918,8 +2917,6 @@ static int smk_fill_super(struct super_block *sb, void *data, size_t data_size,
 			__func__, rc);
 		return rc;
 	}
-
-	root_inode = d_inode(sb->s_root);
 
 	return 0;
 }
