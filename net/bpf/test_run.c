@@ -10,6 +10,8 @@
 #include <linux/etherdevice.h>
 #include <linux/filter.h>
 #include <linux/sched/signal.h>
+#include <net/sock.h>
+#include <net/tcp.h>
 
 static __always_inline u32 bpf_test_run_one(struct bpf_prog *prog, void *ctx,
 		struct bpf_cgroup_storage *storage[MAX_BPF_CGROUP_STORAGE_TYPE])
@@ -115,6 +117,7 @@ int bpf_prog_test_run_skb(struct bpf_prog *prog, const union bpf_attr *kattr,
 	u32 retval, duration;
 	int hh_len = ETH_HLEN;
 	struct sk_buff *skb;
+	struct sock sk = {0};
 	void *data;
 	int ret;
 
@@ -137,11 +140,15 @@ int bpf_prog_test_run_skb(struct bpf_prog *prog, const union bpf_attr *kattr,
 		break;
 	}
 
+	sock_net_set(&sk, &init_net);
+	sock_init_data(NULL, &sk);
+
 	skb = build_skb(data, 0);
 	if (!skb) {
 		kfree(data);
 		return -ENOMEM;
 	}
+	skb->sk = &sk;
 
 	skb_reserve(skb, NET_SKB_PAD + NET_IP_ALIGN);
 	__skb_put(skb, size);
