@@ -971,7 +971,7 @@ static int nvme_identify_ns_descs(struct nvme_ctrl *ctrl, unsigned nsid,
 			uuid_copy(&ids->uuid, data + pos + sizeof(*cur));
 			break;
 		default:
-			/* Skip unnkown types */
+			/* Skip unknown types */
 			len = cur->nidl;
 			break;
 		}
@@ -2734,6 +2734,14 @@ const struct attribute_group nvme_ns_id_attr_group = {
 	.is_visible	= nvme_ns_id_attrs_are_visible,
 };
 
+const struct attribute_group *nvme_ns_id_attr_groups[] = {
+	&nvme_ns_id_attr_group,
+#ifdef CONFIG_NVM
+	&nvme_nvm_attr_group,
+#endif
+	NULL,
+};
+
 #define nvme_show_str_function(field)						\
 static ssize_t  field##_show(struct device *dev,				\
 			    struct device_attribute *attr, char *buf)		\
@@ -2900,9 +2908,14 @@ static struct nvme_ns_head *nvme_alloc_ns_head(struct nvme_ctrl *ctrl,
 		unsigned nsid, struct nvme_id_ns *id)
 {
 	struct nvme_ns_head *head;
+	size_t size = sizeof(*head);
 	int ret = -ENOMEM;
 
-	head = kzalloc(sizeof(*head), GFP_KERNEL);
+#ifdef CONFIG_NVME_MULTIPATH
+	size += num_possible_nodes() * sizeof(struct nvme_ns *);
+#endif
+
+	head = kzalloc(size, GFP_KERNEL);
 	if (!head)
 		goto out;
 	ret = ida_simple_get(&ctrl->subsys->ns_ida, 1, 0, GFP_KERNEL);
@@ -3103,14 +3116,7 @@ static void nvme_alloc_ns(struct nvme_ctrl *ctrl, unsigned nsid)
 
 	nvme_get_ctrl(ctrl);
 
-	device_add_disk(ctrl->device, ns->disk);
-	if (sysfs_create_group(&disk_to_dev(ns->disk)->kobj,
-					&nvme_ns_id_attr_group))
-		pr_warn("%s: failed to create sysfs group for identification\n",
-			ns->disk->disk_name);
-	if (ns->ndev && nvme_nvm_register_sysfs(ns))
-		pr_warn("%s: failed to register lightnvm sysfs group for identification\n",
-			ns->disk->disk_name);
+	device_add_disk(ctrl->device, ns->disk, nvme_ns_id_attr_groups);
 
 	nvme_mpath_add_disk(ns, id);
 	nvme_fault_inject_init(ns);
@@ -3136,10 +3142,6 @@ static void nvme_ns_remove(struct nvme_ns *ns)
 
 	nvme_fault_inject_fini(ns);
 	if (ns->disk && ns->disk->flags & GENHD_FL_UP) {
-		sysfs_remove_group(&disk_to_dev(ns->disk)->kobj,
-					&nvme_ns_id_attr_group);
-		if (ns->ndev)
-			nvme_nvm_unregister_sysfs(ns);
 		del_gendisk(ns->disk);
 		blk_cleanup_queue(ns->queue);
 		if (blk_get_integrity(ns->disk))
@@ -3415,16 +3417,21 @@ static void nvme_fw_act_work(struct work_struct *work)
 
 static void nvme_handle_aen_notice(struct nvme_ctrl *ctrl, u32 result)
 {
-	switch ((result & 0xff00) >> 8) {
+	u32 aer_notice_type = (result & 0xff00) >> 8;
+
+	switch (aer_notice_type) {
 	case NVME_AER_NOTICE_NS_CHANGED:
+		trace_nvme_async_event(ctrl, aer_notice_type);
 		set_bit(NVME_AER_NOTICE_NS_CHANGED, &ctrl->events);
 		nvme_queue_scan(ctrl);
 		break;
 	case NVME_AER_NOTICE_FW_ACT_STARTING:
+		trace_nvme_async_event(ctrl, aer_notice_type);
 		queue_work(nvme_wq, &ctrl->fw_act_work);
 		break;
 #ifdef CONFIG_NVME_MULTIPATH
 	case NVME_AER_NOTICE_ANA:
+		trace_nvme_async_event(ctrl, aer_notice_type);
 		if (!ctrl->ana_log_buf)
 			break;
 		queue_work(nvme_wq, &ctrl->ana_work);
@@ -3439,11 +3446,12 @@ void nvme_complete_async_event(struct nvme_ctrl *ctrl, __le16 status,
 		volatile union nvme_result *res)
 {
 	u32 result = le32_to_cpu(res->u32);
+	u32 aer_type = result & 0x07;
 
 	if (le16_to_cpu(status) >> 1 != NVME_SC_SUCCESS)
 		return;
 
-	switch (result & 0x7) {
+	switch (aer_type) {
 	case NVME_AER_NOTICE:
 		nvme_handle_aen_notice(ctrl, result);
 		break;
@@ -3451,6 +3459,7 @@ void nvme_complete_async_event(struct nvme_ctrl *ctrl, __le16 status,
 	case NVME_AER_SMART:
 	case NVME_AER_CSS:
 	case NVME_AER_VS:
+		trace_nvme_async_event(ctrl, aer_type);
 		ctrl->aen_result = result;
 		break;
 	default:
