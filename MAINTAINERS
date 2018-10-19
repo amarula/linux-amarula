@@ -4031,7 +4031,7 @@ M:	Uma Krishnan <ukrishn@linux.vnet.ibm.com>
 L:	linux-scsi@vger.kernel.org
 S:	Supported
 F:	drivers/scsi/cxlflash/
-F:	include/uapi/scsi/cxlflash_ioctls.h
+F:	include/uapi/scsi/cxlflash_ioctl.h
 F:	Documentation/powerpc/cxlflash.txt
 
 CYBERPRO FB DRIVER
@@ -10104,6 +10104,13 @@ S:	Supported
 F:	drivers/gpu/drm/mxsfb/
 F:	Documentation/devicetree/bindings/display/mxsfb.txt
 T:	git git://anongit.freedesktop.org/drm/drm-misc
+
+MYLEX DAC960 PCI RAID Controller
+M:	Hannes Reinecke <hare@kernel.org>
+L:	linux-scsi@vger.kernel.org
+S:	Supported
+F:	drivers/scsi/myrb.*
+F:	drivers/scsi/myrs.*
 
 MYRICOM MYRI-10G 10GbE DRIVER (MYRI10GE)
 M:	Chris Lee <christopher.lee@cspi.com>
