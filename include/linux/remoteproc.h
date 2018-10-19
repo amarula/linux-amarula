@@ -305,14 +305,22 @@ struct fw_rsc_vdev {
 	struct fw_rsc_vdev_vring vring[0];
 } __packed;
 
+struct rproc;
+
 /**
  * struct rproc_mem_entry - memory entry descriptor
  * @va:	virtual address
  * @dma: dma address
  * @len: length, in bytes
  * @da: device address
+ * @release: release associated memory
  * @priv: associated data
+ * @name: associated memory region name (optional)
  * @node: list node
+ * @rsc_offset: offset in resource table
+ * @flags: iommu protection flags
+ * @of_resm_idx: reserved memory phandle index
+ * @alloc: specific memory allocator function
  */
 struct rproc_mem_entry {
 	void *va;
@@ -320,10 +328,15 @@ struct rproc_mem_entry {
 	int len;
 	u32 da;
 	void *priv;
+	char name[32];
 	struct list_head node;
+	u32 rsc_offset;
+	u32 flags;
+	u32 of_resm_idx;
+	int (*alloc)(struct rproc *rproc, struct rproc_mem_entry *mem);
+	int (*release)(struct rproc *rproc, struct rproc_mem_entry *mem);
 };
 
-struct rproc;
 struct firmware;
 
 /**
@@ -439,7 +452,9 @@ struct rproc_dump_segment {
  * @cached_table: copy of the resource table
  * @table_sz: size of @cached_table
  * @has_iommu: flag to indicate if remote processor is behind an MMU
+ * @auto_boot: flag to indicate if remote processor should be auto-started
  * @dump_segments: list of segments in the firmware
+ * @nb_vdev: number of vdev currently handled by rproc
  */
 struct rproc {
 	struct list_head node;
@@ -472,6 +487,7 @@ struct rproc {
 	bool has_iommu;
 	bool auto_boot;
 	struct list_head dump_segments;
+	int nb_vdev;
 };
 
 /**
@@ -499,7 +515,6 @@ struct rproc_subdev {
 /**
  * struct rproc_vring - remoteproc vring state
  * @va:	virtual address
- * @dma: dma address
  * @len: length, in bytes
  * @da: device address
  * @align: vring alignment
@@ -509,7 +524,6 @@ struct rproc_subdev {
  */
 struct rproc_vring {
 	void *va;
-	dma_addr_t dma;
 	int len;
 	u32 da;
 	u32 align;
@@ -528,6 +542,7 @@ struct rproc_vring {
  * @vdev: the virio device
  * @vring: the vrings for this vdev
  * @rsc_offset: offset of the vdev's resource entry
+ * @index: vdev position versus other vdev declared in resource table
  */
 struct rproc_vdev {
 	struct kref refcount;
@@ -540,6 +555,7 @@ struct rproc_vdev {
 	struct virtio_device vdev;
 	struct rproc_vring vring[RVDEV_NUM_VRINGS];
 	u32 rsc_offset;
+	u32 index;
 };
 
 struct rproc *rproc_get_by_phandle(phandle phandle);
@@ -552,6 +568,19 @@ void rproc_put(struct rproc *rproc);
 int rproc_add(struct rproc *rproc);
 int rproc_del(struct rproc *rproc);
 void rproc_free(struct rproc *rproc);
+
+void rproc_add_carveout(struct rproc *rproc, struct rproc_mem_entry *mem);
+
+struct rproc_mem_entry *
+rproc_mem_entry_init(struct device *dev,
+		     void *va, dma_addr_t dma, int len, u32 da,
+		     int (*alloc)(struct rproc *, struct rproc_mem_entry *),
+		     int (*release)(struct rproc *, struct rproc_mem_entry *),
+		     const char *name, ...);
+
+struct rproc_mem_entry *
+rproc_of_resm_mem_entry_init(struct device *dev, u32 of_resm_idx, int len,
+			     u32 da, const char *name, ...);
 
 int rproc_boot(struct rproc *rproc);
 void rproc_shutdown(struct rproc *rproc);
