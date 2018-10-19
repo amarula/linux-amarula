@@ -62,6 +62,7 @@ ____________________________________________________________|___________________
  ffffffffff600000 |  -10    MB | ffffffffff600fff |    4 kB | legacy vsyscall ABI
  ffffffffffe00000 |   -2    MB | ffffffffffffffff |    2 MB | ... unused hole
 __________________|____________|__________________|_________|___________________________________________________________
+STACKLEAK_POISON value in this last hole: ffffffffffff4111
 
 
 ====================================================
@@ -119,6 +120,7 @@ ____________________________________________________________|___________________
  ffffffffff600000 |  -10    MB | ffffffffff600fff |    4 kB | legacy vsyscall ABI
  ffffffffffe00000 |   -2    MB | ffffffffffffffff |    2 MB | ... unused hole
 __________________|____________|__________________|_________|___________________________________________________________
+STACKLEAK_POISON value in this last hole: ffffffffffff4111
 
 Architecture defines a 64-bit virtual address. Implementations can support
 less. Currently supported are 48- and 57-bit virtual addresses. Bits 63
