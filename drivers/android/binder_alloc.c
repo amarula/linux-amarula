@@ -238,6 +238,7 @@ static int binder_update_page_range(struct binder_alloc *alloc, int allocate,
 		int ret;
 		bool on_lru;
 		size_t index;
+		vm_fault_t vmf;
 
 		index = (page_addr - alloc->buffer) / PAGE_SIZE;
 		page = &alloc->pages[index];
@@ -279,8 +280,8 @@ static int binder_update_page_range(struct binder_alloc *alloc, int allocate,
 		}
 		user_page_addr =
 			(uintptr_t)page_addr + alloc->user_buffer_offset;
-		ret = vm_insert_page(vma, user_page_addr, page[0].page_ptr);
-		if (ret) {
+		vmf = vmf_insert_page(vma, user_page_addr, page[0].page_ptr);
+		if (vmf != VM_FAULT_NOPAGE) {
 			pr_err("%d: binder_alloc_buf failed to map page at %lx in userspace\n",
 			       alloc->pid, user_page_addr);
 			goto err_vm_insert_page_failed;
