@@ -49,7 +49,6 @@
  *   gcc: https://gcc.gnu.org/onlinedocs/gcc/Common-Variable-Attributes.html#index-aligned-variable-attribute
  */
 #define __aligned(x)                    __attribute__((__aligned__(x)))
-#define __aligned_largest               __attribute__((__aligned__))
 
 /*
  * Note: users of __always_inline currently do not write "inline" themselves,
