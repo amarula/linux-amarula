@@ -16,13 +16,22 @@
 #include <linux/device.h>
 #include <linux/pwm.h>
 
-struct pwm_lpss_chip;
+#define MAX_PWMS			4
+
+struct pwm_lpss_chip {
+	struct pwm_chip chip;
+	void __iomem *regs;
+	const struct pwm_lpss_boardinfo *info;
+	u32 saved_ctrl[MAX_PWMS];
+};
 
 struct pwm_lpss_boardinfo {
 	unsigned long clk_rate;
 	unsigned int npwm;
 	unsigned long base_unit_bits;
 	bool bypass;
+	/* Some devices have AML code messing with the state underneath us */
+	bool check_power_on_resume;
 };
 
 struct pwm_lpss_chip *pwm_lpss_probe(struct device *dev, struct resource *r,
