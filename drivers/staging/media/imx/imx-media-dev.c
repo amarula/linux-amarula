@@ -60,9 +60,14 @@ int imx_media_add_async_subdev(struct imx_media_dev *imxmd,
 
 	if (IS_ERR(asd)) {
 		ret = PTR_ERR(asd);
-		if (ret == -EEXIST)
-			dev_dbg(imxmd->md.dev, "%s: already added %s\n",
-				__func__, np ? np->name : devname);
+		if (ret == -EEXIST) {
+			if (np)
+				dev_dbg(imxmd->md.dev, "%s: already added %pOFn\n",
+				__func__, np);
+			else
+				dev_dbg(imxmd->md.dev, "%s: already added %s\n",
+				__func__, devname);
+		}
 		return ret;
 	}
 
@@ -71,8 +76,12 @@ int imx_media_add_async_subdev(struct imx_media_dev *imxmd,
 	if (devname)
 		imxasd->pdev = pdev;
 
-	dev_dbg(imxmd->md.dev, "%s: added %s, match type %s\n",
-		__func__, np ? np->name : devname, np ? "FWNODE" : "DEVNAME");
+	if (fwnode)
+		dev_dbg(imxmd->md.dev, "%s: added %pOFn, match type FWNODE\n",
+			__func__, np);
+	else
+		dev_dbg(imxmd->md.dev, "%s: added %s, match type DEVNAME\n",
+			__func__, devname);
 
 	return 0;
 }

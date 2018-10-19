@@ -50,8 +50,6 @@ enum gasket_interrupt_packing {
 /* Type of the interrupt supported by the device. */
 enum gasket_interrupt_type {
 	PCI_MSIX = 0,
-	PCI_MSI = 1,
-	PLATFORM_WIRE = 2,
 };
 
 /*
@@ -67,12 +65,6 @@ struct gasket_interrupt_desc {
 	u64 reg;
 	/* The location of this interrupt inside register reg, if packed. */
 	int packing;
-};
-
-/* Offsets to the wire interrupt handling registers */
-struct gasket_wire_interrupt_offsets {
-	u64 pending_bit_array;
-	u64 mask_array;
 };
 
 /*
@@ -384,9 +376,6 @@ struct gasket_driver_desc {
 	 */
 	struct gasket_coherent_buffer_desc coherent_buffer_description;
 
-	/* Offset of wire interrupt registers. */
-	const struct gasket_wire_interrupt_offsets *wire_interrupt_offsets;
-
 	/* Interrupt type. (One of gasket_interrupt_type). */
 	int interrupt_type;
 
@@ -590,25 +579,25 @@ const char *gasket_num_name_lookup(uint num,
 static inline ulong gasket_dev_read_64(struct gasket_dev *gasket_dev, int bar,
 				       ulong location)
 {
-	return readq(&gasket_dev->bar_data[bar].virt_base[location]);
+	return readq_relaxed(&gasket_dev->bar_data[bar].virt_base[location]);
 }
 
 static inline void gasket_dev_write_64(struct gasket_dev *dev, u64 value,
 				       int bar, ulong location)
 {
-	writeq(value, &dev->bar_data[bar].virt_base[location]);
+	writeq_relaxed(value, &dev->bar_data[bar].virt_base[location]);
 }
 
 static inline void gasket_dev_write_32(struct gasket_dev *dev, u32 value,
 				       int bar, ulong location)
 {
-	writel(value, &dev->bar_data[bar].virt_base[location]);
+	writel_relaxed(value, &dev->bar_data[bar].virt_base[location]);
 }
 
 static inline u32 gasket_dev_read_32(struct gasket_dev *dev, int bar,
 				     ulong location)
 {
-	return readl(&dev->bar_data[bar].virt_base[location]);
+	return readl_relaxed(&dev->bar_data[bar].virt_base[location]);
 }
 
 static inline void gasket_read_modify_write_64(struct gasket_dev *dev, int bar,
