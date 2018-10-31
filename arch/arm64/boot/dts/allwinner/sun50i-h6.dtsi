@@ -266,6 +266,13 @@
 			status = "disabled";
 		};
 
+		rtc: rtc@7000000 {
+			compatible = "allwinner,sun6i-a31-rtc";
+			reg = <0x7000000 0x400>;
+			interrupts = <GIC_SPI 101 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
 		r_ccu: clock@7010000 {
 			compatible = "allwinner,sun50i-h6-r-ccu";
 			reg = <0x07010000 0x400>;
