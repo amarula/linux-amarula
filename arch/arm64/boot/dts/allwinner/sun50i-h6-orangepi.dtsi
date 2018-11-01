@@ -98,12 +98,14 @@
 			};
 
 			reg_cldo2: cldo2 {
+				regulator-always-on;
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vcc-wifi-1";
 			};
 
 			reg_cldo3: cldo3 {
+				regulator-always-on;
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vcc-wifi-2";
