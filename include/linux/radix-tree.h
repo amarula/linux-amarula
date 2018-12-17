@@ -31,8 +31,13 @@
 #include <linux/xarray.h>
 
 /* Keep unconverted code working */
-#define radix_tree_root		xarray
 #define radix_tree_node		xa_node
+
+struct radix_tree_root {
+	spinlock_t	xa_lock;
+	gfp_t		xa_flags;
+	void __rcu *	xa_head;
+};
 
 /*
  * The bottom two bits of the slot determine how the remaining bits in the
@@ -82,7 +87,11 @@ static inline bool radix_tree_is_internal_node(void *ptr)
 #define RADIX_TREE(name, mask) \
 	struct radix_tree_root name = RADIX_TREE_INIT(name, mask)
 
-#define INIT_RADIX_TREE(root, mask) xa_init_flags(root, mask)
+#define INIT_RADIX_TREE(root, mask) do {				\
+	spin_lock_init(&(root)->xa_lock);				\
+	(root)->xa_flags = mask;					\
+	(root)->xa_head = NULL;						\
+} while (0)
 
 static inline bool radix_tree_empty(const struct radix_tree_root *root)
 {

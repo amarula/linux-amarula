@@ -11,7 +11,7 @@
 
 #include <linux/bug.h>
 #include <linux/compiler.h>
-#include <linux/gfp.h>
+#include <linux/err.h>
 #include <linux/kconfig.h>
 #include <linux/kernel.h>
 #include <linux/rcupdate.h>
@@ -256,17 +256,13 @@ enum xa_lock_type {
 	XA_LOCK_BH = 2,
 };
 
-/*
- * Values for xa_flags.  The radix tree stores its GFP flags in the xa_flags,
- * and we remain compatible with that.
- */
-#define XA_FLAGS_LOCK_IRQ	((__force gfp_t)XA_LOCK_IRQ)
-#define XA_FLAGS_LOCK_BH	((__force gfp_t)XA_LOCK_BH)
-#define XA_FLAGS_TRACK_FREE	((__force gfp_t)4U)
-#define XA_FLAGS_ZERO_BUSY	((__force gfp_t)8U)
-#define XA_FLAGS_ALLOC_WRAPPED	((__force gfp_t)16U)
-#define XA_FLAGS_MARK(mark)	((__force gfp_t)((1U << __GFP_BITS_SHIFT) << \
-						(__force unsigned)(mark)))
+/* Values for xa_flags. */
+#define XA_FLAGS_LOCK_IRQ	XA_LOCK_IRQ
+#define XA_FLAGS_LOCK_BH	XA_LOCK_BH
+#define XA_FLAGS_TRACK_FREE	(1U << 2)
+#define XA_FLAGS_ZERO_BUSY	(1U << 3)
+#define XA_FLAGS_ALLOC_WRAPPED	(1U << 4)
+#define XA_FLAGS_MARK(mark)	((1U << 8) << (__force unsigned)(mark))
 
 /* ALLOC is for a normal 0-based alloc.  ALLOC1 is for an 1-based alloc */
 #define XA_FLAGS_ALLOC	(XA_FLAGS_TRACK_FREE | XA_FLAGS_MARK(XA_FREE_MARK))
@@ -291,7 +287,7 @@ enum xa_lock_type {
 struct xarray {
 	spinlock_t	xa_lock;
 /* private: The rest of the data structure is not to be used directly. */
-	gfp_t		xa_flags;
+	unsigned int	xa_flags;
 	void __rcu *	xa_head;
 };
 
@@ -370,7 +366,7 @@ void xa_destroy(struct xarray *);
  *
  * Context: Any context.
  */
-static inline void xa_init_flags(struct xarray *xa, gfp_t flags)
+static inline void xa_init_flags(struct xarray *xa, unsigned int flags)
 {
 	spin_lock_init(&xa->xa_lock);
 	xa->xa_flags = flags;
@@ -1089,7 +1085,10 @@ struct xa_node {
 	unsigned char	count;		/* Total entry count */
 	unsigned char	nr_values;	/* Value entry count */
 	struct xa_node __rcu *parent;	/* NULL at top of tree */
-	struct xarray	*array;		/* The array we belong to */
+	union {
+		struct xarray	*array;		/* The array we belong to */
+		struct radix_tree_root *tree;
+	};
 	union {
 		struct list_head private_list;	/* For tree user */
 		struct rcu_head	rcu_head;	/* Used when freeing node */
