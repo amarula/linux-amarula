@@ -691,6 +691,18 @@ case what's actually required is:
 		p = READ_ONCE(b);
 	}
 
+Alternatively, a control dependency can be converted to a data dependency,
+e.g.:
+
+	q = READ_ONCE(a);
+	if (q) {
+		b = dependent_ptr_mb(b, q);
+		p = READ_ONCE(b);
+	}
+
+Note how the result of dependent_ptr_mb must be used with the following
+accesses in order to have an effect.
+
 However, stores are not speculated.  This means that ordering -is- provided
 for load-store control dependencies, as in the following example:
 
@@ -836,6 +848,12 @@ out-guess your code.  More generally, although READ_ONCE() does force
 the compiler to actually emit code for a given load, it does not force
 the compiler to use the results.
 
+Converting to a data dependency helps with this too:
+
+	q = READ_ONCE(a);
+	b = dependent_ptr_mb(b, q);
+	WRITE_ONCE(b, 1);
+
 In addition, control dependencies apply only to the then-clause and
 else-clause of the if-statement in question.  In particular, it does
 not necessarily apply to code following the if-statement:
@@ -873,6 +891,8 @@ invoked by those two clauses), not to code following that if-statement.
 Note well that the ordering provided by a control dependency is local
 to the CPU containing it.  See the section on "Multicopy atomicity"
 for more information.
+
+
 
 
 In summary:

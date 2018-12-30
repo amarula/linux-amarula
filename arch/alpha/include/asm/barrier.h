@@ -59,6 +59,7 @@
  * as Alpha, "y" could be set to 3 and "x" to 0.  Use rmb()
  * in cases like this where there are no data dependencies.
  */
+#define ARCH_NEEDS_READ_BARRIER_DEPENDS 1
 #define read_barrier_depends() __asm__ __volatile__("mb": : :"memory")
 
 #ifdef CONFIG_SMP

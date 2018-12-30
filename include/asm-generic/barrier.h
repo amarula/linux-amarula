@@ -70,6 +70,24 @@
 #define __smp_read_barrier_depends()	read_barrier_depends()
 #endif
 
+#if defined(COMPILER_HAS_OPTIMIZER_HIDE_VAR) && \
+	!defined(ARCH_NEEDS_READ_BARRIER_DEPENDS)
+
+#define dependent_ptr_mb(ptr, val) ({					\
+	long dependent_ptr_mb_val = (long)(val);			\
+	long dependent_ptr_mb_ptr = (long)(ptr) - dependent_ptr_mb_val;	\
+									\
+	BUILD_BUG_ON(sizeof(val) > sizeof(long));			\
+	OPTIMIZER_HIDE_VAR(dependent_ptr_mb_val);			\
+	(typeof(ptr))(dependent_ptr_mb_ptr + dependent_ptr_mb_val);	\
+})
+
+#else
+
+#define dependent_ptr_mb(ptr, val) ({ mb(); (ptr); })
+
+#endif
+
 #ifdef CONFIG_SMP
 
 #ifndef smp_mb
