@@ -33,6 +33,7 @@
 #include <linux/uaccess.h>
 #include <asm/processor.h>
 #include <linux/mempool.h>
+#include <linux/signal.h>
 #include "cifspdu.h"
 #include "cifsglob.h"
 #include "cifsproto.h"
@@ -176,6 +177,7 @@ smb_send_kvec(struct TCP_Server_Info *server, struct msghdr *smb_msg,
 	int rc = 0;
 	int retries = 0;
 	struct socket *ssocket = server->ssocket;
+	sigset_t mask, oldmask;
 
 	*sent = 0;
 
@@ -189,6 +191,28 @@ smb_send_kvec(struct TCP_Server_Info *server, struct msghdr *smb_msg,
 		smb_msg->msg_flags = MSG_NOSIGNAL;
 
 	while (msg_data_left(smb_msg)) {
+		if (signal_pending(current)) {
+			/* Should we stop sending if we receive SIG_KILL? */
+			if (__fatal_signal_pending(current))
+				cifs_dbg(FYI, "SIG_KILL signal is pending\n");
+
+			/* It is safe to return if we haven't sent anything */
+			if (*sent == 0) {
+				cifs_dbg(FYI, "signal is pending before sending any data\n");
+				return -EINTR;
+			}
+		}
+
+		/*
+		 * We should not allow signals to interrupt the network send
+		 * because any partial send will cause session reconnects thus
+		 * increasing latency of system calls and overload a server
+		 * with unnecessary requests.
+		 */
+
+		sigfillset(&mask);
+		sigprocmask(SIG_BLOCK, &mask, &oldmask);
+
 		/*
 		 * If blocking send, we try 3 times, since each can block
 		 * for 5 seconds. For nonblocking  we have to try more
@@ -208,20 +232,23 @@ smb_send_kvec(struct TCP_Server_Info *server, struct msghdr *smb_msg,
 		 * reconnect which may clear the network problem.
 		 */
 		rc = sock_sendmsg(ssocket, smb_msg);
+
+		sigprocmask(SIG_SETMASK, &oldmask, NULL);
+
 		if (rc == -EAGAIN) {
 			retries++;
 			if (retries >= 14 ||
 			    (!server->noblocksnd && (retries > 2))) {
 				cifs_dbg(VFS, "sends on sock %p stuck for 15 seconds\n",
 					 ssocket);
-				return -EAGAIN;
+				return signal_pending(current) ? -EINTR : rc;
 			}
 			msleep(1 << retries);
 			continue;
 		}
 
 		if (rc < 0)
-			return rc;
+			return signal_pending(current) ? -EINTR : rc;
 
 		if (rc == 0) {
 			/* should never happen, letting socket clear before
@@ -235,7 +262,7 @@ smb_send_kvec(struct TCP_Server_Info *server, struct msghdr *smb_msg,
 		*sent += rc;
 		retries = 0; /* in case we get ENOSPC on the next send */
 	}
-	return 0;
+	return signal_pending(current) ? -EINTR : 0;
 }
 
 unsigned long
