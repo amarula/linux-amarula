@@ -136,7 +136,7 @@
 
 static int copyout(void __user *to, const void *from, size_t n)
 {
-	if (access_ok(VERIFY_WRITE, to, n)) {
+	if (access_ok(to, n)) {
 		kasan_check_read(from, n);
 		n = raw_copy_to_user(to, from, n);
 	}
@@ -145,7 +145,7 @@ static int copyout(void __user *to, const void *from, size_t n)
 
 static int copyin(void *to, const void __user *from, size_t n)
 {
-	if (access_ok(VERIFY_READ, from, n)) {
+	if (access_ok(from, n)) {
 		kasan_check_write(to, n);
 		n = raw_copy_from_user(to, from, n);
 	}
@@ -561,13 +561,20 @@ static size_t copy_pipe_to_iter(const void *addr, size_t bytes,
 	return bytes;
 }
 
+static __wsum csum_and_memcpy(void *to, const void *from, size_t len,
+			      __wsum sum, size_t off)
+{
+	__wsum next = csum_partial_copy_nocheck(from, to, len, 0);
+	return csum_block_add(sum, next, off);
+}
+
 static size_t csum_and_copy_to_pipe_iter(const void *addr, size_t bytes,
 				__wsum *csum, struct iov_iter *i)
 {
 	struct pipe_inode_info *pipe = i->pipe;
 	size_t n, r;
 	size_t off = 0;
-	__wsum sum = *csum, next;
+	__wsum sum = *csum;
 	int idx;
 
 	if (!sanity(i))
@@ -579,8 +586,7 @@ static size_t csum_and_copy_to_pipe_iter(const void *addr, size_t bytes,
 	for ( ; n; idx = next_idx(idx, pipe), r = 0) {
 		size_t chunk = min_t(size_t, n, PAGE_SIZE - r);
 		char *p = kmap_atomic(pipe->bufs[idx].page);
-		next = csum_partial_copy_nocheck(addr, p + r, chunk, 0);
-		sum = csum_block_add(sum, next, off);
+		sum = csum_and_memcpy(p + r, addr, chunk, sum, off);
 		kunmap_atomic(p);
 		i->idx = idx;
 		i->iov_offset = r + chunk;
@@ -614,7 +620,7 @@ EXPORT_SYMBOL(_copy_to_iter);
 #ifdef CONFIG_ARCH_HAS_UACCESS_MCSAFE
 static int copyout_mcsafe(void __user *to, const void *from, size_t n)
 {
-	if (access_ok(VERIFY_WRITE, to, n)) {
+	if (access_ok(to, n)) {
 		kasan_check_read(from, n);
 		n = copy_to_user_mcsafe((__force void *) to, from, n);
 	}
@@ -1401,17 +1407,15 @@ size_t csum_and_copy_from_iter(void *addr, size_t bytes, __wsum *csum,
 		err ? v.iov_len : 0;
 	}), ({
 		char *p = kmap_atomic(v.bv_page);
-		next = csum_partial_copy_nocheck(p + v.bv_offset,
-						 (to += v.bv_len) - v.bv_len,
-						 v.bv_len, 0);
+		sum = csum_and_memcpy((to += v.bv_len) - v.bv_len,
+				      p + v.bv_offset, v.bv_len,
+				      sum, off);
 		kunmap_atomic(p);
-		sum = csum_block_add(sum, next, off);
 		off += v.bv_len;
 	}),({
-		next = csum_partial_copy_nocheck(v.iov_base,
-						 (to += v.iov_len) - v.iov_len,
-						 v.iov_len, 0);
-		sum = csum_block_add(sum, next, off);
+		sum = csum_and_memcpy((to += v.iov_len) - v.iov_len,
+				      v.iov_base, v.iov_len,
+				      sum, off);
 		off += v.iov_len;
 	})
 	)
@@ -1445,17 +1449,15 @@ bool csum_and_copy_from_iter_full(void *addr, size_t bytes, __wsum *csum,
 		0;
 	}), ({
 		char *p = kmap_atomic(v.bv_page);
-		next = csum_partial_copy_nocheck(p + v.bv_offset,
-						 (to += v.bv_len) - v.bv_len,
-						 v.bv_len, 0);
+		sum = csum_and_memcpy((to += v.bv_len) - v.bv_len,
+				      p + v.bv_offset, v.bv_len,
+				      sum, off);
 		kunmap_atomic(p);
-		sum = csum_block_add(sum, next, off);
 		off += v.bv_len;
 	}),({
-		next = csum_partial_copy_nocheck(v.iov_base,
-						 (to += v.iov_len) - v.iov_len,
-						 v.iov_len, 0);
-		sum = csum_block_add(sum, next, off);
+		sum = csum_and_memcpy((to += v.iov_len) - v.iov_len,
+				      v.iov_base, v.iov_len,
+				      sum, off);
 		off += v.iov_len;
 	})
 	)
@@ -1493,17 +1495,15 @@ size_t csum_and_copy_to_iter(const void *addr, size_t bytes, void *csump,
 		err ? v.iov_len : 0;
 	}), ({
 		char *p = kmap_atomic(v.bv_page);
-		next = csum_partial_copy_nocheck((from += v.bv_len) - v.bv_len,
-						 p + v.bv_offset,
-						 v.bv_len, 0);
+		sum = csum_and_memcpy(p + v.bv_offset,
+				      (from += v.bv_len) - v.bv_len,
+				      v.bv_len, sum, off);
 		kunmap_atomic(p);
-		sum = csum_block_add(sum, next, off);
 		off += v.bv_len;
 	}),({
-		next = csum_partial_copy_nocheck((from += v.iov_len) - v.iov_len,
-						 v.iov_base,
-						 v.iov_len, 0);
-		sum = csum_block_add(sum, next, off);
+		sum = csum_and_memcpy(v.iov_base,
+				     (from += v.iov_len) - v.iov_len,
+				     v.iov_len, sum, off);
 		off += v.iov_len;
 	})
 	)
@@ -1663,7 +1663,7 @@ int import_single_range(int rw, void __user *buf, size_t len,
 {
 	if (len > MAX_RW_COUNT)
 		len = MAX_RW_COUNT;
-	if (unlikely(!access_ok(!rw, buf, len)))
+	if (unlikely(!access_ok(buf, len)))
 		return -EFAULT;
 
 	iov->iov_base = buf;

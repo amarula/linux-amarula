@@ -336,7 +336,26 @@ time client replies ACK, this socket will get another chance to move
 to the accept queue.
 
 
-TCP Fast Open
+* TcpEstabResets
+Defined in `RFC1213 tcpEstabResets`_.
+
+.. _RFC1213 tcpEstabResets: https://tools.ietf.org/html/rfc1213#page-48
+
+* TcpAttemptFails
+Defined in `RFC1213 tcpAttemptFails`_.
+
+.. _RFC1213 tcpAttemptFails: https://tools.ietf.org/html/rfc1213#page-48
+
+* TcpOutRsts
+Defined in `RFC1213 tcpOutRsts`_. The RFC says this counter indicates
+the 'segments sent containing the RST flag', but in linux kernel, this
+couner indicates the segments kerenl tried to send. The sending
+process might be failed due to some errors (e.g. memory alloc failed).
+
+.. _RFC1213 tcpOutRsts: https://tools.ietf.org/html/rfc1213#page-52
+
+
+TCP Fast Path
 ============
 When kernel receives a TCP packet, it has two paths to handler the
 packet, one is fast path, another is slow path. The comment in kernel
@@ -383,8 +402,6 @@ increase 1.
 
 TCP abort
 ========
-
-
 * TcpExtTCPAbortOnData
 It means TCP layer has data in flight, but need to close the
 connection. So TCP layer sends a RST to the other side, indicate the
@@ -545,7 +562,6 @@ packet yet, the sender would know packet 4 is out of order. The TCP
 stack of kernel will increase TcpExtTCPSACKReorder for both of the
 above scenarios.
 
-
 DSACK
 =====
 The DSACK is defined in `RFC2883`_. The receiver uses DSACK to report
@@ -566,12 +582,206 @@ The TCP stack receives an out of order duplicate packet, so it sends a
 DSACK to the sender.
 
 * TcpExtTCPDSACKRecv
-The TCP stack receives a DSACK, which indicate an acknowledged
+The TCP stack receives a DSACK, which indicates an acknowledged
 duplicate packet is received.
 
 * TcpExtTCPDSACKOfoRecv
 The TCP stack receives a DSACK, which indicate an out of order
-duplciate packet is received.
+duplicate packet is received.
+
+invalid SACK and DSACK
+====================
+When a SACK (or DSACK) block is invalid, a corresponding counter would
+be updated. The validation method is base on the start/end sequence
+number of the SACK block. For more details, please refer the comment
+of the function tcp_is_sackblock_valid in the kernel source code. A
+SACK option could have up to 4 blocks, they are checked
+individually. E.g., if 3 blocks of a SACk is invalid, the
+corresponding counter would be updated 3 times. The comment of the
+`Add counters for discarded SACK blocks`_ patch has additional
+explaination:
+
+.. _Add counters for discarded SACK blocks: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=18f02545a9a16c9a89778b91a162ad16d510bb32
+
+* TcpExtTCPSACKDiscard
+This counter indicates how many SACK blocks are invalid. If the invalid
+SACK block is caused by ACK recording, the TCP stack will only ignore
+it and won't update this counter.
+
+* TcpExtTCPDSACKIgnoredOld and TcpExtTCPDSACKIgnoredNoUndo
+When a DSACK block is invalid, one of these two counters would be
+updated. Which counter will be updated depends on the undo_marker flag
+of the TCP socket. If the undo_marker is not set, the TCP stack isn't
+likely to re-transmit any packets, and we still receive an invalid
+DSACK block, the reason might be that the packet is duplicated in the
+middle of the network. In such scenario, TcpExtTCPDSACKIgnoredNoUndo
+will be updated. If the undo_marker is set, TcpExtTCPDSACKIgnoredOld
+will be updated. As implied in its name, it might be an old packet.
+
+SACK shift
+=========
+The linux networking stack stores data in sk_buff struct (skb for
+short). If a SACK block acrosses multiple skb, the TCP stack will try
+to re-arrange data in these skb. E.g. if a SACK block acknowledges seq
+10 to 15, skb1 has seq 10 to 13, skb2 has seq 14 to 20. The seq 14 and
+15 in skb2 would be moved to skb1. This operation is 'shift'. If a
+SACK block acknowledges seq 10 to 20, skb1 has seq 10 to 13, skb2 has
+seq 14 to 20. All data in skb2 will be moved to skb1, and skb2 will be
+discard, this operation is 'merge'.
+
+* TcpExtTCPSackShifted
+A skb is shifted
+
+* TcpExtTCPSackMerged
+A skb is merged
+
+* TcpExtTCPSackShiftFallback
+A skb should be shifted or merged, but the TCP stack doesn't do it for
+some reasons.
+
+TCP out of order
+===============
+* TcpExtTCPOFOQueue
+The TCP layer receives an out of order packet and has enough memory
+to queue it.
+
+* TcpExtTCPOFODrop
+The TCP layer receives an out of order packet but doesn't have enough
+memory, so drops it. Such packets won't be counted into
+TcpExtTCPOFOQueue.
+
+* TcpExtTCPOFOMerge
+The received out of order packet has an overlay with the previous
+packet. the overlay part will be dropped. All of TcpExtTCPOFOMerge
+packets will also be counted into TcpExtTCPOFOQueue.
+
+TCP PAWS
+=======
+PAWS (Protection Against Wrapped Sequence numbers) is an algorithm
+which is used to drop old packets. It depends on the TCP
+timestamps. For detail information, please refer the `timestamp wiki`_
+and the `RFC of PAWS`_.
+
+.. _RFC of PAWS: https://tools.ietf.org/html/rfc1323#page-17
+.. _timestamp wiki: https://en.wikipedia.org/wiki/Transmission_Control_Protocol#TCP_timestamps
+
+* TcpExtPAWSActive
+Packets are dropped by PAWS in Syn-Sent status.
+
+* TcpExtPAWSEstab
+Packets are dropped by PAWS in any status other than Syn-Sent.
+
+TCP ACK skip
+===========
+In some scenarios, kernel would avoid sending duplicate ACKs too
+frequently. Please find more details in the tcp_invalid_ratelimit
+section of the `sysctl document`_. When kernel decides to skip an ACK
+due to tcp_invalid_ratelimit, kernel would update one of below
+counters to indicate the ACK is skipped in which scenario. The ACK
+would only be skipped if the received packet is either a SYN packet or
+it has no data.
+
+.. _sysctl document: https://www.kernel.org/doc/Documentation/networking/ip-sysctl.txt
+
+* TcpExtTCPACKSkippedSynRecv
+The ACK is skipped in Syn-Recv status. The Syn-Recv status means the
+TCP stack receives a SYN and replies SYN+ACK. Now the TCP stack is
+waiting for an ACK. Generally, the TCP stack doesn't need to send ACK
+in the Syn-Recv status. But in several scenarios, the TCP stack need
+to send an ACK. E.g., the TCP stack receives the same SYN packet
+repeately, the received packet does not pass the PAWS check, or the
+received packet sequence number is out of window. In these scenarios,
+the TCP stack needs to send ACK. If the ACk sending frequency is higher than
+tcp_invalid_ratelimit allows, the TCP stack will skip sending ACK and
+increase TcpExtTCPACKSkippedSynRecv.
+
+
+* TcpExtTCPACKSkippedPAWS
+The ACK is skipped due to PAWS (Protect Against Wrapped Sequence
+numbers) check fails. If the PAWS check fails in Syn-Recv, Fin-Wait-2
+or Time-Wait statuses, the skipped ACK would be counted to
+TcpExtTCPACKSkippedSynRecv, TcpExtTCPACKSkippedFinWait2 or
+TcpExtTCPACKSkippedTimeWait. In all other statuses, the skipped ACK
+would be counted to TcpExtTCPACKSkippedPAWS.
+
+* TcpExtTCPACKSkippedSeq
+The sequence number is out of window and the timestamp passes the PAWS
+check and the TCP status is not Syn-Recv, Fin-Wait-2, and Time-Wait.
+
+* TcpExtTCPACKSkippedFinWait2
+The ACK is skipped in Fin-Wait-2 status, the reason would be either
+PAWS check fails or the received sequence number is out of window.
+
+* TcpExtTCPACKSkippedTimeWait
+Tha ACK is skipped in Time-Wait status, the reason would be either
+PAWS check failed or the received sequence number is out of window.
+
+* TcpExtTCPACKSkippedChallenge
+The ACK is skipped if the ACK is a challenge ACK. The RFC 5961 defines
+3 kind of challenge ACK, please refer `RFC 5961 section 3.2`_,
+`RFC 5961 section 4.2`_ and `RFC 5961 section 5.2`_. Besides these
+three scenarios, In some TCP status, the linux TCP stack would also
+send challenge ACKs if the ACK number is before the first
+unacknowledged number (more strict than `RFC 5961 section 5.2`_).
+
+.. _RFC 5961 section 3.2: https://tools.ietf.org/html/rfc5961#page-7
+.. _RFC 5961 section 4.2: https://tools.ietf.org/html/rfc5961#page-9
+.. _RFC 5961 section 5.2: https://tools.ietf.org/html/rfc5961#page-11
+
+TCP receive window
+=================
+* TcpExtTCPWantZeroWindowAdv
+Depending on current memory usage, the TCP stack tries to set receive
+window to zero. But the receive window might still be a no-zero
+value. For example, if the previous window size is 10, and the TCP
+stack receives 3 bytes, the current window size would be 7 even if the
+window size calculated by the memory usage is zero.
+
+* TcpExtTCPToZeroWindowAdv
+The TCP receive window is set to zero from a no-zero value.
+
+* TcpExtTCPFromZeroWindowAdv
+The TCP receive window is set to no-zero value from zero.
+
+
+Delayed ACK
+==========
+The TCP Delayed ACK is a technique which is used for reducing the
+packet count in the network. For more details, please refer the
+`Delayed ACK wiki`_
+
+.. _Delayed ACK wiki: https://en.wikipedia.org/wiki/TCP_delayed_acknowledgment
+
+* TcpExtDelayedACKs
+A delayed ACK timer expires. The TCP stack will send a pure ACK packet
+and exit the delayed ACK mode.
+
+* TcpExtDelayedACKLocked
+A delayed ACK timer expires, but the TCP stack can't send an ACK
+immediately due to the socket is locked by a userspace program. The
+TCP stack will send a pure ACK later (after the userspace program
+unlock the socket). When the TCP stack sends the pure ACK later, the
+TCP stack will also update TcpExtDelayedACKs and exit the delayed ACK
+mode.
+
+* TcpExtDelayedACKLost
+It will be updated when the TCP stack receives a packet which has been
+ACKed. A Delayed ACK loss might cause this issue, but it would also be
+triggered by other reasons, such as a packet is duplicated in the
+network.
+
+Tail Loss Probe (TLP)
+===================
+TLP is an algorithm which is used to detect TCP packet loss. For more
+details, please refer the `TLP paper`_.
+
+.. _TLP paper: https://tools.ietf.org/html/draft-dukkipati-tcpm-tcp-loss-probe-01
+
+* TcpExtTCPLossProbes
+A TLP probe packet is sent.
+
+* TcpExtTCPLossProbeRecovery
+A packet loss is detected and recovered by TLP.
 
 examples
 =======
@@ -1188,3 +1398,151 @@ Run nstat on server B::
 We have deleted the default route on server B. Server B couldn't find
 a route for the 8.8.8.8 IP address, so server B increased
 IpOutNoRoutes.
+
+TcpExtTCPACKSkippedSynRecv
+------------------------
+In this test, we send 3 same SYN packets from client to server. The
+first SYN will let server create a socket, set it to Syn-Recv status,
+and reply a SYN/ACK. The second SYN will let server reply the SYN/ACK
+again, and record the reply time (the duplicate ACK reply time). The
+third SYN will let server check the previous duplicate ACK reply time,
+and decide to skip the duplicate ACK, then increase the
+TcpExtTCPACKSkippedSynRecv counter.
+
+Run tcpdump to capture a SYN packet::
+
+  nstatuser@nstat-a:~$ sudo tcpdump -c 1 -w /tmp/syn.pcap port 9000
+  tcpdump: listening on ens3, link-type EN10MB (Ethernet), capture size 262144 bytes
+
+Open another terminal, run nc command::
+
+  nstatuser@nstat-a:~$ nc nstat-b 9000
+
+As the nstat-b didn't listen on port 9000, it should reply a RST, and
+the nc command exited immediately. It was enough for the tcpdump
+command to capture a SYN packet. A linux server might use hardware
+offload for the TCP checksum, so the checksum in the /tmp/syn.pcap
+might be not correct. We call tcprewrite to fix it::
+
+  nstatuser@nstat-a:~$ tcprewrite --infile=/tmp/syn.pcap --outfile=/tmp/syn_fixcsum.pcap --fixcsum
+
+On nstat-b, we run nc to listen on port 9000::
+
+  nstatuser@nstat-b:~$ nc -lkv 9000
+  Listening on [0.0.0.0] (family 0, port 9000)
+
+On nstat-a, we blocked the packet from port 9000, or nstat-a would send
+RST to nstat-b::
+
+  nstatuser@nstat-a:~$ sudo iptables -A INPUT -p tcp --sport 9000 -j DROP
+
+Send 3 SYN repeatly to nstat-b::
+
+  nstatuser@nstat-a:~$ for i in {1..3}; do sudo tcpreplay -i ens3 /tmp/syn_fixcsum.pcap; done
+
+Check snmp cunter on nstat-b::
+
+  nstatuser@nstat-b:~$ nstat | grep -i skip
+  TcpExtTCPACKSkippedSynRecv      1                  0.0
+
+As we expected, TcpExtTCPACKSkippedSynRecv is 1.
+
+TcpExtTCPACKSkippedPAWS
+----------------------
+To trigger PAWS, we could send an old SYN.
+
+On nstat-b, let nc listen on port 9000::
+
+  nstatuser@nstat-b:~$ nc -lkv 9000
+  Listening on [0.0.0.0] (family 0, port 9000)
+
+On nstat-a, run tcpdump to capture a SYN::
+
+  nstatuser@nstat-a:~$ sudo tcpdump -w /tmp/paws_pre.pcap -c 1 port 9000
+  tcpdump: listening on ens3, link-type EN10MB (Ethernet), capture size 262144 bytes
+
+On nstat-a, run nc as a client to connect nstat-b::
+
+  nstatuser@nstat-a:~$ nc -v nstat-b 9000
+  Connection to nstat-b 9000 port [tcp/*] succeeded!
+
+Now the tcpdump has captured the SYN and exit. We should fix the
+checksum::
+
+  nstatuser@nstat-a:~$ tcprewrite --infile /tmp/paws_pre.pcap --outfile /tmp/paws.pcap --fixcsum
+
+Send the SYN packet twice::
+
+  nstatuser@nstat-a:~$ for i in {1..2}; do sudo tcpreplay -i ens3 /tmp/paws.pcap; done
+
+On nstat-b, check the snmp counter::
+
+  nstatuser@nstat-b:~$ nstat | grep -i skip
+  TcpExtTCPACKSkippedPAWS         1                  0.0
+
+We sent two SYN via tcpreplay, both of them would let PAWS check
+failed, the nstat-b replied an ACK for the first SYN, skipped the ACK
+for the second SYN, and updated TcpExtTCPACKSkippedPAWS.
+
+TcpExtTCPACKSkippedSeq
+--------------------
+To trigger TcpExtTCPACKSkippedSeq, we send packets which have valid
+timestamp (to pass PAWS check) but the sequence number is out of
+window. The linux TCP stack would avoid to skip if the packet has
+data, so we need a pure ACK packet. To generate such a packet, we
+could create two sockets: one on port 9000, another on port 9001. Then
+we capture an ACK on port 9001, change the source/destination port
+numbers to match the port 9000 socket. Then we could trigger
+TcpExtTCPACKSkippedSeq via this packet.
+
+On nstat-b, open two terminals, run two nc commands to listen on both
+port 9000 and port 9001::
+
+  nstatuser@nstat-b:~$ nc -lkv 9000
+  Listening on [0.0.0.0] (family 0, port 9000)
+
+  nstatuser@nstat-b:~$ nc -lkv 9001
+  Listening on [0.0.0.0] (family 0, port 9001)
+
+On nstat-a, run two nc clients::
+
+  nstatuser@nstat-a:~$ nc -v nstat-b 9000
+  Connection to nstat-b 9000 port [tcp/*] succeeded!
+
+  nstatuser@nstat-a:~$ nc -v nstat-b 9001
+  Connection to nstat-b 9001 port [tcp/*] succeeded!
+
+On nstat-a, run tcpdump to capture an ACK::
+
+  nstatuser@nstat-a:~$ sudo tcpdump -w /tmp/seq_pre.pcap -c 1 dst port 9001
+  tcpdump: listening on ens3, link-type EN10MB (Ethernet), capture size 262144 bytes
+
+On nstat-b, send a packet via the port 9001 socket. E.g. we sent a
+string 'foo' in our example::
+
+  nstatuser@nstat-b:~$ nc -lkv 9001
+  Listening on [0.0.0.0] (family 0, port 9001)
+  Connection from nstat-a 42132 received!
+  foo
+
+On nstat-a, the tcpdump should have caputred the ACK. We should check
+the source port numbers of the two nc clients::
+
+  nstatuser@nstat-a:~$ ss -ta '( dport = :9000 || dport = :9001 )' | tee
+  State  Recv-Q   Send-Q         Local Address:Port           Peer Address:Port
+  ESTAB  0        0            192.168.122.250:50208       192.168.122.251:9000
+  ESTAB  0        0            192.168.122.250:42132       192.168.122.251:9001
+
+Run tcprewrite, change port 9001 to port 9000, chagne port 42132 to
+port 50208::
+
+  nstatuser@nstat-a:~$ tcprewrite --infile /tmp/seq_pre.pcap --outfile /tmp/seq.pcap -r 9001:9000 -r 42132:50208 --fixcsum
+
+Now the /tmp/seq.pcap is the packet we need. Send it to nstat-b::
+
+  nstatuser@nstat-a:~$ for i in {1..2}; do sudo tcpreplay -i ens3 /tmp/seq.pcap; done
+
+Check TcpExtTCPACKSkippedSeq on nstat-b::
+
+  nstatuser@nstat-b:~$ nstat | grep -i skip
+  TcpExtTCPACKSkippedSeq          1                  0.0

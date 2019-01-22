@@ -181,7 +181,7 @@ static void vdc_blk_queue_start(struct vdc_port *port)
 	 * allocated a disk.
 	 */
 	if (port->disk && vdc_tx_dring_avail(dr) * 100 / VDC_TX_RING_SIZE >= 50)
-		blk_mq_start_hw_queues(port->disk->queue);
+		blk_mq_start_stopped_hw_queues(port->disk->queue, true);
 }
 
 static void vdc_finish(struct vio_driver_state *vio, int err, int waiting_for)
@@ -633,7 +633,6 @@ static int generic_request(struct vdc_port *port, u8 op, void *buf, int len)
 	case VD_OP_GET_EFI:
 	case VD_OP_SET_EFI:
 		return -EOPNOTSUPP;
-		break;
 	};
 
 	map_perm |= LDC_MAP_SHADOW | LDC_MAP_DIRECT | LDC_MAP_IO;

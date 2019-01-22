@@ -1,6 +1,6 @@
 /*
  * Framework and drivers for configuring and reading different PHYs
- * Based on code in sungem_phy.c and gianfar_phy.c
+ * Based on code in sungem_phy.c and (long-removed) gianfar_phy.c
  *
  * Author: Andy Fleming
  *
@@ -48,6 +48,7 @@ extern __ETHTOOL_DECLARE_LINK_MODE_MASK(phy_gbit_features) __ro_after_init;
 extern __ETHTOOL_DECLARE_LINK_MODE_MASK(phy_gbit_fibre_features) __ro_after_init;
 extern __ETHTOOL_DECLARE_LINK_MODE_MASK(phy_gbit_all_ports_features) __ro_after_init;
 extern __ETHTOOL_DECLARE_LINK_MODE_MASK(phy_10gbit_features) __ro_after_init;
+extern __ETHTOOL_DECLARE_LINK_MODE_MASK(phy_10gbit_fec_features) __ro_after_init;
 extern __ETHTOOL_DECLARE_LINK_MODE_MASK(phy_10gbit_full_features) __ro_after_init;
 
 #define PHY_BASIC_FEATURES ((unsigned long *)&phy_basic_features)
@@ -56,6 +57,7 @@ extern __ETHTOOL_DECLARE_LINK_MODE_MASK(phy_10gbit_full_features) __ro_after_ini
 #define PHY_GBIT_FIBRE_FEATURES ((unsigned long *)&phy_gbit_fibre_features)
 #define PHY_GBIT_ALL_PORTS_FEATURES ((unsigned long *)&phy_gbit_all_ports_features)
 #define PHY_10GBIT_FEATURES ((unsigned long *)&phy_10gbit_features)
+#define PHY_10GBIT_FEC_FEATURES ((unsigned long *)&phy_10gbit_fec_features)
 #define PHY_10GBIT_FULL_FEATURES ((unsigned long *)&phy_10gbit_full_features)
 
 extern const int phy_10_100_features_array[4];
@@ -110,9 +112,9 @@ typedef enum {
  * @speeds: buffer to store supported speeds in.
  * @size: size of speeds buffer.
  *
- * Description: Returns the number of supported speeds, and
- * fills the speeds * buffer with the supported speeds. If speeds buffer is
- * too small to contain * all currently supported speeds, will return as
+ * Description: Returns the number of supported speeds, and fills
+ * the speeds buffer with the supported speeds. If speeds buffer is
+ * too small to contain all currently supported speeds, will return as
  * many speeds as can fit.
  */
 unsigned int phy_supported_speeds(struct phy_device *phy,
@@ -120,7 +122,10 @@ unsigned int phy_supported_speeds(struct phy_device *phy,
 				      unsigned int size);
 
 /**
- * It maps 'enum phy_interface_t' found in include/linux/phy.h
+ * phy_modes - map phy_interface_t enum to device tree binding of phy-mode
+ * @interface: enum phy_interface_t value
+ *
+ * Description: maps 'enum phy_interface_t' defined in this file
  * into the device tree binding of 'phy-mode', so that Ethernet
  * device driver can get phy interface from device tree.
  */
@@ -464,8 +469,8 @@ struct phy_device {
  *   only works for PHYs with IDs which match this field
  * name: The friendly name of this PHY type
  * phy_id_mask: Defines the important bits of the phy_id
- * features: A list of features (speed, duplex, etc) supported
- *   by this PHY
+ * features: A mandatory list of features (speed, duplex, etc)
+ *   supported by this PHY
  * flags: A bitfield defining certain other features this PHY
  *   supports (like interrupts)
  *
