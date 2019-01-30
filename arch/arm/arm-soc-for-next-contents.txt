@@ -1,0 +1,55 @@
+arm/soc
+
+arm/dt
+	arm/stm32/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/atorgue/stm32 tags/stm32-dt-for-v4.21-1
+	patch
+		ARM: dts: Kill off skeleton{64}.dtsi
+		arm64: dts: Remove inconsistent use of 'arm,armv8' compatible string
+	arm/nomadik/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-nomadik tags/nomadik-dts-v5.1
+	arm/integrator/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-integrator tags/integrator-dts-v5.1
+	arm/renesas/64
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-dt-for-v5.1
+	arm/sunxi/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt-for-5.1
+	arm/sunxi/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt64-for-5.1
+	aspeed/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/joel/aspeed tags/aspeed-5.1-devicetree
+
+arm/drivers
+
+arm/defconfig
+
+arm/late
+
+arm/fixes
+	<no branch> (ba0f4560526ba19300c07ed5a3c1df7592815dc6)
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-fixes-5.0
+	<no branch> (89857a8a5c89a406b967ab2be7bd2ccdbe75e73d)
+		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-fix-v5.0
+	<no branch> (c5b11ee9f1c22a8d6b5cab2099904f7adbe79a7f)
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-fixes-5.0-2
+	<no branch> (ba16adeb346387eb2d1ada69003588be96f098fa)
+		https://github.com/rjarzmik/linux tags/pxa-fixes-5.0
+	<no branch> (05c8478abd485507c25aa565afab604af8d8fe46)
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-fixes2-for-v5.0
+	<no branch> (2a81efb0de0e33f2d2c83154af0bd3ce389b3269)
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-fixes-for-5.0-rc3
+	<no branch> (e3966a766865da7ced1dece663697861dd5cf103)
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-fixes-for-v5.0-part2
+	<no branch> (063c20e12f8bbbc10cabc2413606b140085beb62)
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.0/fixes-rc3
+	patch
+		ARM: iop32x/n2100: fix PCI IRQ mapping
+		firmware: arm_scmi: provide the mandatory device release callback
+	<no branch> (f29200c8b1e267b109242677ae7f2146c7682d14)
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-fixes-2.1
+	<no branch> (b1360dcfdaa1d55952e5ec8dd9d99f88965d7ac9)
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-fixes-for-5.0
+	<no branch> (6a6a797625b5fe855bf60c798561896e311d58ce)
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-fixes3-for-v5.0
+	patch
+		ARM: tango: Improve ARCH_MULTIPLATFORM compatibility
