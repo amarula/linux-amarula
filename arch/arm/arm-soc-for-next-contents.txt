@@ -1,4 +1,6 @@
 arm/soc
+	patch
+		arch/arm/mach-ep93xx: Remove duplicate header
 
 arm/dt
 	arm/stm32/dt
@@ -16,12 +18,23 @@ arm/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt-for-5.1
 	arm/sunxi/dt64
 		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt64-for-5.1
-	aspeed/dt
+	arm/aspeed/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/joel/aspeed tags/aspeed-5.1-devicetree
+	arm/vexpress/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/vexpress-updates-5.1
+	arm/juno/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/juno-updates-5.1
 
 arm/drivers
+	arm/fsl/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-next-v5.1-2
 
 arm/defconfig
+	patch
+		ARM: defconfig: axm55xx: Drop PL11x graphics driver
+		ARM: defconfig: Enable PL11x DRM driver on multi_v7
+		arm64: defconfig: Switch to PL11x DRM driver
+		ARM: multi_v7_defconfig: enable GCC plugin support and structleak plugin
 
 arm/late
 
@@ -53,3 +66,5 @@ arm/fixes
 		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-fixes3-for-v5.0
 	patch
 		ARM: tango: Improve ARCH_MULTIPLATFORM compatibility
+
+
