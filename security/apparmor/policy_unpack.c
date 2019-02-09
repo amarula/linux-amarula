@@ -1061,7 +1061,7 @@ static int deflate_compress(const char *src, size_t slen, char **dst,
 		dstbuf = kvzalloc(strm.total_out, GFP_KERNEL);
 		if (dstbuf) {
 			memcpy(dstbuf, stgbuf, strm.total_out);
-			vfree(stgbuf);
+			kvfree(stgbuf);
 		}
 	} else
 		/* If the staging buffer was kmalloc'd, then using krealloc is
