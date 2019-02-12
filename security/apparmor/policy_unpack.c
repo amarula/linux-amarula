@@ -582,6 +582,7 @@ fail:
 			kfree(profile->secmark[i].label);
 		kfree(profile->secmark);
 		profile->secmark_count = 0;
+		profile->secmark = NULL;
 	}
 
 	e->pos = pos;
