@@ -1,6 +1,28 @@
 arm/soc
 	patch
 		arch/arm/mach-ep93xx: Remove duplicate header
+	arm/pxa/soc
+		https://github.com/rjarzmik/linux tags/pxa-for-5.1
+	<no branch> (17ffc1193a4b5610400c43623a43115f3d2e15a6)
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-maintainers-5.1
+	arm/imx/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-soc-5.1
+	arm/davinci/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v5.1/soc-part2
+	arm/amlogic/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-soc
+	arm/samsung/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-soc-5.1
+	arm/mvebu/arm64
+		git://git.infradead.org/linux-mvebu tags/mvebu-arm64-5.1-1
+	arm/mediatek/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v5.0-next-soc
+	arm/tegra/soc-resume
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-arm-core
+	arm/renesas/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-soc-for-v5.1
+	arm/lpc32xx/soc
+		https://github.com/vzapolskiy/linux-lpc32xx tags/lpc32xx-soc-for-5.1
 
 arm/dt
 	arm/stm32/dt
@@ -24,10 +46,120 @@ arm/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/vexpress-updates-5.1
 	arm/juno/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/juno-updates-5.1
+	arm/omap/dt-soc-81xx
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/soc-ti-81xx-signed
+	arm/omap/dt-81xx
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/dt-ti-81xx-signed
+	arm/omap/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/dt-signed
+	arm/davinci/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v5.1/dt
+	arm/am654/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/kristo/linux tags/am654-for-v5.1
+	arm/rockchip/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v5.1-rockchip-dts32-1
+	arm/rockchip/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v5.1-rockchip-dts64-1
+	arm/stm32/dt2
+		git://git.kernel.org/pub/scm/linux/kernel/git/atorgue/stm32 tags/stm32-dt-for-v5.1-1
+	arm/samsung/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt-5.1
+	arm/broadcom/dt
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-5.1/devicetree
+	arm/broadcom/dt-arm64
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-5.1/devicetree-arm64
+	arm/lpc32xx/dt
+		https://github.com/vzapolskiy/linux-lpc32xx tags/lpc32xx-dt-for-5.1
+	qcom/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-arm64-for-5.1
+	arm/qcom/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-dts-for-5.1
+	arm/hisi/dt
+		git://github.com/hisilicon/linux-hisi tags/hisi-arm64-dt-for-5.1v2
+	arm/socfpga/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/socfpga_dts_for_v5.1
+	arm/sunxi/dt-h3-h5
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-h3-h5-for-5.1
+	arm/sunxi/dt64-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt64-for-5.1-2
+	arm/sunxi/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt-for-5.1-2
+	arm/renesas/dt64-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-dt2-for-v5.1
+	arm/renesas/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-dt-for-v5.1
+	arm/tegra/dt-bindings
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-dt-bindings
+	arm/tegra/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-arm-dt
+	arm/tegra/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-arm64-dt
+	arm/mediatek/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v5.0-next-dts32
+	arm/mediatek/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v5.0-next-dts64
+	arm/mvebu/dt64
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt64-5.1-1
+	arm/mvebu/dt
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-5.1-1
+	arm/amlogic/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt64
+	arm/amlogic/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt
+	arm/imx/dt-bindings
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-bindings-5.1
+	arm/imx/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-dt-5.1
+	arm/imx/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-dt64-5.1
+	arm/zynqmp/dt
+		https://github.com/Xilinx/linux-xlnx tags/zynqmp-dt-for-v5.1
+	arm/zynq/dt
+		https://github.com/Xilinx/linux-xlnx tags/zynq-dt-for-v5.1
+	arm/at91/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-5.1-dt
+	arm/uniphier/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/masahiroy/linux-uniphier tags/uniphier-dt64-v5.1
+	arm/omap/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/dt-pt2-signed
+	arm/ti/dt64-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/kristo/linux tags/am654-for-v5.1-part2
+	arm/qcom/dt64-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-arm64-for-5.1
+	arm/qcom/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-dts-for-5.1-2
 
 arm/drivers
 	arm/fsl/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-next-v5.1-2
+	arm/xilinx/zynqmp-soc
+		https://github.com/Xilinx/linux-xlnx tags/zynqmp-soc-for-v5.1
+	arm/imx/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-drivers-5.1
+	arm/amlogic/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-drivers
+	drivers/reset
+		git://git.pengutronix.de/git/pza/linux tags/reset-for-5.1
+	arm/tegra/firmware
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-firmware
+	arm/tegra/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-soc
+	arm/tegra/cpufreq
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-cpufreq
+	arm/tegra/clk
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-clk
+	arm/hisi/driver
+		git://github.com/hisilicon/linux-hisi tags/hisi-drivers-for-5.1
+	drivers/tee
+		https://git.linaro.org/people/jens.wiklander/linux-tee tags/tee-bus-for-5.1
+	arm/qualcomm/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-drivers-for-5.1
+	arm/broadcom/drivers
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-5.1/drivers
+	arm/keystone/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/ssantosh/linux-keystone tags/drivers_soc_for_5.1
+	arm/qcom/drivers-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-drivers-for-5.1-2
 
 arm/defconfig
 	patch
@@ -35,36 +167,42 @@ arm/defconfig
 		ARM: defconfig: Enable PL11x DRM driver on multi_v7
 		arm64: defconfig: Switch to PL11x DRM driver
 		ARM: multi_v7_defconfig: enable GCC plugin support and structleak plugin
+	arm/omap/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/defconfig-signed
+	arm/imx/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-defconfig-5.1
+	arm/tegra/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-arm64-defconfig
+	arm/renesas/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-defconfig-for-v5.1
+	arm/renesas/defconfig-arm64
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-defconfig-for-v5.1
+	arm/sunxi/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-config64-for-5.1
+	arm/socfpga/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux socfpga_for_next_v5.1_defconfig
+	arm/lpc32xx/defconfig
+		https://github.com/vzapolskiy/linux-lpc32xx tags/lpc32xx-defconfig-for-5.1
+	arm/broadcom/defconfig
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-5.1/defconfig
+	arm/samsung/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-defconfig-5.1
+
+arm/newsoc
+	arm/bitmain
+		git://git.kernel.org/pub/scm/linux/kernel/git/mani/linux-bitmain tags/bitmain-initial-soc-v5.1
 
 arm/late
 
 arm/fixes
-	<no branch> (ba0f4560526ba19300c07ed5a3c1df7592815dc6)
-		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-fixes-5.0
-	<no branch> (89857a8a5c89a406b967ab2be7bd2ccdbe75e73d)
-		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-fix-v5.0
-	<no branch> (c5b11ee9f1c22a8d6b5cab2099904f7adbe79a7f)
-		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-fixes-5.0-2
-	<no branch> (ba16adeb346387eb2d1ada69003588be96f098fa)
-		https://github.com/rjarzmik/linux tags/pxa-fixes-5.0
-	<no branch> (05c8478abd485507c25aa565afab604af8d8fe46)
-		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-fixes2-for-v5.0
-	<no branch> (2a81efb0de0e33f2d2c83154af0bd3ce389b3269)
-		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-fixes-for-5.0-rc3
-	<no branch> (e3966a766865da7ced1dece663697861dd5cf103)
-		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-fixes-for-v5.0-part2
-	<no branch> (063c20e12f8bbbc10cabc2413606b140085beb62)
-		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.0/fixes-rc3
-	patch
-		ARM: iop32x/n2100: fix PCI IRQ mapping
-		firmware: arm_scmi: provide the mandatory device release callback
-	<no branch> (f29200c8b1e267b109242677ae7f2146c7682d14)
-		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-fixes-2.1
-	<no branch> (b1360dcfdaa1d55952e5ec8dd9d99f88965d7ac9)
-		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-fixes-for-5.0
-	<no branch> (6a6a797625b5fe855bf60c798561896e311d58ce)
-		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-fixes3-for-v5.0
-	patch
-		ARM: tango: Improve ARCH_MULTIPLATFORM compatibility
-
+	<no branch> (dc30e70391376ba3987aeb856ae6d9c0706534f1)
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.0/fixes-rc4
+	<no branch> (c9a8a92a9961dcd822015ee406e1a011b772112e)
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v5.0-rockchip-dts32fixes-1
+	<no branch> (26e2d7b03ea7ff254bf78305aa44dda62e70b78e)
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v5.0-rockchip-dts64fixes-1
+	<no branch> (f2ce6ed3dcc837af8ddb4076c71f5d370e65f6af)
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-fixes-5.0-3
+	<no branch> (50d6b3cf9403879911e06d69c7ef41e43f8f7b4b)
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.0/fixes-rc5
 
