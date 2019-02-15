@@ -1372,6 +1372,13 @@ F:	arch/arm/mach-aspeed/
 F:	arch/arm/boot/dts/aspeed-*
 N:	aspeed
 
+ARM/BITMAIN ARCHITECTURE
+M:	Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+L:	linux-arm-kernel@lists.infradead.org (moderated for non-subscribers)
+S:	Maintained
+F:	arch/arm64/boot/dts/bitmain/
+F:	Documentation/devicetree/bindings/arm/bitmain.yaml
+
 ARM/CALXEDA HIGHBANK ARCHITECTURE
 M:	Rob Herring <robh@kernel.org>
 L:	linux-arm-kernel@lists.infradead.org (moderated for non-subscribers)
@@ -1531,21 +1538,14 @@ ARM/FREESCALE IMX / MXC ARM ARCHITECTURE
 M:	Shawn Guo <shawnguo@kernel.org>
 M:	Sascha Hauer <s.hauer@pengutronix.de>
 R:	Pengutronix Kernel Team <kernel@pengutronix.de>
-R:	Fabio Estevam <fabio.estevam@nxp.com>
+R:	Fabio Estevam <festevam@gmail.com>
 R:	NXP Linux Team <linux-imx@nxp.com>
 L:	linux-arm-kernel@lists.infradead.org (moderated for non-subscribers)
 S:	Maintained
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux.git
-F:	arch/arm/mach-imx/
-F:	arch/arm/mach-mxs/
-F:	arch/arm/boot/dts/imx*
-F:	arch/arm/configs/imx*_defconfig
-F:	arch/arm64/boot/dts/freescale/imx*
-F:	drivers/clk/imx/
-F:	drivers/firmware/imx/
-F:	drivers/soc/imx/
-F:	include/linux/firmware/imx/
-F:	include/soc/imx/
+N:	imx
+N:	mxs
+X:	drivers/media/i2c/
 
 ARM/FREESCALE VYBRID ARM ARCHITECTURE
 M:	Shawn Guo <shawnguo@kernel.org>
@@ -1948,19 +1948,37 @@ M:	David Brown <david.brown@linaro.org>
 L:	linux-arm-msm@vger.kernel.org
 S:	Maintained
 F:	Documentation/devicetree/bindings/soc/qcom/
+F:	Documentation/devicetree/bindings/*/qcom*
 F:	arch/arm/boot/dts/qcom-*.dts
 F:	arch/arm/boot/dts/qcom-*.dtsi
 F:	arch/arm/mach-qcom/
-F:	arch/arm64/boot/dts/qcom/*
-F:	drivers/i2c/busses/i2c-qup.c
-F:	drivers/clk/qcom/
-F:	drivers/dma/qcom/
-F:	drivers/soc/qcom/
-F:	drivers/spi/spi-qup.c
-F:	drivers/tty/serial/msm_serial.c
+F:	arch/arm64/boot/dts/qcom/
+F:	drivers/*/qcom/
+F:	drivers/*/qcom*
+F:	drivers/*/*/qcom/
+F:	drivers/*/*/qcom*
 F:	drivers/*/pm8???-*
+F:	drivers/bluetooth/btqcomsmd.c
+F:	drivers/clocksource/timer-qcom.c
+F:	drivers/extcon/extcon-qcom*
+F:	drivers/iommu/msm*
+F:	drivers/i2c/busses/i2c-qup.c
+F:	drivers/i2c/busses/i2c-qcom-geni.c
 F:	drivers/mfd/ssbi.c
-F:	drivers/firmware/qcom_scm*
+F:	drivers/mmc/host/mmci_qcom*
+F:	drivers/mmc/host/sdhci_msm.c
+F:	drivers/pci/controller/dwc/pcie-qcom.c
+F:	drivers/phy/qualcomm/
+F:	drivers/power/*/msm*
+F:	drivers/reset/reset-qcom-*
+F:	drivers/scsi/ufs/ufs-qcom.*
+F:	drivers/spi/spi-qup.c
+F:	drivers/spi/spi-geni-qcom.c
+F:	drivers/spi/spi-qcom-qspi.c
+F:	drivers/tty/serial/msm_serial.c
+F:	drivers/usb/dwc3/dwc3-qcom.c
+F:	include/dt-bindings/*/qcom*
+F:	include/linux/*/qcom*
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux.git
 
 ARM/RADISYS ENP2611 MACHINE SUPPORT
@@ -2109,6 +2127,8 @@ Q:	http://patchwork.kernel.org/project/linux-renesas-soc/list/
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas.git next
 S:	Supported
 F:	arch/arm/boot/dts/emev2*
+F:	arch/arm/boot/dts/gr-peach*
+F:	arch/arm/boot/dts/iwg20d-q7*
 F:	arch/arm/boot/dts/r7s*
 F:	arch/arm/boot/dts/r8a*
 F:	arch/arm/boot/dts/r9a*
@@ -2848,6 +2868,9 @@ F:	include/uapi/linux/if_bonding.h
 BPF (Safe dynamic programs and tools)
 M:	Alexei Starovoitov <ast@kernel.org>
 M:	Daniel Borkmann <daniel@iogearbox.net>
+R:	Martin KaFai Lau <kafai@fb.com>
+R:	Song Liu <songliubraving@fb.com>
+R:	Yonghong Song <yhs@fb.com>
 L:	netdev@vger.kernel.org
 L:	linux-kernel@vger.kernel.org
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/bpf/bpf.git
@@ -2873,6 +2896,8 @@ F:	samples/bpf/
 F:	tools/bpf/
 F:	tools/lib/bpf/
 F:	tools/testing/selftests/bpf/
+K:	bpf
+N:	bpf
 
 BPF JIT for ARM
 M:	Shubham Bansal <illusionist.neo@gmail.com>
@@ -5181,7 +5206,7 @@ DRM DRIVERS FOR XEN
 M:	Oleksandr Andrushchenko <oleksandr_andrushchenko@epam.com>
 T:	git git://anongit.freedesktop.org/drm/drm-misc
 L:	dri-devel@lists.freedesktop.org
-L:	xen-devel@lists.xen.org
+L:	xen-devel@lists.xenproject.org (moderated for non-subscribers)
 S:	Supported
 F:	drivers/gpu/drm/xen/
 F:	Documentation/gpu/xen-front.rst
@@ -9853,6 +9878,11 @@ F:	drivers/media/platform/meson/ao-cec.c
 F:	Documentation/devicetree/bindings/media/meson-ao-cec.txt
 T:	git git://linuxtv.org/media_tree.git
 
+METHODE UDPU SUPPORT
+M:	Vladimir Vid <vladimir.vid@sartura.hr>
+S:	Maintained
+F:	arch/arm64/boot/dts/marvell/armada-3720-uDPU.dts
+
 MICROBLAZE ARCHITECTURE
 M:	Michal Simek <monstr@monstr.eu>
 W:	http://www.monstr.eu/fdt/
@@ -11264,6 +11294,11 @@ M:	Jens Wiklander <jens.wiklander@linaro.org>
 S:	Maintained
 F:	drivers/tee/optee/
 
+OP-TEE RANDOM NUMBER GENERATOR (RNG) DRIVER
+M:	Sumit Garg <sumit.garg@linaro.org>
+S:	Maintained
+F:	drivers/char/hw_random/optee-rng.c
+
 OPA-VNIC DRIVER
 M:	Dennis Dalessandro <dennis.dalessandro@intel.com>
 M:	Niranjana Vishwanathapura <niranjana.vishwanathapura@intel.com>
@@ -11307,10 +11342,12 @@ F:	include/dt-bindings/
 
 OPENCORES I2C BUS DRIVER
 M:	Peter Korsgaard <peter@korsgaard.com>
+M:	Andrew Lunn <andrew@lunn.ch>
 L:	linux-i2c@vger.kernel.org
 S:	Maintained
 F:	Documentation/i2c/busses/i2c-ocores
 F:	drivers/i2c/busses/i2c-ocores.c
+F:	include/linux/platform_data/i2c-ocores.h
 
 OPENRISC ARCHITECTURE
 M:	Jonas Bonn <jonas@southpole.se>
@@ -12868,6 +12905,13 @@ F:	Documentation/devicetree/bindings/net/dsa/realtek-smi.txt
 F:	drivers/net/dsa/realtek-smi*
 F:	drivers/net/dsa/rtl83*
 
+REDPINE WIRELESS DRIVER
+M:	Amitkumar Karwar <amitkarwar@gmail.com>
+M:	Siva Rebbagondla <siva8118@gmail.com>
+L:	linux-wireless@vger.kernel.org
+S:	Maintained
+F:	drivers/net/wireless/rsi/
+
 REGISTER MAP ABSTRACTION
 M:	Mark Brown <broonie@kernel.org>
 L:	linux-kernel@vger.kernel.org
@@ -12958,6 +13002,7 @@ F:	drivers/reset/
 F:	Documentation/devicetree/bindings/reset/
 F:	include/dt-bindings/reset/
 F:	include/linux/reset.h
+F:	include/linux/reset/
 F:	include/linux/reset-controller.h
 
 RESTARTABLE SEQUENCES SUPPORT
@@ -13695,6 +13740,15 @@ M:	Bert Kenward <bkenward@solarflare.com>
 L:	netdev@vger.kernel.org
 S:	Supported
 F:	drivers/net/ethernet/sfc/
+
+SFF/SFP/SFP+ MODULE SUPPORT
+M:	Russell King <linux@armlinux.org.uk>
+L:	netdev@vger.kernel.org
+S:	Maintained
+F:	drivers/net/phy/phylink.c
+F:	drivers/net/phy/sfp*
+F:	include/linux/phylink.h
+F:	include/linux/sfp.h
 
 SGI GRU DRIVER
 M:	Dimitri Sivanich <sivanich@sgi.com>
@@ -16641,6 +16695,15 @@ S:	Maintained
 F:	drivers/platform/x86/
 F:	drivers/platform/olpc/
 
+X86 PLATFORM DRIVERS - ARCH
+R:	Darren Hart <dvhart@infradead.org>
+R:	Andy Shevchenko <andy@infradead.org>
+L:	platform-driver-x86@vger.kernel.org
+L:	x86@kernel.org
+T:	git git://git.kernel.org/pub/scm/linux/kernel/git/tip/tip.git x86/core
+S:	Maintained
+F:	arch/x86/platform
+
 X86 VDSO
 M:	Andy Lutomirski <luto@kernel.org>
 L:	linux-kernel@vger.kernel.org
@@ -16672,6 +16735,24 @@ W:	https://linuxtv.org
 T:	git git://linuxtv.org/media_tree.git
 S:	Maintained
 F:	drivers/media/tuners/tuner-xc2028.*
+
+XDP (eXpress Data Path)
+M:	Alexei Starovoitov <ast@kernel.org>
+M:	Daniel Borkmann <daniel@iogearbox.net>
+M:	David S. Miller <davem@davemloft.net>
+M:	Jakub Kicinski <jakub.kicinski@netronome.com>
+M:	Jesper Dangaard Brouer <hawk@kernel.org>
+M:	John Fastabend <john.fastabend@gmail.com>
+L:	netdev@vger.kernel.org
+L:	xdp-newbies@vger.kernel.org
+S:	Supported
+F:	net/core/xdp.c
+F:	include/net/xdp.h
+F:	kernel/bpf/devmap.c
+F:	kernel/bpf/cpumap.c
+F:	include/trace/events/xdp.h
+K:	xdp
+N:	xdp
 
 XDP SOCKETS (AF_XDP)
 M:	Björn Töpel <bjorn.topel@intel.com>
