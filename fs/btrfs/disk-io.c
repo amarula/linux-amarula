@@ -314,6 +314,16 @@ static int csum_tree_block(struct btrfs_fs_info *fs_info,
 			return -EUCLEAN;
 		}
 	} else {
+		if (btrfs_header_level(buf))
+			err = btrfs_check_node(fs_info, buf);
+		else
+			err = btrfs_check_leaf_write(fs_info, buf);
+		if (err < 0) {
+			btrfs_err(fs_info,
+			"block=%llu write time tree block corruption detected",
+				  buf->start);
+			return err;
+		}
 		write_extent_buffer(buf, result, 0, csum_size);
 	}
 
