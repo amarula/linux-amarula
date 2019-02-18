@@ -3524,19 +3524,25 @@ void wait_on_extent_buffer_writeback(struct extent_buffer *eb)
 		       TASK_UNINTERRUPTIBLE);
 }
 
+/*
+ * Return 0 if nothing went wrong, its pages get locked and submitted.
+ * Return >0 is mostly the same as 0, except bio is not submitted.
+ * Return <0 if something went wrong, no page get locked.
+ */
 static noinline_for_stack int
 lock_extent_buffer_for_io(struct extent_buffer *eb,
 			  struct btrfs_fs_info *fs_info,
 			  struct extent_page_data *epd)
 {
-	int i, num_pages;
+	int i, num_pages, failed_page_nr;
 	int flush = 0;
 	int ret = 0;
 
 	if (!btrfs_try_tree_write_lock(eb)) {
-		flush = 1;
 		ret = flush_write_bio(epd);
-		BUG_ON(ret < 0);
+		if (ret < 0)
+			return ret;
+		flush = 1;
 		btrfs_tree_lock(eb);
 	}
 
@@ -3546,7 +3552,8 @@ lock_extent_buffer_for_io(struct extent_buffer *eb,
 			return 0;
 		if (!flush) {
 			ret = flush_write_bio(epd);
-			BUG_ON(ret < 0);
+			if (ret < 0)
+				return ret;
 			flush = 1;
 		}
 		while (1) {
@@ -3588,13 +3595,21 @@ lock_extent_buffer_for_io(struct extent_buffer *eb,
 		if (!trylock_page(p)) {
 			if (!flush) {
 				ret = flush_write_bio(epd);
-				BUG_ON(ret < 0);
+				if (ret < 0) {
+					failed_page_nr = i;
+					goto err_unlock;
+				}
 				flush = 1;
 			}
 			lock_page(p);
 		}
 	}
 
+	return ret;
+err_unlock:
+	/* Unlock these already locked pages */
+	for (i = 0; i < failed_page_nr; i++)
+		unlock_page(eb->pages[i]);
 	return ret;
 }
 
