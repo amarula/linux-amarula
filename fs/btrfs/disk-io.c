@@ -672,6 +672,9 @@ err:
 		 */
 		atomic_inc(&eb->io_pages);
 		clear_extent_buffer_uptodate(eb);
+		btrfs_err(fs_info,
+			  "block=%llu read time tree block corruption detected",
+			  eb->start);
 	}
 	free_extent_buffer(eb);
 out:
