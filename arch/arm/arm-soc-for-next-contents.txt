@@ -140,6 +140,10 @@ arm/dt
 		arm64: dts: sprd: Remove wildcard compatible string
 	arm/renesas/dt-bindings
 		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-dt-bindings-for-v5.1
+	arm/samsung/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt-5.1-2
+	arm/actions/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/mani/linux-actions tags/actions-arm64-dt-for-v5.1
 
 arm/drivers
 	arm/fsl/drivers
@@ -176,6 +180,11 @@ arm/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-drivers-for-5.1-3
 	patch
 		clk: tegra: dfll: Make symbol 'tegra210_cpu_cvb_tables' static
+	arm/freescale/drivers-4
+		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-next-v5.1-3
+	patch
+		tee: optee: Initialize some structs using memset instead of braces
+		hwrng: optee: Initialize some structs using memset instead of braces
 
 arm/defconfig
 	patch
@@ -209,5 +218,10 @@ arm/newsoc
 		git://git.kernel.org/pub/scm/linux/kernel/git/mani/linux-bitmain tags/bitmain-initial-soc-v5.1
 
 arm/late
+	arm/davinci/soc-3
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v5.1/soc-part3
+		contains arm/davinci/soc
 
 arm/fixes
+	patch
+		ARM: tegra: Restore DT ABI on Tegra124 Chromebooks
