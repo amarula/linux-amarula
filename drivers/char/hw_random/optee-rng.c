@@ -73,7 +73,7 @@ struct optee_rng_private {
 static size_t get_optee_rng_data(struct optee_rng_private *pvt_data,
 				 void *buf, size_t req_size)
 {
-	u32 ret = 0;
+	int ret = 0;
 	u8 *rng_data = NULL;
 	size_t rng_size = 0;
 	struct tee_ioctl_invoke_arg inv_arg;
@@ -175,7 +175,7 @@ static struct optee_rng_private pvt_data = {
 
 static int get_optee_rng_info(struct device *dev)
 {
-	u32 ret = 0;
+	int ret = 0;
 	struct tee_ioctl_invoke_arg inv_arg;
 	struct tee_param param[4];
 
@@ -270,7 +270,7 @@ static int optee_rng_remove(struct device *dev)
 	return 0;
 }
 
-const struct tee_client_device_id optee_rng_id_table[] = {
+static const struct tee_client_device_id optee_rng_id_table[] = {
 	{UUID_INIT(0xab7a617c, 0xb8e7, 0x4d8f,
 		   0x83, 0x01, 0xd0, 0x9b, 0x61, 0x03, 0x6b, 0x64)},
 	{}
