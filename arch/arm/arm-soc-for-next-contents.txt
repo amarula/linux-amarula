@@ -144,6 +144,10 @@ arm/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt-5.1-2
 	arm/actions/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/mani/linux-actions tags/actions-arm64-dt-for-v5.1
+	arm/omap/cpsw-dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/dt-cpsw-phy
+	arm/mvebu/dt-2
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-5.1-2
 
 arm/drivers
 	arm/fsl/drivers
@@ -185,6 +189,10 @@ arm/drivers
 	patch
 		tee: optee: Initialize some structs using memset instead of braces
 		hwrng: optee: Initialize some structs using memset instead of braces
+		tee: fix possible error pointer ctx dereferencing
+		hwrng: Fix unsigned comparison with less than zero
+		tee: optee: Fix unsigned comparison with less than zero
+		hwrng: make symbol 'optee_rng_id_table' static
 
 arm/defconfig
 	patch
@@ -225,3 +233,7 @@ arm/late
 arm/fixes
 	patch
 		ARM: tegra: Restore DT ABI on Tegra124 Chromebooks
+	<no branch> (0661465ec86e8ae28f09a04e51425c486d64dfb1)
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.0/fixes-rc7-signed
+	<no branch> (bdd22a41d55bb0068c8685e28839ed9492e96aba)
+		git://git.infradead.org/linux-mvebu tags/mvebu-fixes-5.0-2
