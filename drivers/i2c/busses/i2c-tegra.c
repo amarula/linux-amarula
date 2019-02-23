@@ -414,10 +414,12 @@ static int tegra_i2c_init_dma(struct tegra_i2c_dev *i2c_dev)
 	dma_addr_t dma_phys;
 	int err;
 
-	if (!IS_ENABLED(CONFIG_TEGRA20_APB_DMA) ||
-	    !i2c_dev->hw->has_apb_dma) {
-		err = -ENODEV;
-		goto err_out;
+	if (!i2c_dev->hw->has_apb_dma)
+		return 0;
+
+	if (!IS_ENABLED(CONFIG_TEGRA20_APB_DMA)) {
+		dev_dbg(i2c_dev->dev, "Support for APB DMA not enabled!\n");
+		return 0;
 	}
 
 	chan = dma_request_slave_channel_reason(i2c_dev->dev, "rx");
@@ -1409,7 +1411,7 @@ static const struct tegra_i2c_hw_feature tegra210_i2c_hw = {
 	.clk_divisor_fast_mode = 0x19,
 	.clk_divisor_fast_plus_mode = 0x10,
 	.has_config_load_reg = true,
-	.has_multi_master_mode = true,
+	.has_multi_master_mode = false,
 	.has_slcg_override_reg = true,
 	.has_mst_fifo = false,
 	.quirks = &tegra_i2c_quirks,
@@ -1434,9 +1436,9 @@ static const struct tegra_i2c_hw_feature tegra186_i2c_hw = {
 	.clk_divisor_fast_mode = 0x19,
 	.clk_divisor_fast_plus_mode = 0x10,
 	.has_config_load_reg = true,
-	.has_multi_master_mode = true,
+	.has_multi_master_mode = false,
 	.has_slcg_override_reg = true,
-	.has_mst_fifo = true,
+	.has_mst_fifo = false,
 	.quirks = &tegra_i2c_quirks,
 	.supports_bus_clear = true,
 	.has_apb_dma = false,
