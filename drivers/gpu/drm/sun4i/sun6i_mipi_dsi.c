@@ -527,6 +527,24 @@ static void sun6i_dsi_setup_format(struct sun6i_dsi *dsi,
 		     SUN6I_DSI_PIXEL_CTL0_FORMAT(fmt));
 }
 
+static u16 sun6i_dsi_get_timings_vblk(struct sun6i_dsi *dsi,
+				      struct drm_display_mode *mode, u16 hblk)
+{
+	struct mipi_dsi_device *device = dsi->device;
+	unsigned int Bpp = mipi_dsi_pixel_format_to_bpp(device->format) / 8;
+	int tmp;
+
+	/*
+	 * The vertical blank is set using a blanking packet (4 bytes +
+	 * payload + 2 bytes). Its minimal size is therefore 6 bytes
+	 */
+#define VBLK_PACKET_OVERHEAD	6
+	tmp = (mode->htotal * Bpp) * mode->vtotal -
+	      (hblk + VBLK_PACKET_OVERHEAD);
+
+	return (device->lanes - tmp % device->lanes);
+}
+
 static void sun6i_dsi_setup_timings(struct sun6i_dsi *dsi,
 				    struct drm_display_mode *mode)
 {
@@ -586,13 +604,8 @@ static void sun6i_dsi_setup_timings(struct sun6i_dsi *dsi,
 			   (mode->htotal - (mode->hsync_end - mode->hsync_start)) * Bpp -
 			   HBLK_PACKET_OVERHEAD);
 
-		/*
-		 * And I'm not entirely sure what vblk is about. The driver in
-		 * Allwinner BSP is using a rather convoluted calculation
-		 * there only for 4 lanes. However, using 0 (the !4 lanes
-		 * case) even with a 4 lanes screen seems to work...
-		 */
-		vblk = 0;
+		if (device->lanes == 4)
+			vblk = sun6i_dsi_get_timings_vblk(dsi, mode, hblk);
 	}
 
 	/* How many bytes do we need to send all payloads? */
