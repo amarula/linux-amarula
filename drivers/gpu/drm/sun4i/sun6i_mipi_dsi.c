@@ -392,9 +392,15 @@ static u16 sun6i_dsi_get_drq_edge0(struct sun6i_dsi *dsi,
 				   struct drm_display_mode *mode,
 				   u16 line_num, u16 edge1)
 {
+	struct sun4i_tcon *tcon = dsi->tcon;
+	unsigned long dclk_rate, dclk_parent_rate, tcon0_div;
 	u16 edge0 = edge1;
 
-	edge0 += (mode->hdisplay + 40) * SUN6I_DSI_TCON_DIV / 8;
+	dclk_rate = clk_get_rate(tcon->dclk);
+	dclk_parent_rate = clk_get_rate(clk_get_parent(tcon->dclk));
+	tcon0_div = dclk_parent_rate / dclk_rate;
+
+	edge0 += (mode->hdisplay + 40) * tcon0_div / 8;
 
 	if (edge0 > line_num)
 		return edge0 - line_num;
