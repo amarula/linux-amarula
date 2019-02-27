@@ -1912,8 +1912,15 @@ static inline int btrfs_start_delalloc_flush(struct btrfs_trans_handle *trans)
 		 * if they were done sequentially) due to an unordered update of
 		 * the inode's size on disk.
 		 */
-		list_for_each_entry(pending, head, list)
-			btrfs_start_delalloc_snapshot(pending->root);
+		list_for_each_entry(pending, head, list) {
+			int ret;
+
+			ret = btrfs_start_delalloc_snapshot(pending->root);
+			if (ret < 0) {
+				writeback_inodes_sb(fs_info->sb, WB_REASON_SYNC);
+				break;
+			}
+		}
 	}
 	return 0;
 }
