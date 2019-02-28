@@ -4922,6 +4922,12 @@ S:	Maintained
 F:	drivers/gpu/drm/tinydrm/hx8357d.c
 F:	Documentation/devicetree/bindings/display/himax,hx8357d.txt
 
+DRM DRIVER FOR NOVATEK NT35596 MIPI-DSI LCD PANELS
+M:	Jagan Teki <jagan@amarulasolutions.com>
+S:	Maintained
+F:	drivers/gpu/drm/panel/panel-novatek-nt35596.c
+F:	Documentation/devicetree/bindings/display/panel/novatek,nt35596.txt
+
 DRM DRIVER FOR INTEL I810 VIDEO CARDS
 S:	Orphan / Obsolete
 F:	drivers/gpu/drm/i810/
