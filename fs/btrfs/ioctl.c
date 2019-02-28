@@ -83,6 +83,17 @@ struct btrfs_ioctl_send_args_32 {
 			       struct btrfs_ioctl_send_args_32)
 #endif
 
+/*
+ * 1 - parent dir inode
+ * 2 - dir entries
+ * 1 - root item
+ * 2 - root ref/backref
+ * 1 - root of snapshot
+ * 1 - UUID item
+ * 1 - properties
+ */
+#define BTRFS_NEW_ROOT_ITEMS 9
+
 static int btrfs_clone(struct inode *src, struct inode *inode,
 		       u64 off, u64 olen, u64 olen_aligned, u64 destoff,
 		       int no_time_update);
@@ -596,7 +607,8 @@ static noinline int create_subvol(struct inode *dir,
 	 * The same as the snapshot creation, please see the comment
 	 * of create_snapshot().
 	 */
-	ret = btrfs_subvolume_reserve_metadata(root, &block_rsv, 8, false);
+	ret = btrfs_subvolume_reserve_metadata(root, &block_rsv,
+					       BTRFS_NEW_ROOT_ITEMS, false);
 	if (ret)
 		goto fail_free;
 
@@ -804,17 +816,10 @@ static int create_snapshot(struct btrfs_root *root, struct inode *dir,
 
 	btrfs_init_block_rsv(&pending_snapshot->block_rsv,
 			     BTRFS_BLOCK_RSV_TEMP);
-	/*
-	 * 1 - parent dir inode
-	 * 2 - dir entries
-	 * 1 - root item
-	 * 2 - root ref/backref
-	 * 1 - root of snapshot
-	 * 1 - UUID item
-	 */
+
 	ret = btrfs_subvolume_reserve_metadata(BTRFS_I(dir)->root,
-					&pending_snapshot->block_rsv, 8,
-					false);
+					&pending_snapshot->block_rsv,
+					BTRFS_NEW_ROOT_ITEMS, false);
 	if (ret)
 		goto dec_and_free;
 

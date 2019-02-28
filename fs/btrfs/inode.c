@@ -59,6 +59,14 @@ struct btrfs_dio_data {
 	int overwrite;
 };
 
+/*
+ * 2 for inode item and ref
+ * 2 for dir items
+ * 1 for xattr if selinux is on
+ * 1 for inherited properties
+ */
+#define BTRFS_NEW_INODE_ITEMS 6
+
 static const struct inode_operations btrfs_dir_inode_operations;
 static const struct inode_operations btrfs_symlink_inode_operations;
 static const struct inode_operations btrfs_dir_ro_inode_operations;
@@ -6480,12 +6488,7 @@ static int btrfs_mknod(struct inode *dir, struct dentry *dentry,
 	u64 objectid;
 	u64 index = 0;
 
-	/*
-	 * 2 for inode item and ref
-	 * 2 for dir items
-	 * 1 for xattr if selinux is on
-	 */
-	trans = btrfs_start_transaction(root, 5);
+	trans = btrfs_start_transaction(root, BTRFS_NEW_INODE_ITEMS);
 	if (IS_ERR(trans))
 		return PTR_ERR(trans);
 
@@ -6544,12 +6547,7 @@ static int btrfs_create(struct inode *dir, struct dentry *dentry,
 	u64 objectid;
 	u64 index = 0;
 
-	/*
-	 * 2 for inode item and ref
-	 * 2 for dir items
-	 * 1 for xattr if selinux is on
-	 */
-	trans = btrfs_start_transaction(root, 5);
+	trans = btrfs_start_transaction(root, BTRFS_NEW_INODE_ITEMS);
 	if (IS_ERR(trans))
 		return PTR_ERR(trans);
 
@@ -6696,12 +6694,7 @@ static int btrfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	u64 objectid = 0;
 	u64 index = 0;
 
-	/*
-	 * 2 items for inode and ref
-	 * 2 items for dir items
-	 * 1 for xattr if selinux is on
-	 */
-	trans = btrfs_start_transaction(root, 5);
+	trans = btrfs_start_transaction(root, BTRFS_NEW_INODE_ITEMS);
 	if (IS_ERR(trans))
 		return PTR_ERR(trans);
 
@@ -9429,14 +9422,11 @@ static int btrfs_rename_exchange(struct inode *old_dir,
 		down_read(&fs_info->subvol_sem);
 
 	/*
-	 * We want to reserve the absolute worst case amount of items.  So if
-	 * both inodes are subvols and we need to unlink them then that would
-	 * require 4 item modifications, but if they are both normal inodes it
-	 * would require 5 item modifications, so we'll assume their normal
-	 * inodes.  So 5 * 2 is 10, plus 2 for the new links, so 12 total items
-	 * should cover the worst case number of items we'll modify.
+	 * The same math from btrfs_rename applies here, except we need an extra
+	 * 2 items for the new links.
 	 */
-	trans = btrfs_start_transaction(root, 12);
+	trans = btrfs_start_transaction(root,
+					(BTRFS_NEW_INODE_ITEMS << 1) + 2);
 	if (IS_ERR(trans)) {
 		ret = PTR_ERR(trans);
 		goto out_notrans;
@@ -9769,19 +9759,19 @@ static int btrfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	if (old_ino == BTRFS_FIRST_FREE_OBJECTID)
 		down_read(&fs_info->subvol_sem);
 	/*
-	 * We want to reserve the absolute worst case amount of items.  So if
-	 * both inodes are subvols and we need to unlink them then that would
-	 * require 4 item modifications, but if they are both normal inodes it
-	 * would require 5 item modifications, so we'll assume they are normal
-	 * inodes.  So 5 * 2 is 10, plus 1 for the new link, so 11 total items
-	 * should cover the worst case number of items we'll modify.
-	 * If our rename has the whiteout flag, we need more 5 units for the
-	 * new inode (1 inode item, 1 inode ref, 2 dir items and 1 xattr item
-	 * when selinux is enabled).
+	 * We want to reserve the absolute worst case amount of items.  Subvol
+	 * inodes don't have an inode item to worry about and don't have a
+	 * selinux attr, so we use the BTRFS_NEW_INODE_ITEMS counter for how
+	 * much it costs per inode to modify.  Worse case we'll have to mess
+	 * with 2 inodes, so 2 x BTRFS_NEW_INODE_ITEMS, and then we need an
+	 * extra reservation for the new link.
+	 *
+	 * If our rename has the whiteout flag we need a full new inode which
+	 * means another set of BTRFS_NEW_INODE_ITEMS.
 	 */
-	trans_num_items = 11;
+	trans_num_items = (BTRFS_NEW_INODE_ITEMS << 1) + 1;
 	if (flags & RENAME_WHITEOUT)
-		trans_num_items += 5;
+		trans_num_items += BTRFS_NEW_INODE_ITEMS;
 	trans = btrfs_start_transaction(root, trans_num_items);
 	if (IS_ERR(trans)) {
 		ret = PTR_ERR(trans);
@@ -10150,14 +10140,8 @@ static int btrfs_symlink(struct inode *dir, struct dentry *dentry,
 	if (name_len > BTRFS_MAX_INLINE_DATA_SIZE(fs_info))
 		return -ENAMETOOLONG;
 
-	/*
-	 * 2 items for inode item and ref
-	 * 2 items for dir items
-	 * 1 item for updating parent inode item
-	 * 1 item for the inline extent item
-	 * 1 item for xattr if selinux is on
-	 */
-	trans = btrfs_start_transaction(root, 7);
+	/* 1 item for the inline extent item */
+	trans = btrfs_start_transaction(root, BTRFS_NEW_INODE_ITEMS + 1);
 	if (IS_ERR(trans))
 		return PTR_ERR(trans);
 
@@ -10428,10 +10412,8 @@ static int btrfs_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 	u64 index;
 	int ret = 0;
 
-	/*
-	 * 5 units required for adding orphan entry
-	 */
-	trans = btrfs_start_transaction(root, 5);
+	/* 1 unit required for adding orphan entry */
+	trans = btrfs_start_transaction(root, BTRFS_NEW_INODE_ITEMS + 1);
 	if (IS_ERR(trans))
 		return PTR_ERR(trans);
 
