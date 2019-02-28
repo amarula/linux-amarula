@@ -291,6 +291,7 @@ static int inherit_props(struct btrfs_trans_handle *trans,
 	struct btrfs_fs_info *fs_info = root->fs_info;
 	int ret;
 	int i;
+	bool need_reserve = false;
 
 	if (!test_bit(BTRFS_INODE_HAS_PROPS,
 		      &BTRFS_I(parent)->runtime_flags))
@@ -308,16 +309,31 @@ static int inherit_props(struct btrfs_trans_handle *trans,
 		if (!value)
 			continue;
 
-		num_bytes = btrfs_calc_trans_metadata_size(fs_info, 1);
-		ret = btrfs_block_rsv_add(root, trans->block_rsv,
-					  num_bytes, BTRFS_RESERVE_NO_FLUSH);
-		if (ret)
-			goto out;
+		/*
+		 * Currently callers should be reserving 1 credit for
+		 * properties, since we only have 1 property that we currently
+		 * support.  If we add more in the future we need to try and
+		 * reserve more space for them.  But we should also revisit how
+		 * we do space reservations if we do add more properties in the
+		 * future.
+		 */
+		if (need_reserve) {
+			num_bytes = btrfs_calc_trans_metadata_size(fs_info, 1);
+			ret = btrfs_block_rsv_add(root, trans->block_rsv,
+						  num_bytes,
+						  BTRFS_RESERVE_NO_FLUSH);
+			if (ret)
+				goto out;
+		}
 		ret = __btrfs_set_prop(trans, inode, h->xattr_name,
 				       value, strlen(value), 0);
-		btrfs_block_rsv_release(fs_info, trans->block_rsv, num_bytes);
-		if (ret)
-			goto out;
+		if (need_reserve) {
+			btrfs_block_rsv_release(fs_info, trans->block_rsv,
+						num_bytes);
+			if (ret)
+				goto out;
+		}
+		need_reserve = true;
 	}
 	ret = 0;
 out:
