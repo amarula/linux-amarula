@@ -26,6 +26,7 @@ static void ccu_nkm_find_best(unsigned long parent, unsigned long rate,
 	unsigned long best_n = 0, best_k = 0, best_m = 0;
 	unsigned long _n, _k, _m;
 
+	printk("%s\n", __func__);
 	for (_k = nkm->min_k; _k <= nkm->max_k; _k++) {
 		for (_n = nkm->min_n; _n <= nkm->max_n; _n++) {
 			for (_m = nkm->min_m; _m <= nkm->max_m; _m++) {
@@ -78,6 +79,7 @@ static unsigned long ccu_nkm_recalc_rate(struct clk_hw *hw,
 	unsigned long n, m, k, rate;
 	u32 reg;
 
+	printk("ccu_nkm_recalc_rate\n");
 	reg = readl(nkm->common.base + nkm->common.reg);
 
 	n = reg >> nkm->n.shift;
@@ -125,6 +127,7 @@ static unsigned long ccu_nkm_round_rate(struct ccu_mux_internal *mux,
 	if (nkm->common.features & CCU_FEATURE_FIXED_POSTDIV)
 		rate *= nkm->fixed_post_div;
 
+	printk("ccu_nkm_round_rate: rate = %ld, parent = %ld\n", rate, *parent_rate);
 	ccu_nkm_find_best(*parent_rate, rate, &_nkm);
 
 	rate = *parent_rate * _nkm.n * _nkm.k / _nkm.m;
@@ -132,6 +135,7 @@ static unsigned long ccu_nkm_round_rate(struct ccu_mux_internal *mux,
 	if (nkm->common.features & CCU_FEATURE_FIXED_POSTDIV)
 		rate /= nkm->fixed_post_div;
 
+	printk("ccu_nkm_round_rate, rate = %ld\n", rate);
 	return rate;
 }
 
@@ -171,9 +175,19 @@ static int ccu_nkm_set_rate(struct clk_hw *hw, unsigned long rate,
 	reg &= ~GENMASK(nkm->k.width + nkm->k.shift - 1, nkm->k.shift);
 	reg &= ~GENMASK(nkm->m.width + nkm->m.shift - 1, nkm->m.shift);
 
+	if (nkm->common.reg == 0x40) {
+		printk("rate = %ld\n", rate);
+		printk("parent_rate = %ld\n", parent_rate);
+		printk("reg = 0x%x\n", reg);
+		printk("_nkm.n = %ld, nkm->n.offset = 0x%x, nkm->n.shift = %d\n", _nkm.n, nkm->n.offset, nkm->n.shift);
+		printk("_nkm.k = %ld, nkm->k.offset = 0x%x, nkm->k.shift = %d\n", _nkm.k, nkm->k.offset, nkm->k.shift);
+		printk("_nkm.m = %ld, nkm->m.offset = 0x%x, nkm->m.shift = %d\n", _nkm.m, nkm->m.offset, nkm->m.shift);
+	}
+
 	reg |= (_nkm.n - nkm->n.offset) << nkm->n.shift;
 	reg |= (_nkm.k - nkm->k.offset) << nkm->k.shift;
 	reg |= (_nkm.m - nkm->m.offset) << nkm->m.shift;
+	printk("nkm: reg = 0x%x\n", reg);
 	writel(reg, nkm->common.base + nkm->common.reg);
 
 	spin_unlock_irqrestore(nkm->common.lock, flags);
