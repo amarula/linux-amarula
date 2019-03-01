@@ -23,6 +23,8 @@ arm/soc
 		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-soc-for-v5.1
 	arm/lpc32xx/soc
 		https://github.com/vzapolskiy/linux-lpc32xx tags/lpc32xx-soc-for-5.1
+	patch
+		MAINTAINERS: Update Ampere email address
 
 arm/dt
 	arm/stm32/dt
@@ -148,6 +150,8 @@ arm/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/dt-cpsw-phy
 	arm/mvebu/dt-2
 		git://git.infradead.org/linux-mvebu tags/mvebu-dt-5.1-2
+	patch
+		ARM: dts: exynos: Fix max voltage for buck8 regulator on Odroid XU3/XU4
 
 arm/drivers
 	arm/fsl/drivers
@@ -193,6 +197,10 @@ arm/drivers
 		hwrng: Fix unsigned comparison with less than zero
 		tee: optee: Fix unsigned comparison with less than zero
 		hwrng: make symbol 'optee_rng_id_table' static
+	drivers/tee-2
+		https://git.linaro.org/people/jens.wiklander/linux-tee tags/tee-misc-for-v5.1
+	fsl/drivers-4
+		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-next-v5.1-4
 
 arm/defconfig
 	patch
@@ -220,20 +228,32 @@ arm/defconfig
 		https://github.com/Broadcom/stblinux tags/arm-soc/for-5.1/defconfig
 	arm/samsung/defconfig
 		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-defconfig-5.1
+	patch
+		ARM: defconfig: integrator: Switch to DRM
+		ARM: pxa: remove CONFIG_SND_PXA2XX_AC97 in pxa_defconfig
+		ARM: nhk8815_defconfig: Update defconfig
+		ARM: nhk8815_defconfig: Add new options
+		ARM: spear3xx_defconfig: Activate PL111 DRM driver
 
 arm/newsoc
 	arm/bitmain
 		git://git.kernel.org/pub/scm/linux/kernel/git/mani/linux-bitmain tags/bitmain-initial-soc-v5.1
+	milbeaut/newsoc
+		Merge branch 'milbeaut/newsoc' into arm/newsoc
 
 arm/late
 	arm/davinci/soc-3
 		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v5.1/soc-part3
 		contains arm/davinci/soc
+	arm/omap/cpsw
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/cpsw-signed
+		contains arm/omap/dt
+		contains arm/omap/dt-2
 
 arm/fixes
 	patch
-		ARM: tegra: Restore DT ABI on Tegra124 Chromebooks
-	<no branch> (0661465ec86e8ae28f09a04e51425c486d64dfb1)
-		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.0/fixes-rc7-signed
-	<no branch> (bdd22a41d55bb0068c8685e28839ed9492e96aba)
-		git://git.infradead.org/linux-mvebu tags/mvebu-fixes-5.0-2
+		ARM: dts: gemini: Re-enable display controller
+	<no branch> (c7c0d8df0b94a67377555a550b8d66ee2ad2f4ed)
+		https://git.linaro.org/people/jens.wiklander/linux-tee tags/tee-fix-for-v5.0
+	<no branch> (6e53330909672bd9a8c9f826e989a5945d9d9fdf)
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-fixes-for-5.0-rc8
