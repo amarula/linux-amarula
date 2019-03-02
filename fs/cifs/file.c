@@ -3335,44 +3335,45 @@ static int cifs_resend_rdata(struct cifs_readdata *rdata,
 	struct TCP_Server_Info *server =
 		tlink_tcon(rdata->cfile->tlink)->ses->server;
 
-	/*
-	 * Wait for credits to resend this rdata.
-	 * Note: we are attempting to resend the whole rdata not in segments
-	 */
 	do {
-		rc = server->ops->wait_mtu_credits(server, rdata->bytes,
+		/*
+		 * Wait for credits to resend this rdata.
+		 * Note: we are attempting to resend the whole rdata not in
+		 * segments
+		 */
+		do {
+			rc = server->ops->wait_mtu_credits(server, rdata->bytes,
 						&rsize, &credits);
 
-		if (rc)
-			goto out;
+			if (rc)
+				goto fail;
 
-		if (rsize < rdata->bytes) {
-			add_credits_and_wake_if(server, &credits, 0);
-			msleep(1000);
-		}
-	} while (rsize < rdata->bytes);
+			if (rsize < rdata->bytes) {
+				add_credits_and_wake_if(server, &credits, 0);
+				msleep(1000);
+			}
+		} while (rsize < rdata->bytes);
 
-	rdata->credits = credits;
-	rc = -EAGAIN;
-	while (rc == -EAGAIN) {
+		rdata->credits = credits;
 		rc = 0;
 		if (rdata->cfile->invalidHandle)
 			rc = cifs_reopen_file(rdata->cfile, true);
 		if (!rc)
 			rc = server->ops->async_readv(rdata);
-	}
 
-	if (!rc) {
-		/* Add to aio pending list */
-		list_add_tail(&rdata->list, rdata_list);
-		return 0;
-	}
+		/* If the read was successfully sent, we are done */
+		if (!rc) {
+			/* Add to aio pending list */
+			list_add_tail(&rdata->list, rdata_list);
+			return 0;
+		}
 
-	add_credits_and_wake_if(server, &rdata->credits, 0);
-out:
-	kref_put(&rdata->refcount,
-		cifs_uncached_readdata_release);
+		/* Roll back credits and retry if needed */
+		add_credits_and_wake_if(server, &rdata->credits, 0);
+	} while (rc == -EAGAIN);
 
+fail:
+	kref_put(&rdata->refcount, cifs_uncached_readdata_release);
 	return rc;
 }
 
