@@ -368,8 +368,12 @@ static u16 sun6i_dsi_get_video_start_delay(struct sun6i_dsi *dsi,
 	u16 start = clamp(mode->vtotal - mode->vdisplay - 10, 8, 100);
 	u16 delay = mode->vtotal - (mode->vsync_end - mode->vdisplay) + start;
 
+	printk("%d, %d\n", start, delay);
+
 	if (delay > mode->vtotal)
 		delay = delay % mode->vtotal;
+
+	printk("Jagan: delay = %d\n", delay);
 
 	return max_t(u16, delay, 1);
 }
@@ -395,6 +399,7 @@ static u16 sun6i_dsi_get_drq_edge0(struct sun6i_dsi *dsi,
 	dclk_parent_rate = clk_get_rate(clk_get_parent(tcon->dclk));
 	tcon0_div = dclk_parent_rate / dclk_rate;
 
+	printk("sun6i_dsi_get_drq_edge0: tcon0_div = %ld\n", tcon0_div);
 	edge0 += (mode->hdisplay + 40) * tcon0_div / 8;
 
 	if (edge0 > line_num)
@@ -434,6 +439,8 @@ static void sun6i_dsi_setup_burst(struct sun6i_dsi *dsi,
 		edge1 = sun6i_dsi_get_drq_edge1(dsi, mode, line_num);
 		edge0 = sun6i_dsi_get_drq_edge0(dsi, mode, line_num, edge1);
 
+		printk("edge0 = %d, edge1 = %d, line_num = %d\n",
+			edge0, edge1, line_num);
 		regmap_write(dsi->regs, SUN6I_DSI_BURST_DRQ_REG,
 			     SUN6I_DSI_BURST_DRQ_EDGE0(edge0) |
 			     SUN6I_DSI_BURST_DRQ_EDGE1(edge1));
@@ -470,6 +477,7 @@ static void sun6i_dsi_setup_inst_loop(struct sun6i_dsi *dsi,
 		delay -= 50;
 	}
 
+	printk("sun6i_dsi_setup_inst_loop: delay = %d\n", delay);
 	regmap_write(dsi->regs, SUN6I_DSI_INST_LOOP_SEL_REG,
 		     2 << (4 * DSI_INST_ID_LP11) |
 		     3 << (4 * DSI_INST_ID_DLY));
@@ -620,6 +628,9 @@ static void sun6i_dsi_setup_timings(struct sun6i_dsi *dsi,
 		vblk = sun6i_dsi_get_timings_vblk(dsi, mode, hblk);
 
 alloc_buf:
+	printk("hsa = %d, hbp = %d, hfp = %d, hblk = %d, vblk = %d\n",
+		hsa, hbp, hfp, hblk, vblk);
+
 	/* How many bytes do we need to send all payloads? */
 	bytes = max_t(size_t, max(max(hfp, hblk), max(hsa, hbp)), vblk);
 	buffer = kmalloc(bytes, GFP_KERNEL);
@@ -751,6 +762,7 @@ static void sun6i_dsi_encoder_enable(struct drm_encoder *encoder)
 	pm_runtime_get_sync(dsi->dev);
 
 	delay = sun6i_dsi_get_video_start_delay(dsi, mode);
+	printk("sun6i_dsi_get_video_start_delay: delay = %d\n", delay);
 	regmap_write(dsi->regs, SUN6I_DSI_BASIC_CTL1_REG,
 		     SUN6I_DSI_BASIC_CTL1_VIDEO_ST_DELAY(delay) |
 		     SUN6I_DSI_BASIC_CTL1_VIDEO_FILL |
@@ -1006,6 +1018,12 @@ static ssize_t sun6i_dsi_transfer(struct mipi_dsi_host *host,
 	case MIPI_DSI_DCS_SHORT_WRITE:
 	case MIPI_DSI_DCS_SHORT_WRITE_PARAM:
 	case MIPI_DSI_GENERIC_SHORT_WRITE_2_PARAM:
+#if 1
+                printk("TYPE#0x%x, BYTE0#0x%x, BYTE1#0x%x\n",
+                        msg->type,
+                        (((u8 *)msg->tx_buf)[0] << 8),
+                        (((u8 *)msg->tx_buf)[1] << 16));
+#endif
 		ret = sun6i_dsi_dcs_write_short(dsi, msg);
 		break;
 

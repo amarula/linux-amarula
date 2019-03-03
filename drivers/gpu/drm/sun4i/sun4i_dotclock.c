@@ -62,12 +62,14 @@ static unsigned long sun4i_dclk_recalc_rate(struct clk_hw *hw,
 
 	regmap_read(dclk->regmap, SUN4I_TCON0_DCLK_REG, &val);
 
+	printk("sun4i_dclk_recalc_rate: divider %d\n", val);
 	val >>= SUN4I_TCON0_DCLK_DIV_SHIFT;
 	val &= (1 << SUN4I_TCON0_DCLK_DIV_WIDTH) - 1;
 
 	if (!val)
 		val = 1;
 
+	printk("%s: val = %d, rate = %ld\n", __func__, val, (parent_rate / val));
 	return parent_rate / val;
 }
 
@@ -80,10 +82,12 @@ static long sun4i_dclk_round_rate(struct clk_hw *hw, unsigned long rate,
 	u8 best_div = 1;
 	int i;
 
+	printk("%s: min_div = %d max_div = %d, rate = %ld\n", __func__, tcon->dclk_min_div, tcon->dclk_max_div, rate);
 	for (i = tcon->dclk_min_div; i <= tcon->dclk_max_div; i++) {
 		u64 ideal = (u64)rate * i;
 		unsigned long rounded;
 
+		printk("%s: before round ideal = %lld, div = %d, ULONG %ld\n", __func__, ideal, i, ULONG_MAX);
 		/*
 		 * ideal has overflowed the max value that can be stored in an
 		 * unsigned long, and every clk operation we might do on a
@@ -91,12 +95,15 @@ static long sun4i_dclk_round_rate(struct clk_hw *hw, unsigned long rate,
 		 * Let's just stop there since bigger dividers will result in
 		 * the same overflow issue.
 		 */
-		if (ideal > ULONG_MAX)
+		if (ideal > ULONG_MAX) {
+			printk("ULONG_MAX overflow\n");
 			goto out;
+		}
 
 		rounded = clk_hw_round_rate(clk_hw_get_parent(hw),
 					    ideal);
 
+		printk("%s: ideal = %lld, rounded = %ld, div = %d\n", __func__, ideal, rounded, i);
 		if (rounded == ideal) {
 			best_parent = rounded;
 			best_div = i;
@@ -113,6 +120,7 @@ static long sun4i_dclk_round_rate(struct clk_hw *hw, unsigned long rate,
 out:
 	*parent_rate = best_parent;
 
+	printk("%s: div = %d rate = %ld\n", __func__, best_div, (best_parent / best_div));
 	return best_parent / best_div;
 }
 
@@ -122,6 +130,7 @@ static int sun4i_dclk_set_rate(struct clk_hw *hw, unsigned long rate,
 	struct sun4i_dclk *dclk = hw_to_dclk(hw);
 	u8 div = parent_rate / rate;
 
+	printk("%s rate = %ld, parent = %ld, div = %d\n", __func__, rate, parent_rate, div);
 	return regmap_update_bits(dclk->regmap, SUN4I_TCON0_DCLK_REG,
 				  GENMASK(6, 0), div);
 }

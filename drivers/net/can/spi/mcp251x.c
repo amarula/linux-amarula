@@ -1054,8 +1054,10 @@ static int mcp251x_can_probe(struct spi_device *spi)
 
 	if (!IS_ERR(clk)) {
 		ret = clk_prepare_enable(clk);
-		if (ret)
+		if (ret) {
+			printk("Jagan: clk enable failed\n");
 			goto out_free;
+		}
 	}
 
 	net->netdev_ops = &mcp251x_netdev_ops;
@@ -1083,20 +1085,25 @@ static int mcp251x_can_probe(struct spi_device *spi)
 	else
 		spi->max_speed_hz = spi->max_speed_hz ? : 10 * 1000 * 1000;
 	ret = spi_setup(spi);
-	if (ret)
+	if (ret) {
+		printk("Jagan: spi_setup\n");
 		goto out_clk;
+	}
 
 	priv->power = devm_regulator_get_optional(&spi->dev, "vdd");
 	priv->transceiver = devm_regulator_get_optional(&spi->dev, "xceiver");
 	if ((PTR_ERR(priv->power) == -EPROBE_DEFER) ||
 	    (PTR_ERR(priv->transceiver) == -EPROBE_DEFER)) {
 		ret = -EPROBE_DEFER;
+		printk("Jagan: power defered\n");
 		goto out_clk;
 	}
 
 	ret = mcp251x_power_enable(priv->power, 1);
-	if (ret)
+	if (ret) {
+		printk("Jagan: mcp251x_power_enable failed\n");
 		goto out_clk;
+	}
 
 	priv->spi = spi;
 	mutex_init(&priv->mcp_lock);
@@ -1162,9 +1169,11 @@ static int mcp251x_can_probe(struct spi_device *spi)
 	return 0;
 
 error_probe:
+	printk("Jagan: error_probe\n");
 	mcp251x_power_enable(priv->power, 0);
 
 out_clk:
+	printk("Jagan: out_clk\n");
 	if (!IS_ERR(clk))
 		clk_disable_unprepare(clk);
 
