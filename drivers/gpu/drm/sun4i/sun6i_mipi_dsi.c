@@ -550,7 +550,8 @@ static void sun6i_dsi_setup_timings(struct sun6i_dsi *dsi,
 {
 	struct mipi_dsi_device *device = dsi->device;
 	unsigned int Bpp = mipi_dsi_pixel_format_to_bpp(device->format) / 8;
-	u16 hbp = 0, hfp = 0, hsa = 0, hblk = 0, vblk = 0;
+	u16 hbp, hfp, hsa, hblk;
+	u16 vblk = 0;
 	u32 basic_ctl = 0;
 	size_t bytes;
 	u8 *buffer;
@@ -558,6 +559,7 @@ static void sun6i_dsi_setup_timings(struct sun6i_dsi *dsi,
 	/* Do all timing calculations up front to allocate buffer space */
 
 	if (device->mode_flags & MIPI_DSI_MODE_VIDEO_BURST) {
+		hbp = hfp = hsa = 0;
 		hblk = mode->hdisplay * Bpp;
 		basic_ctl = SUN6I_DSI_BASIC_CTL_VIDEO_BURST |
 			    SUN6I_DSI_BASIC_CTL_HSA_HSE_DIS |
@@ -566,48 +568,51 @@ static void sun6i_dsi_setup_timings(struct sun6i_dsi *dsi,
 		if (device->lanes == 4)
 			basic_ctl |= SUN6I_DSI_BASIC_CTL_TRAIL_FILL |
 				     SUN6I_DSI_BASIC_CTL_TRAIL_INV(0xc);
-	} else {
-		/*
-		 * A sync period is composed of a blanking packet (4
-		 * bytes + payload + 2 bytes) and a sync event packet
-		 * (4 bytes). Its minimal size is therefore 10 bytes
-		 */
-#define HSA_PACKET_OVERHEAD	10
-		hsa = max((unsigned int)HSA_PACKET_OVERHEAD,
-			  (mode->hsync_end - mode->hsync_start) * Bpp - HSA_PACKET_OVERHEAD);
 
-		/*
-		 * The backporch is set using a blanking packet (4
-		 * bytes + payload + 2 bytes). Its minimal size is
-		 * therefore 6 bytes
-		 */
-#define HBP_PACKET_OVERHEAD	6
-		hbp = max((unsigned int)HBP_PACKET_OVERHEAD,
-			  (mode->htotal - mode->hsync_end) * Bpp - HBP_PACKET_OVERHEAD);
-
-		/*
-		 * The frontporch is set using a blanking packet (4
-		 * bytes + payload + 2 bytes). Its minimal size is
-		 * therefore 6 bytes
-		 */
-#define HFP_PACKET_OVERHEAD	6
-		hfp = max((unsigned int)HFP_PACKET_OVERHEAD,
-			  (mode->hsync_start - mode->hdisplay) * Bpp - HFP_PACKET_OVERHEAD);
-
-		/*
-		 * The blanking is set using a sync event (4 bytes)
-		 * and a blanking packet (4 bytes + payload + 2
-		 * bytes). Its minimal size is therefore 10 bytes.
-		 */
-#define HBLK_PACKET_OVERHEAD	10
-		hblk = max((unsigned int)HBLK_PACKET_OVERHEAD,
-			   (mode->htotal - (mode->hsync_end - mode->hsync_start)) * Bpp -
-			   HBLK_PACKET_OVERHEAD);
-
-		if (device->lanes == 4)
-			vblk = sun6i_dsi_get_timings_vblk(dsi, mode, hblk);
+		goto alloc_buf;
 	}
 
+	/*
+	 * A sync period is composed of a blanking packet (4
+	 * bytes + payload + 2 bytes) and a sync event packet
+	 * (4 bytes). Its minimal size is therefore 10 bytes
+	 */
+#define HSA_PACKET_OVERHEAD	10
+	hsa = max((unsigned int)HSA_PACKET_OVERHEAD,
+		  (mode->hsync_end - mode->hsync_start) * Bpp - HSA_PACKET_OVERHEAD);
+
+	/*
+	 * The backporch is set using a blanking packet (4
+	 * bytes + payload + 2 bytes). Its minimal size is
+	 * therefore 6 bytes
+	 */
+#define HBP_PACKET_OVERHEAD	6
+	hbp = max((unsigned int)HBP_PACKET_OVERHEAD,
+		  (mode->htotal - mode->hsync_end) * Bpp - HBP_PACKET_OVERHEAD);
+
+	/*
+	 * The frontporch is set using a blanking packet (4
+	 * bytes + payload + 2 bytes). Its minimal size is
+	 * therefore 6 bytes
+	 */
+#define HFP_PACKET_OVERHEAD	6
+	hfp = max((unsigned int)HFP_PACKET_OVERHEAD,
+		  (mode->hsync_start - mode->hdisplay) * Bpp - HFP_PACKET_OVERHEAD);
+
+	/*
+	 * The blanking is set using a sync event (4 bytes)
+	 * and a blanking packet (4 bytes + payload + 2
+	 * bytes). Its minimal size is therefore 10 bytes.
+	 */
+#define HBLK_PACKET_OVERHEAD	10
+	hblk = max((unsigned int)HBLK_PACKET_OVERHEAD,
+		   (mode->htotal - (mode->hsync_end - mode->hsync_start)) * Bpp -
+		   HBLK_PACKET_OVERHEAD);
+
+	if (device->lanes == 4)
+		vblk = sun6i_dsi_get_timings_vblk(dsi, mode, hblk);
+
+alloc_buf:
 	/* How many bytes do we need to send all payloads? */
 	bytes = max_t(size_t, max(max(hfp, hblk), max(hsa, hbp)), vblk);
 	buffer = kmalloc(bytes, GFP_KERNEL);
