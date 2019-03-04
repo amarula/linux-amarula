@@ -2539,7 +2539,10 @@ SMB2_ioctl(const unsigned int xid, struct cifs_tcon *tcon, u64 persistent_fid,
 	 * in responses (except for read responses which can be bigger.
 	 * We may want to bump this limit up
 	 */
-	req->MaxOutputResponse = cpu_to_le32(CIFSMaxBufSize);
+	if (opcode == FSCTL_SET_REPARSE_POINT)
+		req->MaxOutputResponse = cpu_to_le32(0);
+	else
+		req->MaxOutputResponse = cpu_to_le32(CIFSMaxBufSize);
 
 	if (is_fsctl)
 		req->Flags = cpu_to_le32(SMB2_0_IOCTL_IS_FSCTL);
