@@ -1,0 +1,259 @@
+arm/soc
+	patch
+		arch/arm/mach-ep93xx: Remove duplicate header
+	arm/pxa/soc
+		https://github.com/rjarzmik/linux tags/pxa-for-5.1
+	<no branch> (17ffc1193a4b5610400c43623a43115f3d2e15a6)
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-maintainers-5.1
+	arm/imx/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-soc-5.1
+	arm/davinci/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v5.1/soc-part2
+	arm/amlogic/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-soc
+	arm/samsung/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-soc-5.1
+	arm/mvebu/arm64
+		git://git.infradead.org/linux-mvebu tags/mvebu-arm64-5.1-1
+	arm/mediatek/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v5.0-next-soc
+	arm/tegra/soc-resume
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-arm-core
+	arm/renesas/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-soc-for-v5.1
+	arm/lpc32xx/soc
+		https://github.com/vzapolskiy/linux-lpc32xx tags/lpc32xx-soc-for-5.1
+	patch
+		MAINTAINERS: Update Ampere email address
+
+arm/dt
+	arm/stm32/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/atorgue/stm32 tags/stm32-dt-for-v4.21-1
+	patch
+		ARM: dts: Kill off skeleton{64}.dtsi
+		arm64: dts: Remove inconsistent use of 'arm,armv8' compatible string
+	arm/nomadik/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-nomadik tags/nomadik-dts-v5.1
+	arm/integrator/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-integrator tags/integrator-dts-v5.1
+	arm/renesas/64
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-dt-for-v5.1
+	arm/sunxi/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt-for-5.1
+	arm/sunxi/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt64-for-5.1
+	arm/aspeed/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/joel/aspeed tags/aspeed-5.1-devicetree
+	arm/vexpress/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/vexpress-updates-5.1
+	arm/juno/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/juno-updates-5.1
+	arm/omap/dt-soc-81xx
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/soc-ti-81xx-signed
+	arm/omap/dt-81xx
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/dt-ti-81xx-signed
+	arm/omap/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/dt-signed
+	arm/davinci/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v5.1/dt
+	arm/am654/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/kristo/linux tags/am654-for-v5.1
+	arm/rockchip/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v5.1-rockchip-dts32-1
+	arm/rockchip/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v5.1-rockchip-dts64-1
+	arm/stm32/dt2
+		git://git.kernel.org/pub/scm/linux/kernel/git/atorgue/stm32 tags/stm32-dt-for-v5.1-1
+	arm/samsung/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt-5.1
+	arm/broadcom/dt
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-5.1/devicetree
+	arm/broadcom/dt-arm64
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-5.1/devicetree-arm64
+	arm/lpc32xx/dt
+		https://github.com/vzapolskiy/linux-lpc32xx tags/lpc32xx-dt-for-5.1
+	arm/qcom/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-arm64-for-5.1
+	arm/qcom/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-dts-for-5.1
+	arm/hisi/dt
+		git://github.com/hisilicon/linux-hisi tags/hisi-arm64-dt-for-5.1v2
+	arm/socfpga/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/socfpga_dts_for_v5.1
+	arm/sunxi/dt-h3-h5
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-h3-h5-for-5.1
+	arm/sunxi/dt64-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt64-for-5.1-2
+	arm/sunxi/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-dt-for-5.1-2
+	arm/renesas/dt64-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-dt2-for-v5.1
+	arm/renesas/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-dt-for-v5.1
+	arm/tegra/dt-bindings
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-dt-bindings
+	arm/tegra/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-arm-dt
+	arm/tegra/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-arm64-dt
+	arm/mediatek/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v5.0-next-dts32
+	arm/mediatek/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v5.0-next-dts64
+	arm/mvebu/dt64
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt64-5.1-1
+	arm/mvebu/dt
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-5.1-1
+	arm/amlogic/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt64
+	arm/amlogic/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-dt
+	arm/imx/dt-bindings
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-bindings-5.1
+	arm/imx/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-dt-5.1
+	arm/imx/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-dt64-5.1
+	arm/zynqmp/dt
+		https://github.com/Xilinx/linux-xlnx tags/zynqmp-dt-for-v5.1
+	arm/zynq/dt
+		https://github.com/Xilinx/linux-xlnx tags/zynq-dt-for-v5.1
+	arm/at91/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-5.1-dt
+	arm/uniphier/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/masahiroy/linux-uniphier tags/uniphier-dt64-v5.1
+	arm/omap/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/dt-pt2-signed
+	arm/ti/dt64-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/kristo/linux tags/am654-for-v5.1-part2
+	arm/qcom/dt64-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-arm64-for-5.1
+	arm/qcom/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-dts-for-5.1-2
+	arm/rockchip/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v5.1-rockchip-dts32-2
+	arm/rockchip/dt64-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v5.1-rockchip-dts64-2
+	patch
+		arm64: dts: sprd: Remove PMIC INTC irq trigger type
+		arm64: dts: sprd: Add ADC calibration support
+		arm64: dts: sprd: Add SC2731 charger device
+		arm64: dts: sprd: Add SC27XX fuel gauge device
+		arm64: dts: sprd: Remove wildcard compatible string
+	arm/renesas/dt-bindings
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-dt-bindings-for-v5.1
+	arm/samsung/dt-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt-5.1-2
+	arm/actions/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/mani/linux-actions tags/actions-arm64-dt-for-v5.1
+	arm/omap/cpsw-dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/dt-cpsw-phy
+	arm/mvebu/dt-2
+		git://git.infradead.org/linux-mvebu tags/mvebu-dt-5.1-2
+	patch
+		ARM: dts: exynos: Fix max voltage for buck8 regulator on Odroid XU3/XU4
+
+arm/drivers
+	arm/fsl/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-next-v5.1-2
+	arm/xilinx/zynqmp-soc
+		https://github.com/Xilinx/linux-xlnx tags/zynqmp-soc-for-v5.1
+	arm/imx/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-drivers-5.1
+	arm/amlogic/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-drivers
+	drivers/reset
+		git://git.pengutronix.de/git/pza/linux tags/reset-for-5.1
+	arm/tegra/firmware
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-firmware
+	arm/tegra/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-soc
+	arm/tegra/cpufreq
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-cpufreq
+	arm/tegra/clk
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-clk
+	arm/hisi/driver
+		git://github.com/hisilicon/linux-hisi tags/hisi-drivers-for-5.1
+	drivers/tee
+		https://git.linaro.org/people/jens.wiklander/linux-tee tags/tee-bus-for-5.1
+	arm/qualcomm/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-drivers-for-5.1
+	arm/broadcom/drivers
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-5.1/drivers
+	arm/keystone/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/ssantosh/linux-keystone tags/drivers_soc_for_5.1
+	arm/qcom/drivers-2
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-drivers-for-5.1-2
+	arm/qcom/drivers-3
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-drivers-for-5.1-3
+	patch
+		clk: tegra: dfll: Make symbol 'tegra210_cpu_cvb_tables' static
+	arm/freescale/drivers-4
+		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-next-v5.1-3
+	patch
+		tee: optee: Initialize some structs using memset instead of braces
+		hwrng: optee: Initialize some structs using memset instead of braces
+		tee: fix possible error pointer ctx dereferencing
+		hwrng: Fix unsigned comparison with less than zero
+		tee: optee: Fix unsigned comparison with less than zero
+		hwrng: make symbol 'optee_rng_id_table' static
+	drivers/tee-2
+		https://git.linaro.org/people/jens.wiklander/linux-tee tags/tee-misc-for-v5.1
+	fsl/drivers-4
+		git://git.kernel.org/pub/scm/linux/kernel/git/leo/linux tags/soc-fsl-next-v5.1-4
+
+arm/defconfig
+	patch
+		ARM: defconfig: axm55xx: Drop PL11x graphics driver
+		ARM: defconfig: Enable PL11x DRM driver on multi_v7
+		arm64: defconfig: Switch to PL11x DRM driver
+		ARM: multi_v7_defconfig: enable GCC plugin support and structleak plugin
+	arm/omap/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/defconfig-signed
+	arm/imx/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-defconfig-5.1
+	arm/tegra/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.1-arm64-defconfig
+	arm/renesas/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-defconfig-for-v5.1
+	arm/renesas/defconfig-arm64
+		git://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-defconfig-for-v5.1
+	arm/sunxi/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-config64-for-5.1
+	arm/socfpga/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux socfpga_for_next_v5.1_defconfig
+	arm/lpc32xx/defconfig
+		https://github.com/vzapolskiy/linux-lpc32xx tags/lpc32xx-defconfig-for-5.1
+	arm/broadcom/defconfig
+		https://github.com/Broadcom/stblinux tags/arm-soc/for-5.1/defconfig
+	arm/samsung/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-defconfig-5.1
+	patch
+		ARM: defconfig: integrator: Switch to DRM
+		ARM: pxa: remove CONFIG_SND_PXA2XX_AC97 in pxa_defconfig
+		ARM: nhk8815_defconfig: Update defconfig
+		ARM: nhk8815_defconfig: Add new options
+		ARM: spear3xx_defconfig: Activate PL111 DRM driver
+
+arm/newsoc
+	arm/bitmain
+		git://git.kernel.org/pub/scm/linux/kernel/git/mani/linux-bitmain tags/bitmain-initial-soc-v5.1
+	milbeaut/newsoc
+		Merge branch 'milbeaut/newsoc' into arm/newsoc
+
+arm/late
+	arm/davinci/soc-3
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v5.1/soc-part3
+		contains arm/davinci/soc
+	arm/omap/cpsw
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/cpsw-signed
+		contains arm/omap/dt
+		contains arm/omap/dt-2
+
+arm/fixes
+	patch
+		ARM: dts: gemini: Re-enable display controller
+	<no branch> (c7c0d8df0b94a67377555a550b8d66ee2ad2f4ed)
+		https://git.linaro.org/people/jens.wiklander/linux-tee tags/tee-fix-for-v5.0
+	<no branch> (6e53330909672bd9a8c9f826e989a5945d9d9fdf)
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-fixes-for-5.0-rc8
