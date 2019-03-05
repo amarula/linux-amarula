@@ -1197,6 +1197,7 @@ do_indirects:
 			ext4_free_branches(handle, inode, NULL, &nr, &nr+1, 3);
 			i_data[EXT4_TIND_BLOCK] = 0;
 		}
+		/* fall through */
 	case EXT4_TIND_BLOCK:
 		;
 	}
@@ -1453,6 +1454,7 @@ do_indirects:
 			ext4_free_branches(handle, inode, NULL, &nr, &nr+1, 3);
 			i_data[EXT4_TIND_BLOCK] = 0;
 		}
+		/* fall through */
 	case EXT4_TIND_BLOCK:
 		;
 	}
