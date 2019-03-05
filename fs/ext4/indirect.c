@@ -1183,12 +1183,14 @@ do_indirects:
 			ext4_free_branches(handle, inode, NULL, &nr, &nr+1, 1);
 			i_data[EXT4_IND_BLOCK] = 0;
 		}
+		/* fall through */
 	case EXT4_IND_BLOCK:
 		nr = i_data[EXT4_DIND_BLOCK];
 		if (nr) {
 			ext4_free_branches(handle, inode, NULL, &nr, &nr+1, 2);
 			i_data[EXT4_DIND_BLOCK] = 0;
 		}
+		/* fall through */
 	case EXT4_DIND_BLOCK:
 		nr = i_data[EXT4_TIND_BLOCK];
 		if (nr) {
@@ -1433,6 +1435,7 @@ do_indirects:
 			ext4_free_branches(handle, inode, NULL, &nr, &nr+1, 1);
 			i_data[EXT4_IND_BLOCK] = 0;
 		}
+		/* fall through */
 	case EXT4_IND_BLOCK:
 		if (++n >= n2)
 			return 0;
@@ -1441,6 +1444,7 @@ do_indirects:
 			ext4_free_branches(handle, inode, NULL, &nr, &nr+1, 2);
 			i_data[EXT4_DIND_BLOCK] = 0;
 		}
+		/* fall through */
 	case EXT4_DIND_BLOCK:
 		if (++n >= n2)
 			return 0;

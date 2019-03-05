@@ -125,23 +125,30 @@ static inline void syscall_get_arguments(struct task_struct *task,
 		case 0:
 			if (!n--) break;
 			*args++ = regs->bx;
+			/* fall through */
 		case 1:
 			if (!n--) break;
 			*args++ = regs->cx;
+			/* fall through */
 		case 2:
 			if (!n--) break;
 			*args++ = regs->dx;
+			/* fall through */
 		case 3:
 			if (!n--) break;
 			*args++ = regs->si;
+			/* fall through */
 		case 4:
 			if (!n--) break;
 			*args++ = regs->di;
+			/* fall through */
 		case 5:
 			if (!n--) break;
 			*args++ = regs->bp;
+			/* fall through */
 		case 6:
 			if (!n--) break;
+			/* fall through */
 		default:
 			BUG();
 			break;
@@ -152,23 +159,30 @@ static inline void syscall_get_arguments(struct task_struct *task,
 		case 0:
 			if (!n--) break;
 			*args++ = regs->di;
+			/* fall through */
 		case 1:
 			if (!n--) break;
 			*args++ = regs->si;
+			/* fall through */
 		case 2:
 			if (!n--) break;
 			*args++ = regs->dx;
+			/* fall through */
 		case 3:
 			if (!n--) break;
 			*args++ = regs->r10;
+			/* fall through */
 		case 4:
 			if (!n--) break;
 			*args++ = regs->r8;
+			/* fall through */
 		case 5:
 			if (!n--) break;
 			*args++ = regs->r9;
+			/* fall through */
 		case 6:
 			if (!n--) break;
+			/* fall through */
 		default:
 			BUG();
 			break;
@@ -186,23 +200,30 @@ static inline void syscall_set_arguments(struct task_struct *task,
 		case 0:
 			if (!n--) break;
 			regs->bx = *args++;
+			/* fall through */
 		case 1:
 			if (!n--) break;
 			regs->cx = *args++;
+			/* fall through */
 		case 2:
 			if (!n--) break;
 			regs->dx = *args++;
+			/* fall through */
 		case 3:
 			if (!n--) break;
 			regs->si = *args++;
+			/* fall through */
 		case 4:
 			if (!n--) break;
 			regs->di = *args++;
+			/* fall through */
 		case 5:
 			if (!n--) break;
 			regs->bp = *args++;
+			/* fall through */
 		case 6:
 			if (!n--) break;
+			/* fall through */
 		default:
 			BUG();
 			break;
@@ -213,23 +234,30 @@ static inline void syscall_set_arguments(struct task_struct *task,
 		case 0:
 			if (!n--) break;
 			regs->di = *args++;
+			/* fall through */
 		case 1:
 			if (!n--) break;
 			regs->si = *args++;
+			/* fall through */
 		case 2:
 			if (!n--) break;
 			regs->dx = *args++;
+			/* fall through */
 		case 3:
 			if (!n--) break;
 			regs->r10 = *args++;
+			/* fall through */
 		case 4:
 			if (!n--) break;
 			regs->r8 = *args++;
+			/* fall through */
 		case 5:
 			if (!n--) break;
 			regs->r9 = *args++;
+			/* fall through */
 		case 6:
 			if (!n--) break;
+			/* fall through */
 		default:
 			BUG();
 			break;
