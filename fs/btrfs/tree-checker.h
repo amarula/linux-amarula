@@ -23,6 +23,14 @@ int btrfs_check_leaf_full(struct btrfs_fs_info *fs_info,
  */
 int btrfs_check_leaf_relaxed(struct btrfs_fs_info *fs_info,
 			     struct extent_buffer *leaf);
+
+/*
+ * Write time specific leaf checker.
+ * Don't check if the empty leaf belongs to a tree root. Mostly for balance
+ * and new tree created in current transaction.
+ */
+int btrfs_check_leaf_write(struct btrfs_fs_info *fs_info,
+			   struct extent_buffer *leaf);
 int btrfs_check_node(struct btrfs_fs_info *fs_info, struct extent_buffer *node);
 
 #endif
