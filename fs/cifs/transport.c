@@ -33,6 +33,7 @@
 #include <linux/uaccess.h>
 #include <asm/processor.h>
 #include <linux/mempool.h>
+#include <linux/signal.h>
 #include "cifspdu.h"
 #include "cifsglob.h"
 #include "cifsproto.h"
@@ -176,6 +177,7 @@ smb_send_kvec(struct TCP_Server_Info *server, struct msghdr *smb_msg,
 	int rc = 0;
 	int retries = 0;
 	struct socket *ssocket = server->ssocket;
+	sigset_t mask, oldmask;
 
 	*sent = 0;
 
@@ -189,6 +191,28 @@ smb_send_kvec(struct TCP_Server_Info *server, struct msghdr *smb_msg,
 		smb_msg->msg_flags = MSG_NOSIGNAL;
 
 	while (msg_data_left(smb_msg)) {
+		if (signal_pending(current)) {
+			/* Should we stop sending if we receive SIG_KILL? */
+			if (__fatal_signal_pending(current))
+				cifs_dbg(FYI, "SIG_KILL signal is pending\n");
+
+			/* It is safe to return if we haven't sent anything */
+			if (*sent == 0) {
+				cifs_dbg(FYI, "signal is pending before sending any data\n");
+				return -EINTR;
+			}
+		}
+
+		/*
+		 * We should not allow signals to interrupt the network send
+		 * because any partial send will cause session reconnects thus
+		 * increasing latency of system calls and overload a server
+		 * with unnecessary requests.
+		 */
+
+		sigfillset(&mask);
+		sigprocmask(SIG_BLOCK, &mask, &oldmask);
+
 		/*
 		 * If blocking send, we try 3 times, since each can block
 		 * for 5 seconds. For nonblocking  we have to try more
@@ -208,20 +232,23 @@ smb_send_kvec(struct TCP_Server_Info *server, struct msghdr *smb_msg,
 		 * reconnect which may clear the network problem.
 		 */
 		rc = sock_sendmsg(ssocket, smb_msg);
+
+		sigprocmask(SIG_SETMASK, &oldmask, NULL);
+
 		if (rc == -EAGAIN) {
 			retries++;
 			if (retries >= 14 ||
 			    (!server->noblocksnd && (retries > 2))) {
 				cifs_dbg(VFS, "sends on sock %p stuck for 15 seconds\n",
 					 ssocket);
-				return -EAGAIN;
+				return signal_pending(current) ? -EINTR : rc;
 			}
 			msleep(1 << retries);
 			continue;
 		}
 
 		if (rc < 0)
-			return rc;
+			return signal_pending(current) ? -EINTR : rc;
 
 		if (rc == 0) {
 			/* should never happen, letting socket clear before
@@ -235,7 +262,7 @@ smb_send_kvec(struct TCP_Server_Info *server, struct msghdr *smb_msg,
 		*sent += rc;
 		retries = 0; /* in case we get ENOSPC on the next send */
 	}
-	return 0;
+	return signal_pending(current) ? -EINTR : 0;
 }
 
 unsigned long
@@ -451,15 +478,18 @@ smb_send(struct TCP_Server_Info *server, struct smb_hdr *smb_buffer,
 
 static int
 wait_for_free_credits(struct TCP_Server_Info *server, const int timeout,
-		      int *credits)
+		      int *credits, unsigned int *instance)
 {
 	int rc;
+
+	*instance = 0;
 
 	spin_lock(&server->req_lock);
 	if (timeout == CIFS_ASYNC_OP) {
 		/* oplock breaks must not be held up */
 		server->in_flight++;
 		*credits -= 1;
+		*instance = server->reconnect_instance;
 		spin_unlock(&server->req_lock);
 		return 0;
 	}
@@ -489,6 +519,7 @@ wait_for_free_credits(struct TCP_Server_Info *server, const int timeout,
 			if (timeout != CIFS_BLOCKING_OP) {
 				*credits -= 1;
 				server->in_flight++;
+				*instance = server->reconnect_instance;
 			}
 			spin_unlock(&server->req_lock);
 			break;
@@ -499,7 +530,7 @@ wait_for_free_credits(struct TCP_Server_Info *server, const int timeout,
 
 static int
 wait_for_free_request(struct TCP_Server_Info *server, const int timeout,
-		      const int optype)
+		      const int optype, unsigned int *instance)
 {
 	int *val;
 
@@ -507,15 +538,16 @@ wait_for_free_request(struct TCP_Server_Info *server, const int timeout,
 	/* Since an echo is already inflight, no need to wait to send another */
 	if (*val <= 0 && optype == CIFS_ECHO_OP)
 		return -EAGAIN;
-	return wait_for_free_credits(server, timeout, val);
+	return wait_for_free_credits(server, timeout, val, instance);
 }
 
 int
 cifs_wait_mtu_credits(struct TCP_Server_Info *server, unsigned int size,
-		      unsigned int *num, unsigned int *credits)
+		      unsigned int *num, struct cifs_credits *credits)
 {
 	*num = size;
-	*credits = 0;
+	credits->value = 0;
+	credits->instance = server->reconnect_instance;
 	return 0;
 }
 
@@ -602,27 +634,43 @@ cifs_setup_async_request(struct TCP_Server_Info *server, struct smb_rqst *rqst)
 int
 cifs_call_async(struct TCP_Server_Info *server, struct smb_rqst *rqst,
 		mid_receive_t *receive, mid_callback_t *callback,
-		mid_handle_t *handle, void *cbdata, const int flags)
+		mid_handle_t *handle, void *cbdata, const int flags,
+		const struct cifs_credits *exist_credits)
 {
 	int rc, timeout, optype;
 	struct mid_q_entry *mid;
-	unsigned int credits = 0;
+	struct cifs_credits credits = { .value = 0, .instance = 0 };
+	unsigned int instance;
 
 	timeout = flags & CIFS_TIMEOUT_MASK;
 	optype = flags & CIFS_OP_MASK;
 
 	if ((flags & CIFS_HAS_CREDITS) == 0) {
-		rc = wait_for_free_request(server, timeout, optype);
+		rc = wait_for_free_request(server, timeout, optype, &instance);
 		if (rc)
 			return rc;
-		credits = 1;
-	}
+		credits.value = 1;
+		credits.instance = instance;
+	} else
+		instance = exist_credits->instance;
 
 	mutex_lock(&server->srv_mutex);
+
+	/*
+	 * We can't use credits obtained from the previous session to send this
+	 * request. Check if there were reconnects after we obtained credits and
+	 * return -EAGAIN in such cases to let callers handle it.
+	 */
+	if (instance != server->reconnect_instance) {
+		mutex_unlock(&server->srv_mutex);
+		add_credits_and_wake_if(server, &credits, optype);
+		return -EAGAIN;
+	}
+
 	mid = server->ops->setup_async_request(server, rqst);
 	if (IS_ERR(mid)) {
 		mutex_unlock(&server->srv_mutex);
-		add_credits_and_wake_if(server, credits, optype);
+		add_credits_and_wake_if(server, &credits, optype);
 		return PTR_ERR(mid);
 	}
 
@@ -647,6 +695,7 @@ cifs_call_async(struct TCP_Server_Info *server, struct smb_rqst *rqst,
 	cifs_in_send_dec(server);
 
 	if (rc < 0) {
+		revert_current_mid(server, mid->credits);
 		server->sequence_number -= 2;
 		cifs_delete_mid(mid);
 	}
@@ -656,7 +705,7 @@ cifs_call_async(struct TCP_Server_Info *server, struct smb_rqst *rqst,
 	if (rc == 0)
 		return 0;
 
-	add_credits_and_wake_if(server, credits, optype);
+	add_credits_and_wake_if(server, &credits, optype);
 	return rc;
 }
 
@@ -786,8 +835,12 @@ static void
 cifs_compound_callback(struct mid_q_entry *mid)
 {
 	struct TCP_Server_Info *server = mid->server;
+	struct cifs_credits credits;
 
-	add_credits(server, server->ops->get_credits(mid), mid->optype);
+	credits.value = server->ops->get_credits(mid);
+	credits.instance = server->reconnect_instance;
+
+	add_credits(server, &credits, mid->optype);
 }
 
 static void
@@ -813,7 +866,11 @@ compound_send_recv(const unsigned int xid, struct cifs_ses *ses,
 	int timeout, optype;
 	struct mid_q_entry *midQ[MAX_COMPOUND];
 	bool cancelled_mid[MAX_COMPOUND] = {false};
-	unsigned int credits[MAX_COMPOUND] = {0};
+	struct cifs_credits credits[MAX_COMPOUND] = {
+		{ .value = 0, .instance = 0 }
+	};
+	unsigned int instance;
+	unsigned int first_instance = 0;
 	char *buf;
 
 	timeout = flags & CIFS_TIMEOUT_MASK;
@@ -830,16 +887,64 @@ compound_send_recv(const unsigned int xid, struct cifs_ses *ses,
 	if (ses->server->tcpStatus == CifsExiting)
 		return -ENOENT;
 
+	spin_lock(&ses->server->req_lock);
+	if (ses->server->credits < num_rqst) {
+		/*
+		 * Return immediately if not too many requests in flight since
+		 * we will likely be stuck on waiting for credits.
+		 */
+		if (ses->server->in_flight < num_rqst - ses->server->credits) {
+			spin_unlock(&ses->server->req_lock);
+			return -ENOTSUPP;
+		}
+	} else {
+		/* enough credits to send the whole compounded request */
+		ses->server->credits -= num_rqst;
+		ses->server->in_flight += num_rqst;
+		first_instance = ses->server->reconnect_instance;
+	}
+	spin_unlock(&ses->server->req_lock);
+
+	if (first_instance) {
+		cifs_dbg(FYI, "Acquired %d credits at once\n", num_rqst);
+		for (i = 0; i < num_rqst; i++) {
+			credits[i].value = 1;
+			credits[i].instance = first_instance;
+		}
+		goto setup_rqsts;
+	}
+
 	/*
+	 * There are not enough credits to send the whole compound request but
+	 * there are requests in flight that may bring credits from the server.
+	 * This approach still leaves the possibility to be stuck waiting for
+	 * credits if the server doesn't grant credits to the outstanding
+	 * requests. This should be fixed by returning immediately and letting
+	 * a caller fallback to sequential commands instead of compounding.
 	 * Ensure we obtain 1 credit per request in the compound chain.
-	 * It can be optimized further by waiting for all the credits
-	 * at once but this can wait long enough if we don't have enough
-	 * credits due to some heavy operations in progress or the server
-	 * not granting us much, so a fallback to the current approach is
-	 * needed anyway.
 	 */
 	for (i = 0; i < num_rqst; i++) {
-		rc = wait_for_free_request(ses->server, timeout, optype);
+		rc = wait_for_free_request(ses->server, timeout, optype,
+					   &instance);
+
+		if (rc == 0) {
+			credits[i].value = 1;
+			credits[i].instance = instance;
+			/*
+			 * All parts of the compound chain must get credits from
+			 * the same session, otherwise we may end up using more
+			 * credits than the server granted. If there were
+			 * reconnects in between, return -EAGAIN and let callers
+			 * handle it.
+			 */
+			if (i == 0)
+				first_instance = instance;
+			else if (first_instance != instance) {
+				i++;
+				rc = -EAGAIN;
+			}
+		}
+
 		if (rc) {
 			/*
 			 * We haven't sent an SMB packet to the server yet but
@@ -851,12 +956,12 @@ compound_send_recv(const unsigned int xid, struct cifs_ses *ses,
 			 * requests correctly.
 			 */
 			for (j = 0; j < i; j++)
-				add_credits(ses->server, 1, optype);
+				add_credits(ses->server, &credits[j], optype);
 			return rc;
 		}
-		credits[i] = 1;
 	}
 
+setup_rqsts:
 	/*
 	 * Make sure that we sign in the same order that we send on this socket
 	 * and avoid races inside tcp sendmsg code that could cause corruption
@@ -865,16 +970,33 @@ compound_send_recv(const unsigned int xid, struct cifs_ses *ses,
 
 	mutex_lock(&ses->server->srv_mutex);
 
+	/*
+	 * All the parts of the compound chain belong obtained credits from the
+	 * same session (see the appropriate checks above). In the same time
+	 * there might be reconnects after those checks but before we acquired
+	 * the srv_mutex. We can not use credits obtained from the previous
+	 * session to send this request. Check if there were reconnects after
+	 * we obtained credits and return -EAGAIN in such cases to let callers
+	 * handle it.
+	 */
+	if (first_instance != ses->server->reconnect_instance) {
+		mutex_unlock(&ses->server->srv_mutex);
+		for (j = 0; j < num_rqst; j++)
+			add_credits(ses->server, &credits[j], optype);
+		return -EAGAIN;
+	}
+
 	for (i = 0; i < num_rqst; i++) {
 		midQ[i] = ses->server->ops->setup_request(ses, &rqst[i]);
 		if (IS_ERR(midQ[i])) {
+			revert_current_mid(ses->server, i);
 			for (j = 0; j < i; j++)
 				cifs_delete_mid(midQ[j]);
 			mutex_unlock(&ses->server->srv_mutex);
 
 			/* Update # of requests on wire to server */
 			for (j = 0; j < num_rqst; j++)
-				add_credits(ses->server, credits[j], optype);
+				add_credits(ses->server, &credits[j], optype);
 			return PTR_ERR(midQ[i]);
 		}
 
@@ -897,15 +1019,17 @@ compound_send_recv(const unsigned int xid, struct cifs_ses *ses,
 	for (i = 0; i < num_rqst; i++)
 		cifs_save_when_sent(midQ[i]);
 
-	if (rc < 0)
+	if (rc < 0) {
+		revert_current_mid(ses->server, num_rqst);
 		ses->server->sequence_number -= 2;
+	}
 
 	mutex_unlock(&ses->server->srv_mutex);
 
 	if (rc < 0) {
 		/* Sending failed for some reason - return credits back */
 		for (i = 0; i < num_rqst; i++)
-			add_credits(ses->server, credits[i], optype);
+			add_credits(ses->server, &credits[i], optype);
 		goto out;
 	}
 
@@ -942,7 +1066,7 @@ compound_send_recv(const unsigned int xid, struct cifs_ses *ses,
 				midQ[i]->mid_flags |= MID_WAIT_CANCELLED;
 				midQ[i]->callback = cifs_cancelled_callback;
 				cancelled_mid[i] = true;
-				credits[i] = 0;
+				credits[i].value = 0;
 			}
 			spin_unlock(&GlobalMid_Lock);
 		}
@@ -1068,6 +1192,7 @@ SendReceive(const unsigned int xid, struct cifs_ses *ses,
 	unsigned int len = be32_to_cpu(in_buf->smb_buf_length);
 	struct kvec iov = { .iov_base = in_buf, .iov_len = len };
 	struct smb_rqst rqst = { .rq_iov = &iov, .rq_nvec = 1 };
+	struct cifs_credits credits = { .value = 1, .instance = 0 };
 
 	if (ses == NULL) {
 		cifs_dbg(VFS, "Null smb session\n");
@@ -1091,7 +1216,7 @@ SendReceive(const unsigned int xid, struct cifs_ses *ses,
 		return -EIO;
 	}
 
-	rc = wait_for_free_request(ses->server, timeout, 0);
+	rc = wait_for_free_request(ses->server, timeout, 0, &credits.instance);
 	if (rc)
 		return rc;
 
@@ -1105,7 +1230,7 @@ SendReceive(const unsigned int xid, struct cifs_ses *ses,
 	if (rc) {
 		mutex_unlock(&ses->server->srv_mutex);
 		/* Update # of requests on wire to server */
-		add_credits(ses->server, 1, 0);
+		add_credits(ses->server, &credits, 0);
 		return rc;
 	}
 
@@ -1141,7 +1266,7 @@ SendReceive(const unsigned int xid, struct cifs_ses *ses,
 			/* no longer considered to be "in-flight" */
 			midQ->callback = DeleteMidQEntry;
 			spin_unlock(&GlobalMid_Lock);
-			add_credits(ses->server, 1, 0);
+			add_credits(ses->server, &credits, 0);
 			return rc;
 		}
 		spin_unlock(&GlobalMid_Lock);
@@ -1149,7 +1274,7 @@ SendReceive(const unsigned int xid, struct cifs_ses *ses,
 
 	rc = cifs_sync_mid_result(midQ, ses->server);
 	if (rc != 0) {
-		add_credits(ses->server, 1, 0);
+		add_credits(ses->server, &credits, 0);
 		return rc;
 	}
 
@@ -1165,7 +1290,7 @@ SendReceive(const unsigned int xid, struct cifs_ses *ses,
 	rc = cifs_check_receive(midQ, ses->server, 0);
 out:
 	cifs_delete_mid(midQ);
-	add_credits(ses->server, 1, 0);
+	add_credits(ses->server, &credits, 0);
 
 	return rc;
 }
@@ -1207,6 +1332,7 @@ SendReceiveBlockingLock(const unsigned int xid, struct cifs_tcon *tcon,
 	unsigned int len = be32_to_cpu(in_buf->smb_buf_length);
 	struct kvec iov = { .iov_base = in_buf, .iov_len = len };
 	struct smb_rqst rqst = { .rq_iov = &iov, .rq_nvec = 1 };
+	unsigned int instance;
 
 	if (tcon == NULL || tcon->ses == NULL) {
 		cifs_dbg(VFS, "Null smb session\n");
@@ -1232,7 +1358,8 @@ SendReceiveBlockingLock(const unsigned int xid, struct cifs_tcon *tcon,
 		return -EIO;
 	}
 
-	rc = wait_for_free_request(ses->server, CIFS_BLOCKING_OP, 0);
+	rc = wait_for_free_request(ses->server, CIFS_BLOCKING_OP, 0,
+				   &instance);
 	if (rc)
 		return rc;
 
