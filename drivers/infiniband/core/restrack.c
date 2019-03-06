@@ -23,10 +23,10 @@ static int rt_xa_alloc_cyclic(struct xarray *xa, u32 *id, void *entry,
 		*id = 0;
 
 	xa_lock(xa);
-	err = __xa_alloc(xa, id, U32_MAX, entry, GFP_KERNEL);
+	err = __xa_alloc(xa, id, entry, XA_LIMIT(*id, U32_MAX), GFP_KERNEL);
 	if (err && *next != U32_MAX) {
 		*id = 0;
-		err = __xa_alloc(xa, id, *next, entry, GFP_KERNEL);
+		err = __xa_alloc(xa, id, entry, XA_LIMIT(0, *next), GFP_KERNEL);
 	}
 
 	if (!err)

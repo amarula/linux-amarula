@@ -670,11 +670,12 @@ static int assign_name(struct ib_device *device, const char *name)
 
 	/* Cyclically allocate a user visible ID for the device */
 	device->index = last_id;
-	ret = xa_alloc(&devices, &device->index, INT_MAX, device, GFP_KERNEL);
+	ret = xa_alloc(&devices, &device->index, device,
+		       XA_LIMIT(last_id, INT_MAX), GFP_KERNEL);
 	if (ret == -ENOSPC) {
 		device->index = 0;
-		ret = xa_alloc(&devices, &device->index, INT_MAX, device,
-			       GFP_KERNEL);
+		ret = xa_alloc(&devices, &device->index, device,
+			       XA_LIMIT(0, INT_MAX), GFP_KERNEL);
 	}
 	if (ret)
 		goto out;
@@ -1065,8 +1066,8 @@ static int assign_client_id(struct ib_client *client)
 		client->client_id =
 			list_last_entry(&client_list, struct ib_client, list)
 				->client_id;
-	ret = xa_alloc(&clients, &client->client_id, INT_MAX, client,
-		       GFP_KERNEL);
+	ret = xa_alloc(&clients, &client->client_id, client,
+		       XA_LIMIT(client->client_id, INT_MAX), GFP_KERNEL);
 	if (ret)
 		goto out;
 
