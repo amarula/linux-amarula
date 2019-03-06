@@ -165,6 +165,8 @@ enum hmm_pfn_value_e {
  * @pfns: array of pfns (big enough for the range)
  * @flags: pfn flags to match device driver page table
  * @values: pfn value for some special case (none, special, error, ...)
+ * @default_flags: default flags for the range (write, read, ...)
+ * @pfn_flags_mask: allows to mask pfn flags so that only default_flags matter
  * @pfn_shifts: pfn shift value (should be <= PAGE_SHIFT)
  * @valid: pfns array did not change since it has been fill by an HMM function
  */
@@ -177,6 +179,8 @@ struct hmm_range {
 	uint64_t		*pfns;
 	const uint64_t		*flags;
 	const uint64_t		*values;
+	uint64_t		default_flags;
+	uint64_t		pfn_flags_mask;
 	uint8_t			pfn_shift;
 	bool			valid;
 };
@@ -520,6 +524,9 @@ static inline bool hmm_vma_range_done(struct hmm_range *range)
 static inline int hmm_vma_fault(struct hmm_range *range, bool block)
 {
 	long ret;
+
+	range->default_flags = 0;
+	range->pfn_flags_mask = -1UL;
 
 	ret = hmm_range_register(range, range->vma->vm_mm,
 				 range->start, range->end);
