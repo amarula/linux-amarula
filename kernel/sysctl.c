@@ -2861,10 +2861,6 @@ static int __do_proc_doulongvec_minmax(void *data, struct ctl_table *table, int 
 				break;
 			if (neg)
 				continue;
-			if ((max && val > *max) || (min && val < *min)) {
-				err = -EINVAL;
-				break;
-			}
 			val = convmul * val / convdiv;
 			if ((min && val < *min) || (max && val > *max))
 				continue;
