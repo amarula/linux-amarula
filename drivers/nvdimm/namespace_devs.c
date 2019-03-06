@@ -138,6 +138,7 @@ bool nd_is_uuid_unique(struct device *dev, u8 *uuid)
 bool pmem_should_map_pages(struct device *dev)
 {
 	struct nd_region *nd_region = to_nd_region(dev->parent);
+	struct nd_namespace_common *ndns = to_ndns(dev);
 	struct nd_namespace_io *nsio;
 
 	if (!IS_ENABLED(CONFIG_ZONE_DEVICE))
@@ -147,6 +148,9 @@ bool pmem_should_map_pages(struct device *dev)
 		return false;
 
 	if (is_nd_pfn(dev) || is_nd_btt(dev))
+		return false;
+
+	if (ndns->force_raw)
 		return false;
 
 	nsio = to_nd_namespace_io(dev);
@@ -2492,6 +2496,12 @@ static int init_active_labels(struct nd_region *nd_region)
 			if (!label_ent)
 				break;
 			label = nd_label_active(ndd, j);
+			if (test_bit(NDD_NOBLK, &nvdimm->flags)) {
+				u32 flags = __le32_to_cpu(label->flags);
+
+				flags &= ~NSLABEL_FLAG_LOCAL;
+				label->flags = __cpu_to_le32(flags);
+			}
 			label_ent->label = label;
 
 			mutex_lock(&nd_mapping->lock);
