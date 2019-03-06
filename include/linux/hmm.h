@@ -438,6 +438,50 @@ struct hmm_mirror {
 int hmm_mirror_register(struct hmm_mirror *mirror, struct mm_struct *mm);
 void hmm_mirror_unregister(struct hmm_mirror *mirror);
 
+/*
+ * hmm_mirror_mm_down_read() - lock the mmap_sem in read mode
+ * @mirror: the HMM mm mirror for which we want to lock the mmap_sem
+ * Returns: -EINVAL if the mm is dead, 0 otherwise (lock taken).
+ *
+ * The device driver context which holds reference to mirror and thus to core
+ * hmm struct might outlive the mm against which it was created. To avoid every
+ * driver to check for that case provide an helper that check if mm is still
+ * alive and take the mmap_sem in read mode if so. If the mm have been destroy
+ * (mmu_notifier release call back did happen) then we return -EINVAL so that
+ * calling code knows that it is trying to do something against a mm that is
+ * no longer valid.
+ */
+static inline int hmm_mirror_mm_down_read(struct hmm_mirror *mirror)
+{
+	struct mm_struct *mm;
+
+	/* Sanity check ... */
+	if (!mirror || !mirror->hmm)
+		return -EINVAL;
+	/*
+	 * Before trying to take the mmap_sem make sure the mm is still
+	 * alive as device driver context might outlive the mm lifetime.
+	 *
+	 * FIXME: should we also check for mm that outlive its owning
+	 * task ?
+	 */
+	mm = READ_ONCE(mirror->hmm->mm);
+	if (mirror->hmm->dead || !mm)
+		return -EINVAL;
+
+	down_read(&mm->mmap_sem);
+	return 0;
+}
+
+/*
+ * hmm_mirror_mm_up_read() - unlock the mmap_sem from read mode
+ * @mirror: the HMM mm mirror for which we want to lock the mmap_sem
+ */
+static inline void hmm_mirror_mm_up_read(struct hmm_mirror *mirror)
+{
+	up_read(&mirror->hmm->mm->mmap_sem);
+}
+
 
 /*
  * To snapshot the CPU page table you first have to call hmm_range_register()
@@ -463,7 +507,7 @@ void hmm_mirror_unregister(struct hmm_mirror *mirror);
  *          if (ret)
  *              return ret;
  *
- *          down_read(mm->mmap_sem);
+ *          hmm_mirror_mm_down_read(mirror);
  *      again:
  *
  *          if (!hmm_range_wait_until_valid(&range, TIMEOUT)) {
@@ -476,13 +520,13 @@ void hmm_mirror_unregister(struct hmm_mirror *mirror);
  *
  *          ret = hmm_range_snapshot(&range); or hmm_range_fault(&range);
  *          if (ret == -EAGAIN) {
- *              down_read(mm->mmap_sem);
+ *              hmm_mirror_mm_down_read(mirror);
  *              goto again;
  *          } else if (ret == -EBUSY) {
  *              goto again;
  *          }
  *
- *          up_read(&mm->mmap_sem);
+ *          hmm_mirror_mm_up_read(mirror);
  *          if (ret) {
  *              hmm_range_unregister(range);
  *              return ret;
