@@ -35,7 +35,7 @@
  * a binary kernel image or a module. See scripts/extract-ikconfig.
  */
 asm (
-"	.section .rodata, \"a\"			\n"
+"	.pushsection .rodata, \"a\"		\n"
 "	.ascii \"IKCFG_ST\"			\n"
 "	.global kernel_config_data		\n"
 "kernel_config_data:				\n"
@@ -43,6 +43,7 @@ asm (
 "	.global kernel_config_data_end		\n"
 "kernel_config_data_end:			\n"
 "	.ascii \"IKCFG_ED\"			\n"
+"	.popsection				\n"
 );
 
 #ifdef CONFIG_IKCONFIG_PROC
