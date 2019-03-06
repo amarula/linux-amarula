@@ -277,7 +277,7 @@ extern long strncpy_from_unsafe(char *dst, const void *unsafe_addr, long count);
  * probe_user_read() suitable for use within regions where the caller
  * already holds mmap_sem, or other locks which nest inside mmap_sem.
  *
- * Returns: 0 on success, -EFAULT on error.
+ * Returns 0 on success, -EFAULT on error.
  */
 
 #ifndef probe_user_read
