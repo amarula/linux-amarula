@@ -1226,7 +1226,7 @@ static __poll_t psi_fop_poll(struct file *file, poll_table *wait)
 	__poll_t ret;
 
 	rcu_read_lock();
-	t = rcu_dereference(seq->private);
+	t = rcu_dereference_raw(seq->private);
 	if (t)
 		ret = psi_trigger_poll(t, file, wait);
 	else
