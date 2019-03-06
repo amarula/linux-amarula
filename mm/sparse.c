@@ -438,10 +438,6 @@ static void __init sparse_buffer_init(unsigned long size, int nid)
 		memblock_alloc_try_nid_raw(size, PAGE_SIZE,
 						addr,
 						MEMBLOCK_ALLOC_ACCESSIBLE, nid);
-	if (!sparsemap_buf)
-		panic("%s: Failed to allocate %lu bytes align=0x%lx nid=%d from=%pa\n",
-		      __func__, size, PAGE_SIZE, nid, &addr);
-
 	sparsemap_buf_end = sparsemap_buf + size;
 }
 
