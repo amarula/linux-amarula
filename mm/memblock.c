@@ -1409,8 +1409,8 @@ phys_addr_t __init memblock_phys_alloc_range(phys_addr_t size,
 
 phys_addr_t __init memblock_phys_alloc_try_nid(phys_addr_t size, phys_addr_t align, int nid)
 {
-	return memblock_alloc_range_nid(size, align, 0, nid,
-					MEMBLOCK_ALLOC_ACCESSIBLE);
+	return memblock_alloc_range_nid(size, align, 0,
+					MEMBLOCK_ALLOC_ACCESSIBLE, nid);
 }
 
 /**
