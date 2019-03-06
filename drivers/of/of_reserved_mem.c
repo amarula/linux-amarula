@@ -34,7 +34,7 @@ static int __init early_init_dt_alloc_reserved_memory_arch(phys_addr_t size,
 
 	end = !end ? MEMBLOCK_ALLOC_ANYWHERE : end;
 	align = !align ? SMP_CACHE_BYTES : align;
-	base = memblock_find_in_range(size, align, start, end);
+	base = memblock_find_in_range(start, end, size, align);
 	if (!base)
 		return -ENOMEM;
 
