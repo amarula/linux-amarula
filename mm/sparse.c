@@ -411,16 +411,17 @@ struct page __init *sparse_mem_map_populate(unsigned long pnum, int nid,
 {
 	unsigned long size = section_map_size();
 	struct page *map = sparse_buffer_alloc(size);
+	phys_addr_t addr = __pa(MAX_DMA_ADDRESS);
 
 	if (map)
 		return map;
 
 	map = memblock_alloc_try_nid(size,
-					  PAGE_SIZE, __pa(MAX_DMA_ADDRESS),
+					  PAGE_SIZE, addr,
 					  MEMBLOCK_ALLOC_ACCESSIBLE, nid);
 	if (!map)
-		panic("%s: Failed to allocate %lu bytes align=0x%lx nid=%d from=%lx\n",
-		      __func__, size, PAGE_SIZE, nid, __pa(MAX_DMA_ADDRESS));
+		panic("%s: Failed to allocate %lu bytes align=0x%lx nid=%d from=%pa\n",
+		      __func__, size, PAGE_SIZE, nid, &addr);
 
 	return map;
 }
@@ -431,14 +432,15 @@ static void *sparsemap_buf_end __meminitdata;
 
 static void __init sparse_buffer_init(unsigned long size, int nid)
 {
+	phys_addr_t addr = __pa(MAX_DMA_ADDRESS);
 	WARN_ON(sparsemap_buf);	/* forgot to call sparse_buffer_fini()? */
 	sparsemap_buf =
 		memblock_alloc_try_nid_raw(size, PAGE_SIZE,
-						__pa(MAX_DMA_ADDRESS),
+						addr,
 						MEMBLOCK_ALLOC_ACCESSIBLE, nid);
 	if (!sparsemap_buf)
-		panic("%s: Failed to allocate %lu bytes align=0x%lx nid=%d from=%lx\n",
-		      __func__, size, PAGE_SIZE, nid, __pa(MAX_DMA_ADDRESS));
+		panic("%s: Failed to allocate %lu bytes align=0x%lx nid=%d from=%pa\n",
+		      __func__, size, PAGE_SIZE, nid, &addr);
 
 	sparsemap_buf_end = sparsemap_buf + size;
 }
