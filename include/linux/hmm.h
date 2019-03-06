@@ -77,8 +77,34 @@
 #include <linux/migrate.h>
 #include <linux/memremap.h>
 #include <linux/completion.h>
+#include <linux/mmu_notifier.h>
 
-struct hmm;
+
+/*
+ * struct hmm - HMM per mm struct
+ *
+ * @mm: mm struct this HMM struct is bound to
+ * @lock: lock protecting ranges list
+ * @ranges: list of range being snapshotted
+ * @mirrors: list of mirrors for this mm
+ * @mmu_notifier: mmu notifier to track updates to CPU page table
+ * @mirrors_sem: read/write semaphore protecting the mirrors list
+ * @wq: wait queue for user waiting on a range invalidation
+ * @notifiers: count of active mmu notifiers
+ * @dead: is the mm dead ?
+ */
+struct hmm {
+	struct mm_struct	*mm;
+	struct kref		kref;
+	struct mutex		lock;
+	struct list_head	ranges;
+	struct list_head	mirrors;
+	struct mmu_notifier	mmu_notifier;
+	struct rw_semaphore	mirrors_sem;
+	wait_queue_head_t	wq;
+	long			notifiers;
+	bool			dead;
+};
 
 /*
  * hmm_pfn_flag_e - HMM flag enums
@@ -154,6 +180,38 @@ struct hmm_range {
 	uint8_t			pfn_shift;
 	bool			valid;
 };
+
+/*
+ * hmm_range_wait_until_valid() - wait for range to be valid
+ * @range: range affected by invalidation to wait on
+ * @timeout: time out for wait in ms (ie abort wait after that period of time)
+ * Returns: true if the range is valid, false otherwise.
+ */
+static inline bool hmm_range_wait_until_valid(struct hmm_range *range,
+					      unsigned long timeout)
+{
+	/* Check if mm is dead ? */
+	if (range->hmm == NULL || range->hmm->dead || range->hmm->mm == NULL) {
+		range->valid = false;
+		return false;
+	}
+	if (range->valid)
+		return true;
+	wait_event_timeout(range->hmm->wq, range->valid || range->hmm->dead,
+			   msecs_to_jiffies(timeout));
+	/* Return current valid status just in case we get lucky */
+	return range->valid;
+}
+
+/*
+ * hmm_range_valid() - test if a range is valid or not
+ * @range: range
+ * Returns: true if the range is valid, false otherwise.
+ */
+static inline bool hmm_range_valid(struct hmm_range *range)
+{
+	return range->valid;
+}
 
 /*
  * hmm_pfn_to_page() - return struct page pointed to by a valid HMM pfn
@@ -357,51 +415,133 @@ void hmm_mirror_unregister(struct hmm_mirror *mirror);
 
 
 /*
- * To snapshot the CPU page table, call hmm_vma_get_pfns(), then take a device
- * driver lock that serializes device page table updates, then call
- * hmm_vma_range_done(), to check if the snapshot is still valid. The same
- * device driver page table update lock must also be used in the
- * hmm_mirror_ops.sync_cpu_device_pagetables() callback, so that CPU page
- * table invalidation serializes on it.
+ * To snapshot the CPU page table you first have to call hmm_range_register()
+ * to register the range. If hmm_range_register() return an error then some-
+ * thing is horribly wrong and you should fail loudly. If it returned true then
+ * you can wait for the range to be stable with hmm_range_wait_until_valid()
+ * function, a range is valid when there are no concurrent changes to the CPU
+ * page table for the range.
  *
- * YOU MUST CALL hmm_vma_range_done() ONCE AND ONLY ONCE EACH TIME YOU CALL
- * hmm_range_snapshot() WITHOUT ERROR !
+ * Once the range is valid you can call hmm_range_snapshot() if that returns
+ * without error then you can take your device page table lock (the same lock
+ * you use in the HMM mirror sync_cpu_device_pagetables() callback). After
+ * taking that lock you have to check the range validity, if it is still valid
+ * (ie hmm_range_valid() returns true) then you can program the device page
+ * table, otherwise you have to start again. Pseudo code:
  *
- * IF YOU DO NOT FOLLOW THE ABOVE RULE THE SNAPSHOT CONTENT MIGHT BE INVALID !
+ *      mydevice_prefault(mydevice, mm, start, end)
+ *      {
+ *          struct hmm_range range;
+ *          ...
+ *
+ *          ret = hmm_range_register(&range, mm, start, end);
+ *          if (ret)
+ *              return ret;
+ *
+ *          down_read(mm->mmap_sem);
+ *      again:
+ *
+ *          if (!hmm_range_wait_until_valid(&range, TIMEOUT)) {
+ *              up_read(&mm->mmap_sem);
+ *              hmm_range_unregister(range);
+ *              // Handle time out, either sleep or retry or something else
+ *              ...
+ *              return -ESOMETHING; || goto again;
+ *          }
+ *
+ *          ret = hmm_range_snapshot(&range); or hmm_range_fault(&range);
+ *          if (ret == -EAGAIN) {
+ *              down_read(mm->mmap_sem);
+ *              goto again;
+ *          } else if (ret == -EBUSY) {
+ *              goto again;
+ *          }
+ *
+ *          up_read(&mm->mmap_sem);
+ *          if (ret) {
+ *              hmm_range_unregister(range);
+ *              return ret;
+ *          }
+ *
+ *          // It might not have snap-shoted the whole range but only the first
+ *          // npages, the return values is the number of valid pages from the
+ *          // start of the range.
+ *          npages = ret;
+ *
+ *          ...
+ *
+ *          mydevice_page_table_lock(mydevice);
+ *          if (!hmm_range_valid(range)) {
+ *              mydevice_page_table_unlock(mydevice);
+ *              goto again;
+ *          }
+ *
+ *          mydevice_populate_page_table(mydevice, range, npages);
+ *          ...
+ *          mydevice_take_page_table_unlock(mydevice);
+ *          hmm_range_unregister(range);
+ *
+ *          return 0;
+ *      }
+ *
+ * The same scheme apply to hmm_range_fault() (ie replace hmm_range_snapshot()
+ * with hmm_range_fault() in above pseudo code).
+ *
+ * YOU MUST CALL hmm_range_unregister() ONCE AND ONLY ONCE EACH TIME YOU CALL
+ * hmm_range_register() AND hmm_range_register() RETURNED TRUE ! IF YOU DO NOT
+ * FOLLOW THIS RULE MEMORY CORRUPTION WILL ENSUE !
  */
+int hmm_range_register(struct hmm_range *range,
+		       struct mm_struct *mm,
+		       unsigned long start,
+		       unsigned long end);
+void hmm_range_unregister(struct hmm_range *range);
 long hmm_range_snapshot(struct hmm_range *range);
-bool hmm_vma_range_done(struct hmm_range *range);
-
-
-/*
- * Fault memory on behalf of device driver. Unlike handle_mm_fault(), this will
- * not migrate any device memory back to system memory. The HMM pfn array will
- * be updated with the fault result and current snapshot of the CPU page table
- * for the range.
- *
- * The mmap_sem must be taken in read mode before entering and it might be
- * dropped by the function if the block argument is false. In that case, the
- * function returns -EAGAIN.
- *
- * Return value does not reflect if the fault was successful for every single
- * address or not. Therefore, the caller must to inspect the HMM pfn array to
- * determine fault status for each address.
- *
- * Trying to fault inside an invalid vma will result in -EINVAL.
- *
- * See the function description in mm/hmm.c for further documentation.
- */
 long hmm_range_fault(struct hmm_range *range, bool block);
 
+/*
+ * HMM_RANGE_DEFAULT_TIMEOUT - default timeout (ms) when waiting for a range
+ *
+ * When waiting for mmu notifiers we need some kind of time out otherwise we
+ * could potentialy wait for ever, 1000ms ie 1s sounds like a long time to
+ * wait already.
+ */
+#define HMM_RANGE_DEFAULT_TIMEOUT 1000
+
 /* This is a temporary helper to avoid merge conflict between trees. */
+static inline bool hmm_vma_range_done(struct hmm_range *range)
+{
+	bool ret = hmm_range_valid(range);
+
+	hmm_range_unregister(range);
+	return ret;
+}
+
 static inline int hmm_vma_fault(struct hmm_range *range, bool block)
 {
-	long ret = hmm_range_fault(range, block);
-	if (ret == -EBUSY)
-		ret = -EAGAIN;
-	else if (ret == -EAGAIN)
-		ret = -EBUSY;
-	return ret < 0 ? ret : 0;
+	long ret;
+
+	ret = hmm_range_register(range, range->vma->vm_mm,
+				 range->start, range->end);
+	if (ret)
+		return (int)ret;
+
+	if (!hmm_range_wait_until_valid(range, HMM_RANGE_DEFAULT_TIMEOUT)) {
+		up_read(&range->vma->vm_mm->mmap_sem);
+		return -EAGAIN;
+	}
+
+	ret = hmm_range_fault(range, block);
+	if (ret <= 0) {
+		if (ret == -EBUSY || !ret) {
+			up_read(&range->vma->vm_mm->mmap_sem);
+			ret = -EBUSY;
+		} else if (ret == -EAGAIN)
+			ret = -EBUSY;
+		hmm_range_unregister(range);
+		return ret;
+	}
+	return 0;
 }
 
 /* Below are for HMM internal use only! Not to be used by device driver! */
