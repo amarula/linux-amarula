@@ -1818,7 +1818,10 @@
 			See Documentation/filesystems/nfs/nfsroot.txt.
 
 	ipcmni_extend	[KNL] Extend the maximum number of unique System V
-			IPC identifiers from 32,768 to 16,777,216.
+			IPC identifiers from 32,768 to 16,777,216. Also do
+			cyclical identifier allocation through the entire
+			24-bit identifier space to reduce the chance of
+			identifier reuse.
 
 	irqaffinity=	[SMP] Set the default irq affinity mask
 			The argument is a cpu list, as described above.

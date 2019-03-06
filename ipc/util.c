@@ -221,7 +221,12 @@ static inline int ipc_idr_alloc(struct ipc_ids *ids, struct kern_ipc_perm *new)
 	 */
 
 	if (next_id < 0) { /* !CHECKPOINT_RESTORE or next_id is unset */
-		idx = idr_alloc(&ids->ipcs_idr, new, 0, 0, GFP_NOWAIT);
+		if (ipc_mni_extended)
+			idx = idr_alloc_cyclic(&ids->ipcs_idr, new, 0, ipc_mni,
+						GFP_NOWAIT);
+		else
+			idx = idr_alloc(&ids->ipcs_idr, new, 0, 0, GFP_NOWAIT);
+
 		if ((idx <= ids->last_idx) && (++ids->seq > IPCID_SEQ_MAX))
 			ids->seq = 0;
 		new->seq = ids->seq;
