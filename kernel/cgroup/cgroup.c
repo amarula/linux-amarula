@@ -3526,7 +3526,7 @@ static __poll_t cgroup_pressure_poll(struct kernfs_open_file *of,
 	__poll_t ret;
 
 	rcu_read_lock();
-	t = rcu_dereference(of->priv);
+	t = rcu_dereference_raw(of->priv);
 	if (t)
 		ret = psi_trigger_poll(t, of->file, pt);
 	else
