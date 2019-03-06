@@ -271,6 +271,17 @@ static bool vring_use_dma_api(struct virtio_device *vdev)
 	return false;
 }
 
+size_t virtio_max_dma_size(struct virtio_device *vdev)
+{
+	size_t max_segment_size = SIZE_MAX;
+
+	if (vring_use_dma_api(vdev))
+		max_segment_size = dma_max_mapping_size(&vdev->dev);
+
+	return max_segment_size;
+}
+EXPORT_SYMBOL_GPL(virtio_max_dma_size);
+
 static void *vring_alloc_queue(struct virtio_device *vdev, size_t size,
 			      dma_addr_t *dma_handle, gfp_t flag)
 {
@@ -681,6 +692,7 @@ static void *virtqueue_get_buf_ctx_split(struct virtqueue *_vq,
 	void *ret;
 	unsigned int i;
 	u16 last_used;
+	bool nomore;
 
 	START_USE(vq);
 
@@ -689,14 +701,15 @@ static void *virtqueue_get_buf_ctx_split(struct virtqueue *_vq,
 		return NULL;
 	}
 
-	if (!more_used_split(vq)) {
+	nomore = !more_used_split(vq);
+	if (nomore) {
 		pr_debug("No more buffers in queue\n");
 		END_USE(vq);
 		return NULL;
 	}
 
 	/* Only get used array entries after they have been exposed by host. */
-	virtio_rmb(vq->weak_barriers);
+	vq = dependent_ptr_mb(vq, nomore);
 
 	last_used = (vq->last_used_idx & (vq->split.vring.num - 1));
 	i = virtio32_to_cpu(_vq->vdev,
@@ -1344,7 +1357,9 @@ static void *virtqueue_get_buf_ctx_packed(struct virtqueue *_vq,
 {
 	struct vring_virtqueue *vq = to_vvq(_vq);
 	u16 last_used, id;
+	bool nomore;
 	void *ret;
+
 
 	START_USE(vq);
 
@@ -1353,14 +1368,15 @@ static void *virtqueue_get_buf_ctx_packed(struct virtqueue *_vq,
 		return NULL;
 	}
 
-	if (!more_used_packed(vq)) {
+	nomore = !more_used_packed(vq);
+	if (nomore) {
 		pr_debug("No more buffers in queue\n");
 		END_USE(vq);
 		return NULL;
 	}
 
 	/* Only get used elements after they have been exposed by host. */
-	virtio_rmb(vq->weak_barriers);
+	vq = dependent_ptr_mb(vq, nomore);
 
 	last_used = vq->last_used_idx;
 	id = le16_to_cpu(vq->packed.vring.desc[last_used].id);
