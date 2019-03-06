@@ -2274,7 +2274,7 @@ found:
 }
 
 #define persistent_huge_pages(h) (h->nr_huge_pages - h->surplus_huge_pages)
-static int set_max_huge_pages(struct hstate *h, unsigned long count,
+static int set_max_huge_pages(struct hstate *h, unsigned long count, int nid,
 						nodemask_t *nodes_allowed)
 {
 	unsigned long min_count, ret;
@@ -2289,6 +2289,28 @@ static int set_max_huge_pages(struct hstate *h, unsigned long count,
 		goto decrease_pool;
 	}
 
+	spin_lock(&hugetlb_lock);
+
+	/*
+	 * Check for a node specific request.
+	 * Changing node specific huge page count may require a corresponding
+	 * change to the global count.  In any case, the passed node mask
+	 * (nodes_allowed) will restrict alloc/free to the specified node.
+	 */
+	if (nid != NUMA_NO_NODE) {
+		unsigned long old_count = count;
+
+		count += h->nr_huge_pages - h->nr_huge_pages_node[nid];
+		/*
+		 * User may have specified a large count value which caused the
+		 * above calculation to overflow.  In this case, they wanted
+		 * to allocate as many huge pages as possible.  Set count to
+		 * largest possible value to align with their intention.
+		 */
+		if (count < old_count)
+			count = ULONG_MAX;
+	}
+
 	/*
 	 * Increase the pool size
 	 * First take pages out of surplus state.  Then make up the
@@ -2300,7 +2322,6 @@ static int set_max_huge_pages(struct hstate *h, unsigned long count,
 	 * pool might be one hugepage larger than it needs to be, but
 	 * within all the constraints specified by the sysctls.
 	 */
-	spin_lock(&hugetlb_lock);
 	while (h->surplus_huge_pages && count > persistent_huge_pages(h)) {
 		if (!adjust_pool_surplus(h, nodes_allowed, -1))
 			break;
@@ -2421,16 +2442,19 @@ static ssize_t __nr_hugepages_store_common(bool obey_mempolicy,
 			nodes_allowed = &node_states[N_MEMORY];
 		}
 	} else if (nodes_allowed) {
-		/*
-		 * per node hstate attribute: adjust count to global,
-		 * but restrict alloc/free to the specified node.
-		 */
-		count += h->nr_huge_pages - h->nr_huge_pages_node[nid];
+		/* Node specific request */
 		init_nodemask_of_node(nodes_allowed, nid);
-	} else
-		nodes_allowed = &node_states[N_MEMORY];
+	} else {
+		/*
+		 * Node specific request, but we could not allocate the few
+		 * words required for a node mask.  We are unlikely to hit
+		 * this condition.  Since we can not pass down the appropriate
+		 * node mask, just return ENOMEM.
+		 */
+		return -ENOMEM;
+	}
 
-	err = set_max_huge_pages(h, count, nodes_allowed);
+	err = set_max_huge_pages(h, count, nid, nodes_allowed);
 	if (err)
 		goto out;
 
