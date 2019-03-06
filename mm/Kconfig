@@ -695,6 +695,7 @@ config DEV_PAGEMAP_OPS
 config HMM
 	bool
 	select MIGRATE_VMA_HELPER
+	select MMU_NOTIFIER
 
 config HMM_MIRROR
 	bool "HMM mirror CPU page table into a device page table"
