@@ -131,7 +131,7 @@ static inline struct page *get_page_from_free_area(struct free_area *area,
 }
 
 static inline void del_page_from_free_area(struct page *page,
-		struct free_area *area, int migratetype)
+		struct free_area *area)
 {
 	list_del(&page->lru);
 	__ClearPageBuddy(page);
