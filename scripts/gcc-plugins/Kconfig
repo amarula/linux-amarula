@@ -68,10 +68,6 @@ config GCC_PLUGIN_LATENT_ENTROPY
 
 config GCC_PLUGIN_STRUCTLEAK
 	bool "Zero initialize stack variables"
-	# Currently STRUCTLEAK inserts initialization out of live scope of
-	# variables from KASAN point of view. This leads to KASAN false
-	# positive reports. Prohibit this combination for now.
-	depends on !KASAN_EXTRA
 	help
 	  While the kernel is built with warnings enabled for any missed
 	  stack variable initializations, this warning is silenced for

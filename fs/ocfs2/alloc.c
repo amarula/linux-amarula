@@ -6007,6 +6007,7 @@ int __ocfs2_flush_truncate_log(struct ocfs2_super *osb)
 	struct buffer_head *data_alloc_bh = NULL;
 	struct ocfs2_dinode *di;
 	struct ocfs2_truncate_log *tl;
+	struct ocfs2_journal *journal = osb->journal;
 
 	BUG_ON(inode_trylock(tl_inode));
 
@@ -6024,6 +6025,20 @@ int __ocfs2_flush_truncate_log(struct ocfs2_super *osb)
 		num_to_flush);
 	if (!num_to_flush) {
 		status = 0;
+		goto out;
+	}
+
+	/* Appending truncate log(TA) and and flushing truncate log(TF) are
+	 * two separated transactions. They can be both committed but not
+	 * checkpointed. If crash occurs then, both two transaction will be
+	 * replayed with several already released to global bitmap clusters.
+	 * Then truncate log will be replayed resulting in cluster double free.
+	 */
+	jbd2_journal_lock_updates(journal->j_journal);
+	status = jbd2_journal_flush(journal->j_journal);
+	jbd2_journal_unlock_updates(journal->j_journal);
+	if (status < 0) {
+		mlog_errno(status);
 		goto out;
 	}
 
@@ -7532,10 +7547,11 @@ static int ocfs2_trim_group(struct super_block *sb,
 	return count;
 }
 
-int ocfs2_trim_fs(struct super_block *sb, struct fstrim_range *range)
+static
+int ocfs2_trim_mainbm(struct super_block *sb, struct fstrim_range *range)
 {
 	struct ocfs2_super *osb = OCFS2_SB(sb);
-	u64 start, len, trimmed, first_group, last_group, group;
+	u64 start, len, trimmed = 0, first_group, last_group = 0, group = 0;
 	int ret, cnt;
 	u32 first_bit, last_bit, minlen;
 	struct buffer_head *main_bm_bh = NULL;
@@ -7543,7 +7559,6 @@ int ocfs2_trim_fs(struct super_block *sb, struct fstrim_range *range)
 	struct buffer_head *gd_bh = NULL;
 	struct ocfs2_dinode *main_bm;
 	struct ocfs2_group_desc *gd = NULL;
-	struct ocfs2_trim_fs_info info, *pinfo = NULL;
 
 	start = range->start >> osb->s_clustersize_bits;
 	len = range->len >> osb->s_clustersize_bits;
@@ -7552,6 +7567,9 @@ int ocfs2_trim_fs(struct super_block *sb, struct fstrim_range *range)
 	if (minlen >= osb->bitmap_cpg || range->len < sb->s_blocksize)
 		return -EINVAL;
 
+	trace_ocfs2_trim_mainbm(start, len, minlen);
+
+next_group:
 	main_bm_inode = ocfs2_get_system_file_inode(osb,
 						    GLOBAL_BITMAP_SYSTEM_INODE,
 						    OCFS2_INVALID_SLOT);
@@ -7570,64 +7588,34 @@ int ocfs2_trim_fs(struct super_block *sb, struct fstrim_range *range)
 	}
 	main_bm = (struct ocfs2_dinode *)main_bm_bh->b_data;
 
-	if (start >= le32_to_cpu(main_bm->i_clusters)) {
-		ret = -EINVAL;
-		goto out_unlock;
-	}
-
-	len = range->len >> osb->s_clustersize_bits;
-	if (start + len > le32_to_cpu(main_bm->i_clusters))
-		len = le32_to_cpu(main_bm->i_clusters) - start;
-
-	trace_ocfs2_trim_fs(start, len, minlen);
-
-	ocfs2_trim_fs_lock_res_init(osb);
-	ret = ocfs2_trim_fs_lock(osb, NULL, 1);
-	if (ret < 0) {
-		if (ret != -EAGAIN) {
-			mlog_errno(ret);
-			ocfs2_trim_fs_lock_res_uninit(osb);
+	/*
+	 * Do some check before trim the first group.
+	 */
+	if (!group) {
+		if (start >= le32_to_cpu(main_bm->i_clusters)) {
+			ret = -EINVAL;
 			goto out_unlock;
 		}
 
-		mlog(ML_NOTICE, "Wait for trim on device (%s) to "
-		     "finish, which is running from another node.\n",
-		     osb->dev_str);
-		ret = ocfs2_trim_fs_lock(osb, &info, 0);
-		if (ret < 0) {
-			mlog_errno(ret);
-			ocfs2_trim_fs_lock_res_uninit(osb);
-			goto out_unlock;
-		}
+		if (start + len > le32_to_cpu(main_bm->i_clusters))
+			len = le32_to_cpu(main_bm->i_clusters) - start;
 
-		if (info.tf_valid && info.tf_success &&
-		    info.tf_start == start && info.tf_len == len &&
-		    info.tf_minlen == minlen) {
-			/* Avoid sending duplicated trim to a shared device */
-			mlog(ML_NOTICE, "The same trim on device (%s) was "
-			     "just done from node (%u), return.\n",
-			     osb->dev_str, info.tf_nodenum);
-			range->len = info.tf_trimlen;
-			goto out_trimunlock;
-		}
+		/*
+		 * Determine first and last group to examine based on
+		 * start and len
+		 */
+		first_group = ocfs2_which_cluster_group(main_bm_inode, start);
+		if (first_group == osb->first_cluster_group_blkno)
+			first_bit = start;
+		else
+			first_bit = start - ocfs2_blocks_to_clusters(sb,
+								first_group);
+		last_group = ocfs2_which_cluster_group(main_bm_inode,
+						       start + len - 1);
+		group = first_group;
 	}
 
-	info.tf_nodenum = osb->node_num;
-	info.tf_start = start;
-	info.tf_len = len;
-	info.tf_minlen = minlen;
-
-	/* Determine first and last group to examine based on start and len */
-	first_group = ocfs2_which_cluster_group(main_bm_inode, start);
-	if (first_group == osb->first_cluster_group_blkno)
-		first_bit = start;
-	else
-		first_bit = start - ocfs2_blocks_to_clusters(sb, first_group);
-	last_group = ocfs2_which_cluster_group(main_bm_inode, start + len - 1);
-	last_bit = osb->bitmap_cpg;
-
-	trimmed = 0;
-	for (group = first_group; group <= last_group;) {
+	do {
 		if (first_bit + len >= osb->bitmap_cpg)
 			last_bit = osb->bitmap_cpg;
 		else
@@ -7659,21 +7647,81 @@ int ocfs2_trim_fs(struct super_block *sb, struct fstrim_range *range)
 			group = ocfs2_clusters_to_blocks(sb, osb->bitmap_cpg);
 		else
 			group += ocfs2_clusters_to_blocks(sb, osb->bitmap_cpg);
-	}
-	range->len = trimmed * sb->s_blocksize;
+	} while (0);
 
-	info.tf_trimlen = range->len;
-	info.tf_success = (ret ? 0 : 1);
-	pinfo = &info;
-out_trimunlock:
-	ocfs2_trim_fs_unlock(osb, pinfo);
-	ocfs2_trim_fs_lock_res_uninit(osb);
 out_unlock:
 	ocfs2_inode_unlock(main_bm_inode, 0);
 	brelse(main_bm_bh);
+	main_bm_bh = NULL;
 out_mutex:
 	inode_unlock(main_bm_inode);
 	iput(main_bm_inode);
+
+	/*
+	 * If all the groups trim are not done or failed, but we should release
+	 * main_bm related locks for avoiding the current IO starve, then go to
+	 * trim the next group
+	 */
+	if (ret >= 0 && group <= last_group)
+		goto next_group;
 out:
+	range->len = trimmed * sb->s_blocksize;
+	return ret;
+}
+
+int ocfs2_trim_fs(struct super_block *sb, struct fstrim_range *range)
+{
+	int ret;
+	struct ocfs2_super *osb = OCFS2_SB(sb);
+	struct ocfs2_trim_fs_info info, *pinfo = NULL;
+
+	ocfs2_trim_fs_lock_res_init(osb);
+
+	trace_ocfs2_trim_fs(range->start, range->len, range->minlen);
+
+	ret = ocfs2_trim_fs_lock(osb, NULL, 1);
+	if (ret < 0) {
+		if (ret != -EAGAIN) {
+			mlog_errno(ret);
+			ocfs2_trim_fs_lock_res_uninit(osb);
+			return ret;
+		}
+
+		mlog(ML_NOTICE, "Wait for trim on device (%s) to "
+		     "finish, which is running from another node.\n",
+		     osb->dev_str);
+		ret = ocfs2_trim_fs_lock(osb, &info, 0);
+		if (ret < 0) {
+			mlog_errno(ret);
+			ocfs2_trim_fs_lock_res_uninit(osb);
+			return ret;
+		}
+
+		if (info.tf_valid && info.tf_success &&
+		    info.tf_start == range->start &&
+		    info.tf_len == range->len &&
+		    info.tf_minlen == range->minlen) {
+			/* Avoid sending duplicated trim to a shared device */
+			mlog(ML_NOTICE, "The same trim on device (%s) was "
+			     "just done from node (%u), return.\n",
+			     osb->dev_str, info.tf_nodenum);
+			range->len = info.tf_trimlen;
+			goto out;
+		}
+	}
+
+	info.tf_nodenum = osb->node_num;
+	info.tf_start = range->start;
+	info.tf_len = range->len;
+	info.tf_minlen = range->minlen;
+
+	ret = ocfs2_trim_mainbm(sb, range);
+
+	info.tf_trimlen = range->len;
+	info.tf_success = (ret < 0 ? 0 : 1);
+	pinfo = &info;
+out:
+	ocfs2_trim_fs_unlock(osb, pinfo);
+	ocfs2_trim_fs_lock_res_uninit(osb);
 	return ret;
 }
