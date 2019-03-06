@@ -251,8 +251,11 @@ static void allocate_dart(void)
 	 * 16MB (1 << 24) alignment. We allocate a full 16Mb chuck since we
 	 * will blow up an entire large page anyway in the kernel mapping.
 	 */
-	dart_tablebase = __va(memblock_alloc_base(1UL<<24,
-						  1UL<<24, 0x80000000L));
+	dart_tablebase = memblock_alloc_try_nid_raw(SZ_16M, SZ_16M,
+					MEMBLOCK_LOW_LIMIT, SZ_2G,
+					NUMA_NO_NODE);
+	if (!dart_tablebase)
+		panic("Failed to allocate 16MB below 2GB for DART table\n");
 
 	/* There is no point scanning the DART space for leaks*/
 	kmemleak_no_scan((void *)dart_tablebase);
@@ -262,6 +265,9 @@ static void allocate_dart(void)
 	 * prefetching into invalid pages and corrupting data
 	 */
 	tmp = memblock_phys_alloc(DART_PAGE_SIZE, DART_PAGE_SIZE);
+	if (!tmp)
+		panic("DART: table allocation failed\n");
+
 	dart_emptyval = DARTMAP_VALID | ((tmp >> DART_PAGE_SHIFT) &
 					 DARTMAP_RPNMASK);
 

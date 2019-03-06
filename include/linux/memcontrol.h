@@ -94,8 +94,8 @@ enum mem_cgroup_events_target {
 	MEM_CGROUP_NTARGETS,
 };
 
-struct mem_cgroup_stat_cpu {
-	long count[MEMCG_NR_STAT];
+struct memcg_vmstats_percpu {
+	long stat[MEMCG_NR_STAT];
 	unsigned long events[NR_VM_EVENT_ITEMS];
 	unsigned long nr_page_events;
 	unsigned long targets[MEM_CGROUP_NTARGETS];
@@ -274,12 +274,12 @@ struct mem_cgroup {
 	struct task_struct	*move_lock_task;
 
 	/* memory.stat */
-	struct mem_cgroup_stat_cpu __percpu *stat_cpu;
+	struct memcg_vmstats_percpu __percpu *vmstats_percpu;
 
 	MEMCG_PADDING(_pad2_);
 
-	atomic_long_t		stat[MEMCG_NR_STAT];
-	atomic_long_t		events[NR_VM_EVENT_ITEMS];
+	atomic_long_t		vmstats[MEMCG_NR_STAT];
+	atomic_long_t		vmevents[NR_VM_EVENT_ITEMS];
 	atomic_long_t memory_events[MEMCG_NR_MEMORY_EVENTS];
 
 	unsigned long		socket_pressure;
@@ -585,7 +585,7 @@ void unlock_page_memcg(struct page *page);
 static inline unsigned long memcg_page_state(struct mem_cgroup *memcg,
 					     int idx)
 {
-	long x = atomic_long_read(&memcg->stat[idx]);
+	long x = atomic_long_read(&memcg->vmstats[idx]);
 #ifdef CONFIG_SMP
 	if (x < 0)
 		x = 0;
@@ -602,12 +602,12 @@ static inline void __mod_memcg_state(struct mem_cgroup *memcg,
 	if (mem_cgroup_disabled())
 		return;
 
-	x = val + __this_cpu_read(memcg->stat_cpu->count[idx]);
+	x = val + __this_cpu_read(memcg->vmstats_percpu->stat[idx]);
 	if (unlikely(abs(x) > MEMCG_CHARGE_BATCH)) {
-		atomic_long_add(x, &memcg->stat[idx]);
+		atomic_long_add(x, &memcg->vmstats[idx]);
 		x = 0;
 	}
-	__this_cpu_write(memcg->stat_cpu->count[idx], x);
+	__this_cpu_write(memcg->vmstats_percpu->stat[idx], x);
 }
 
 /* idx can be of type enum memcg_stat_item or node_stat_item */
@@ -745,12 +745,12 @@ static inline void __count_memcg_events(struct mem_cgroup *memcg,
 	if (mem_cgroup_disabled())
 		return;
 
-	x = count + __this_cpu_read(memcg->stat_cpu->events[idx]);
+	x = count + __this_cpu_read(memcg->vmstats_percpu->events[idx]);
 	if (unlikely(x > MEMCG_CHARGE_BATCH)) {
-		atomic_long_add(x, &memcg->events[idx]);
+		atomic_long_add(x, &memcg->vmevents[idx]);
 		x = 0;
 	}
-	__this_cpu_write(memcg->stat_cpu->events[idx], x);
+	__this_cpu_write(memcg->vmstats_percpu->events[idx], x);
 }
 
 static inline void count_memcg_events(struct mem_cgroup *memcg,
@@ -789,8 +789,14 @@ static inline void count_memcg_event_mm(struct mm_struct *mm,
 static inline void memcg_memory_event(struct mem_cgroup *memcg,
 				      enum memcg_memory_event event)
 {
-	atomic_long_inc(&memcg->memory_events[event]);
-	cgroup_file_notify(&memcg->events_file);
+	do {
+		atomic_long_inc(&memcg->memory_events[event]);
+		cgroup_file_notify(&memcg->events_file);
+
+		if (cgrp_dfl_root.flags & CGRP_ROOT_MEMORY_LOCAL_EVENTS)
+			break;
+	} while ((memcg = parent_mem_cgroup(memcg)) &&
+		 !mem_cgroup_is_root(memcg));
 }
 
 static inline void memcg_memory_event_mm(struct mm_struct *mm,
