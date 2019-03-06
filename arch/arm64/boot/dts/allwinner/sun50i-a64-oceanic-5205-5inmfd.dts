@@ -21,6 +21,23 @@
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
+
+	can_osc: can-osc {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <8000000>;
+	};
+
+	reg_can_v5v: reg-can-v5v {
+		compatible = "regulator-fixed";
+		regulator-name = "reg-can-v5v";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-boot-on;
+		enable-active-high;
+		gpio = <&r_pio 0 2 GPIO_ACTIVE_HIGH>; /* CAN_3V3_EN: PL2 */
+		status = "okay";
+	};
 };
 
 &ehci0 {
@@ -50,6 +67,31 @@
 
 &reg_dc1sw {
 	regulator-name = "vcc-phy";
+};
+
+&pio {
+	can_pins: can-pins {
+		pins = "PD6",			/* RX_BUF1_CAN0 */
+		       "PD7";			/* RX_BUF0_CAN0 */
+		function = "gpio_out";
+	};
+};
+
+&spi1 {
+	status = "okay";
+
+	can@0 {
+		compatible = "microchip,mcp2515";
+		reg = <0>;
+		spi-max-frequency = <10000000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&can_pins>;
+		interrupt-parent = <&pio>;
+		interrupts = <1 2 IRQ_TYPE_EDGE_FALLING>;	/* INT_CAN0: PB2 */
+		clocks = <&can_osc>;
+		vdd-supply = <&reg_can_v5v>;
+		xceiver-supply = <&reg_can_v5v>;
+	};
 };
 
 &uart0 {
