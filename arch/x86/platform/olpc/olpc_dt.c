@@ -142,7 +142,7 @@ void * __init prom_early_alloc(unsigned long size)
 		 */
 		res = memblock_alloc(chunk_size, SMP_CACHE_BYTES);
 		if (!res)
-			panic("%s: Failed to allocate %lu bytes\n", __func__,
+			panic("%s: Failed to allocate %zu bytes\n", __func__,
 			      chunk_size);
 		BUG_ON(!res);
 		prom_early_allocated += chunk_size;
