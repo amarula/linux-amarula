@@ -1012,9 +1012,8 @@ long hmm_range_snapshot(struct hmm_range *range)
 			return -EFAULT;
 
 		if (is_vm_hugetlb_page(vma)) {
-			struct hstate *h = hstate_vma(vma);
-
-			if (huge_page_shift(h) != range->page_shift &&
+			if (range->page_shift !=
+				huge_page_shift(hstate_vma(vma)) &&
 			    range->page_shift != PAGE_SHIFT)
 				return -EINVAL;
 		} else {
@@ -1115,9 +1114,8 @@ long hmm_range_fault(struct hmm_range *range, bool block)
 			return -EFAULT;
 
 		if (is_vm_hugetlb_page(vma)) {
-			struct hstate *h = hstate_vma(vma);
-
-			if (huge_page_shift(h) != range->page_shift &&
+			if (range->page_shift !=
+				huge_page_shift(hstate_vma(vma)) &&
 			    range->page_shift != PAGE_SHIFT)
 				return -EINVAL;
 		} else {
