@@ -1901,7 +1901,6 @@ static inline void expand(struct zone *zone, struct page *page,
 			continue;
 
 		add_to_free_area(&page[size], area, migratetype);
-		area->nr_free++;
 		set_page_order(&page[size], high);
 	}
 }
