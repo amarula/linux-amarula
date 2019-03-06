@@ -1682,6 +1682,7 @@ long ksys_semctl(int semid, int semnum, int cmd, unsigned long arg)
 	case IPC_SET:
 		if (copy_semid_from_user(&semid64, p, version))
 			return -EFAULT;
+		/* fall through */
 	case IPC_RMID:
 		return semctl_down(ns, semid, cmd, &semid64);
 	default:
