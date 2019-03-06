@@ -2121,8 +2121,8 @@ static int write_note_info(struct elf_note_info *info,
 
 	/* write out the thread status notes section */
 	list_for_each_entry(ets, &info->thread_list, list) {
-		for (i = 0; i < tmp->num_notes; i++)
-			if (!writenote(&tmp->notes[i], cprm))
+		for (i = 0; i < ets->num_notes; i++)
+			if (!writenote(&ets->notes[i], cprm))
 				return 0;
 	}
 
