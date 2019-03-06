@@ -2608,7 +2608,7 @@ static struct dentry *proc_##LSM##_attr_dir_lookup(struct inode *dir, \
 { \
 	return proc_pident_lookup(dir, dentry, \
 				  LSM##_attr_dir_stuff, \
-				  ARRAY_SIZE(LSM##_attr_dir_stuff)); \
+				  LSM##_attr_dir_stuff + ARRAY_SIZE(LSM##_attr_dir_stuff)); \
 } \
 \
 static const struct inode_operations proc_##LSM##_attr_dir_inode_ops = { \
