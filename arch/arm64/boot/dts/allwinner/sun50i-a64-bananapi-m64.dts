@@ -48,7 +48,7 @@
 #include <dt-bindings/pwm/pwm.h>
 
 / {
-	model = "BananaPi-M64";
+	model = "BananaPi-M64 DSI";
 	compatible = "sinovoip,bananapi-m64", "allwinner,sun50i-a64";
 
 	aliases {
@@ -140,7 +140,7 @@
 };
 
 &dsi {
-	vcc-dsi-supply = <&reg_dldo1>;		/* VCC3V3-DSI */
+//	vcc-dsi-supply = <&reg_dldo1>;		/* VCC3V3-DSI */
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
