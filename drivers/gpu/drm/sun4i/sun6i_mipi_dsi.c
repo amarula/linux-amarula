@@ -979,11 +979,30 @@ static int sun6i_dsi_attach(struct mipi_dsi_host *host,
 			    struct mipi_dsi_device *device)
 {
 	struct sun6i_dsi *dsi = host_to_sun6i_dsi(host);
+	struct drm_bridge *bridge;
+	struct drm_encoder *encoder = &dsi->encoder;
+	struct drm_device *drm = encoder->dev;
+	int ret;
 
 	dsi->device = device;
-	dsi->panel = of_drm_find_panel(device->dev.of_node);
-	if (IS_ERR(dsi->panel))
-		return PTR_ERR(dsi->panel);
+	bridge = of_drm_find_bridge(device->dev.of_node);
+	printk("sun6i_dsi_attach: bridge = 0x%x\n", bridge);
+	if (bridge) {
+		printk("sun6i_dsi_attach: attaching bridge...\n");
+		ret = drm_bridge_attach(&dsi->encoder, bridge, NULL);
+		if (ret) {
+			printk("Sorry Jagan. cannot attach bridge\n");
+			return ret;
+		}
+	} else {
+		printk("sun6i_dsi_attach: attaching panel...\n");
+
+		dsi->panel = of_drm_find_panel(device->dev.of_node);
+		if (IS_ERR(dsi->panel)) {
+			printk("Sorry Jagan. I'm not panel\n");
+			return PTR_ERR(dsi->panel);
+		}
+	}
 
 	dev_info(host->dev, "Attached device %s\n", device->name);
 
@@ -1086,25 +1105,26 @@ static int sun6i_dsi_bind(struct device *dev, struct device *master,
 	}
 	dsi->encoder.possible_crtcs = BIT(0);
 
-	drm_connector_helper_add(&dsi->connector,
-				 &sun6i_dsi_connector_helper_funcs);
-	ret = drm_connector_init(drm, &dsi->connector,
-				 &sun6i_dsi_connector_funcs,
-				 DRM_MODE_CONNECTOR_DSI);
-	if (ret) {
-		dev_err(dsi->dev,
-			"Couldn't initialise the DSI connector\n");
-		goto err_cleanup_connector;
+	printk("sun6i_dsi_bind: bridge = 0x%x\n",
+		of_drm_find_bridge(dev->of_node));
+	if (!of_drm_find_bridge(dev->of_node)) {
+		drm_connector_helper_add(&dsi->connector,
+					 &sun6i_dsi_connector_helper_funcs);
+		ret = drm_connector_init(drm, &dsi->connector,
+					 &sun6i_dsi_connector_funcs,
+					 DRM_MODE_CONNECTOR_DSI);
+		if (ret) {
+			dev_err(dsi->dev,
+				"Couldn't initialise the DSI connector\n");
+			drm_encoder_cleanup(&dsi->encoder);
+			return ret;
+		}
+
+		drm_connector_attach_encoder(&dsi->connector, &dsi->encoder);
+		drm_panel_attach(dsi->panel, &dsi->connector);
 	}
 
-	drm_connector_attach_encoder(&dsi->connector, &dsi->encoder);
-	drm_panel_attach(dsi->panel, &dsi->connector);
-
 	return 0;
-
-err_cleanup_connector:
-	drm_encoder_cleanup(&dsi->encoder);
-	return ret;
 }
 
 static void sun6i_dsi_unbind(struct device *dev, struct device *master,

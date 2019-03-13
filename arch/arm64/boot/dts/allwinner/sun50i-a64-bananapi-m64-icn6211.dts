@@ -101,6 +101,18 @@
 		};
 	};
 
+	panel-connector {
+		compatible = "bananapi,s070wv20-ct16", "simple-panel";
+
+		port {
+			backlight = <&backlight>;
+
+			panel_ep: endpoint {
+				remote-endpoint = <&bridge_out_ep>;
+			};
+		};
+	};
+
 	reg_vdd_backlight: vdd-backlight {
 		compatible = "regulator-fixed";
 		regulator-name = "vdd-backlight";
@@ -129,6 +141,38 @@
 
 &dai {
 	status = "okay";
+};
+
+&de {
+	status = "okay";
+};
+
+&dphy {
+	status = "okay";
+};
+
+&dsi {
+	vcc-dsi-supply = <&reg_dldo1>;		/* VCC3V3-DSI */
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	bridge@0 {
+		compatible = "bananapi,icn6211";
+		reg = <0>;
+		reset-gpios = <&pio 3 6 GPIO_ACTIVE_HIGH>; /* LCD-RST: PD6 */
+		vdd-supply = <&reg_dldo1>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+
+			bridge_out_ep: endpoint {
+				remote-endpoint = <&panel_ep>;
+			};
+		};
+	};
 };
 
 &ehci0 {

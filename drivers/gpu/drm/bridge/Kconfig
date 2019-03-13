@@ -25,6 +25,14 @@ config DRM_ANALOGIX_ANX78XX
 	  the HDMI output of an application processor to MyDP
 	  or DisplayPort.
 
+config DRM_BANANAPI_ICN6211
+	tristate "Bananapi ICN6211 MIPI-DSI/RGB bridge"
+	depends on DRM && DRM_PANEL
+	depends on OF
+	select DRM_MIPI_DSI
+	help
+	  Bananapi ICN6211 MIPI-DSI/RGB bridge driver.
+
 config DRM_CDNS_DSI
 	tristate "Cadence DPI/DSI bridge"
 	select DRM_KMS_HELPER
