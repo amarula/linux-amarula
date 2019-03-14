@@ -413,7 +413,9 @@ bool drm_crtc_helper_set_mode(struct drm_crtc *crtc,
 		if (!encoder_funcs)
 			continue;
 
+		printk("%s: call drm_bridge_pre_enable\n", __func__);
 		drm_bridge_pre_enable(encoder->bridge);
+		printk("%s: call drm_bridge_pre_enable ends\n", __func__);
 
 		if (encoder_funcs->commit)
 			encoder_funcs->commit(encoder);
