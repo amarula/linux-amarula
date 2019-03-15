@@ -1583,8 +1583,7 @@ static int exynos_dsi_host_detach(struct mipi_dsi_host *host,
 		dsi->connector.status = connector_status_disconnected;
 		mutex_unlock(&drm->mode_config.mutex);
 	} else {
-		if (dsi->out_bridge->funcs->detach)
-			dsi->out_bridge->funcs->detach(dsi->out_bridge);
+		drm_bridge_detach(dsi->out_bridge);
 		dsi->out_bridge = NULL;
 	}
 
