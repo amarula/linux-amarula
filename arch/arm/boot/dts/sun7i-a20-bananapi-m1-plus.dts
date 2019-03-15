@@ -47,9 +47,10 @@
 #include "sunxi-common-regulators.dtsi"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/pwm/pwm.h>
 
 / {
-	model = "Banana Pi BPI-M1-Plus";
+	model = "Banana Pi BPI-M1-Plus RGB";
 	compatible = "sinovoip,bpi-m1-plus", "allwinner,sun7i-a20";
 
 	aliases {
@@ -67,6 +68,33 @@
 		port {
 			hdmi_con_in: endpoint {
 				remote-endpoint = <&hdmi_out_con>;
+			};
+		};
+	};
+
+	lcd_backlight: lcd-backlight {
+		compatible = "pwm-backlight";
+		pwms = <&pwm 0 20000 PWM_POLARITY_INVERTED>; /* 50 kHz */
+		enable-gpios = <&pio 7 9 GPIO_ACTIVE_HIGH>; /* PH9 */
+		brightness-levels = <0 10 20 30 40 50 60 70 80 90 100>;
+		default-brightness-level = <8>;
+	};
+
+	lcd_panel: lcd-panel {
+		compatible = "bananapi,s070wv20-ct16", "simple-panel";
+		power-supply = <&reg_vcc5v0>; /* Actually driven from IPSOUT */
+		/* This doesn't do anything for this particular connector */
+		enable-gpios = <&pio 7 12 GPIO_ACTIVE_HIGH>; /* PH12 */
+		backlight = <&lcd_backlight>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			lcd_panel_input: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&tcon0_out_lcd>;
 			};
 		};
 	};
@@ -174,7 +202,7 @@
 &mmc0 {
 	vmmc-supply = <&reg_vcc3v3>;
 	bus-width = <4>;
-	cd-gpios = <&pio 7 10 GPIO_ACTIVE_LOW>; /* PH10 */
+	cd-gpios = <&pio 7 1 GPIO_ACTIVE_LOW>; /* PH10 */
 	status = "okay";
 };
 
@@ -209,6 +237,12 @@
 	status = "okay";
 };
 
+&pwm {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pwm0_pin>;
+	status = "okay";
+};
+
 &reg_dcdc2 {
 	regulator-always-on;
 	regulator-min-microvolt = <1000000>;
@@ -236,6 +270,18 @@
 
 &reg_usb0_vbus {
 	status = "okay";
+};
+
+&tcon0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&lcd0_rgb888_pins>;
+};
+
+&tcon0_out {
+	tcon0_out_lcd: endpoint@0 {
+		reg = <0>;
+		remote-endpoint = <&lcd_panel_input>;
+	};
 };
 
 &uart0 {

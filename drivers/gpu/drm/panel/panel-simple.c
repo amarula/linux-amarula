@@ -167,6 +167,7 @@ static int panel_simple_disable(struct drm_panel *panel)
 {
 	struct panel_simple *p = to_panel_simple(panel);
 
+	printk("%s start..\n", __func__);
 	if (!p->enabled)
 		return 0;
 
@@ -181,6 +182,7 @@ static int panel_simple_disable(struct drm_panel *panel)
 
 	p->enabled = false;
 
+	printk("%s end!\n", __func__);
 	return 0;
 }
 
@@ -188,6 +190,7 @@ static int panel_simple_unprepare(struct drm_panel *panel)
 {
 	struct panel_simple *p = to_panel_simple(panel);
 
+	printk("%s start..\n", __func__);
 	if (!p->prepared)
 		return 0;
 
@@ -200,6 +203,7 @@ static int panel_simple_unprepare(struct drm_panel *panel)
 
 	p->prepared = false;
 
+	printk("%s end!\n", __func__);
 	return 0;
 }
 
@@ -209,6 +213,7 @@ static int panel_simple_prepare(struct drm_panel *panel)
 	unsigned int delay;
 	int err;
 
+	printk("%s start..\n", __func__);
 	if (p->prepared)
 		return 0;
 
@@ -228,6 +233,7 @@ static int panel_simple_prepare(struct drm_panel *panel)
 
 	p->prepared = true;
 
+	printk("%s end!\n", __func__);
 	return 0;
 }
 
@@ -235,6 +241,7 @@ static int panel_simple_enable(struct drm_panel *panel)
 {
 	struct panel_simple *p = to_panel_simple(panel);
 
+	printk("%s start..\n", __func__);
 	if (p->enabled)
 		return 0;
 
@@ -249,6 +256,7 @@ static int panel_simple_enable(struct drm_panel *panel)
 
 	p->enabled = true;
 
+	printk("%s end!\n", __func__);
 	return 0;
 }
 
@@ -257,6 +265,7 @@ static int panel_simple_get_modes(struct drm_panel *panel)
 	struct panel_simple *p = to_panel_simple(panel);
 	int num = 0;
 
+	printk("%s start..\n", __func__);
 	/* probe EDID if a DDC bus is available */
 	if (p->ddc) {
 		struct edid *edid = drm_get_edid(panel->connector, p->ddc);
@@ -270,6 +279,7 @@ static int panel_simple_get_modes(struct drm_panel *panel)
 	/* add hard-coded panel modes */
 	num += panel_simple_get_fixed_modes(p);
 
+	printk("%s end!\n", __func__);
 	return num;
 }
 
@@ -280,6 +290,7 @@ static int panel_simple_get_timings(struct drm_panel *panel,
 	struct panel_simple *p = to_panel_simple(panel);
 	unsigned int i;
 
+	printk("%s start..\n", __func__);
 	if (p->desc->num_timings < num_timings)
 		num_timings = p->desc->num_timings;
 
@@ -287,6 +298,7 @@ static int panel_simple_get_timings(struct drm_panel *panel,
 		for (i = 0; i < num_timings; i++)
 			timings[i] = p->desc->timings[i];
 
+	printk("%s end!\n", __func__);
 	return p->desc->num_timings;
 }
 

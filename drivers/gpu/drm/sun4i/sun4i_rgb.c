@@ -248,14 +248,20 @@ int sun4i_rgb_init(struct drm_device *drm, struct sun4i_tcon *tcon)
 		drm_connector_attach_encoder(&rgb->connector,
 						  &rgb->encoder);
 
+		dev_info(drm->dev, "Attaching panel\n");
+
 		ret = drm_panel_attach(rgb->panel, &rgb->connector);
 		if (ret) {
 			dev_err(drm->dev, "Couldn't attach our panel\n");
 			goto err_cleanup_connector;
 		}
+	
+		dev_info(drm->dev, "Attached panel\n");
 	}
 
 	if (rgb->bridge) {
+		dev_info(drm->dev, "Attaching bridge\n");
+
 		ret = drm_bridge_attach(encoder, rgb->bridge, NULL);
 		if (ret) {
 			dev_err(drm->dev, "Couldn't attach our bridge\n");

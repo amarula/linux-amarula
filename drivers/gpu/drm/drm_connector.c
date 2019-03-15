@@ -200,23 +200,31 @@ int drm_connector_init(struct drm_device *dev,
 	struct ida *connector_ida =
 		&drm_connector_enum_list[connector_type].ida;
 
+	printk("0.0 %s\n", __func__);
+	printk("0. %d-%d-%d %s\n", __func__, drm_drv_uses_atomic_modeset(dev), !funcs->atomic_destroy_state, !funcs->atomic_duplicate_state);
 	WARN_ON(drm_drv_uses_atomic_modeset(dev) &&
 		(!funcs->atomic_destroy_state ||
 		 !funcs->atomic_duplicate_state));
 
+	printk("0.1 %s\n", __func__);
 	ret = __drm_mode_object_add(dev, &connector->base,
 				    DRM_MODE_OBJECT_CONNECTOR,
 				    false, drm_connector_free);
-	if (ret)
+	if (ret) {
+		printk("__drm_mode_object_add failed\n");
 		return ret;
+	}
 
+	printk("0.2 %s\n", __func__);
 	connector->base.properties = &connector->properties;
 	connector->dev = dev;
 	connector->funcs = funcs;
 
+	printk("1. %s\n", __func__);
 	/* connector index is used with 32bit bitmasks */
 	ret = ida_simple_get(&config->connector_ida, 0, 32, GFP_KERNEL);
 	if (ret < 0) {
+		printk("ida_simple_get failed\n");
 		DRM_DEBUG_KMS("Failed to allocate %s connector index: %d\n",
 			      drm_connector_enum_list[connector_type].name,
 			      ret);
@@ -225,6 +233,7 @@ int drm_connector_init(struct drm_device *dev,
 	connector->index = ret;
 	ret = 0;
 
+	printk("2. %s\n", __func__);
 	connector->connector_type = connector_type;
 	connector->connector_type_id =
 		ida_simple_get(connector_ida, 1, 0, GFP_KERNEL);
@@ -241,6 +250,7 @@ int drm_connector_init(struct drm_device *dev,
 		goto out_put_type_id;
 	}
 
+	printk("%s: connector name = %s\n", __func__, connector->name);
 	INIT_LIST_HEAD(&connector->probed_modes);
 	INIT_LIST_HEAD(&connector->modes);
 	mutex_init(&connector->mutex);
