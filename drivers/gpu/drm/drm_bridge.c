@@ -159,6 +159,7 @@ void drm_bridge_detach(struct drm_bridge *bridge)
 
 	bridge->dev = NULL;
 }
+EXPORT_SYMBOL(drm_bridge_detach);
 
 /**
  * DOC: bridge callbacks
