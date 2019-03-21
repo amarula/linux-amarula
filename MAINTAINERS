@@ -5055,6 +5055,12 @@ F:	drivers/gpu/drm/msm/
 F:	include/uapi/drm/msm_drm.h
 F:	Documentation/devicetree/bindings/display/msm/
 
+DRM DRIVER FOR NOVATEK NT35596 MIPI-DSI LCD PANELS
+M:	Jagan Teki <jagan@amarulasolutions.com>
+S:	Maintained
+F:	drivers/gpu/drm/panel/panel-novatek-nt35596.c
+F:	Documentation/devicetree/bindings/display/panel/novatek,nt35596.txt
+
 DRM DRIVER FOR NVIDIA GEFORCE/QUADRO GPUS
 M:	Ben Skeggs <bskeggs@redhat.com>
 L:	dri-devel@lists.freedesktop.org
