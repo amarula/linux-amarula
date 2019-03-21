@@ -1,0 +1,32 @@
+Novatek NT35596 based LCD panels
+
+Novatek NT35596 is a single-chip IC solution for small or medium-sized
+LTPS TFT LCD panels. NT35596 provides  several system interfaces like
+MIPI/SPI/I2C.
+
+Microtech MTF050FHDI-03 is 1080x1920, 4-lane MIPI DSI LCD panel which
+has inbuilt NT35596 IC chip.
+
+Required properties:
+- compatible: must be "novatek,nt35596" and one of
+  * "microtech,mtf050fhdi-03"
+- reset-gpios: a GPIO phandle for the reset pin
+
+Required properties for microtech,mtf050fhdi-03:
+- reg: DSI virtual channel used by that screen
+- dvdd-supply: I/O system regulator
+- avdd-supply: analog regulator for MIPI circuit
+- avee-supply: analog regulator for MIPI circuit
+
+Optional properties:
+- backlight: phandle for the backlight control.
+
+panel@0 {
+	compatible = "microtech,mtf050fhdi-03", "novatek,nt35596";
+	reg = <0>;
+	dvdd-supply = <&reg_dldo2>;	/* VCC-MIPI */
+	avdd-supply = <&reg_dc1sw>;	/* AVDD_5V0 */
+	avee-supply = <&reg_dc1sw>;	/* AVEE_5V */
+	reset-gpios = <&pio 3 24 GPIO_ACTIVE_HIGH>; /* LCD-RST: PD24 */
+	backlight = <&backlight>;
+};
