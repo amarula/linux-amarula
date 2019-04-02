@@ -1394,6 +1394,9 @@ out:
 static int tcp_listen_for_all(void)
 {
 	struct socket *sock = NULL;
+	struct sockaddr_in *sin4;
+	struct sockaddr_in6 *sin6;
+	struct sockaddr_storage sas, laddr;
 	struct connection *con = nodeid2con(0, GFP_NOFS);
 	int result = -EINVAL;
 
@@ -1402,7 +1405,21 @@ static int tcp_listen_for_all(void)
 
 	log_print("Using TCP for communications");
 
-	sock = tcp_create_listen_sock(con, dlm_local_addr[dlm_local_idx]);
+	memcpy(&sas, dlm_local_addr[dlm_local_idx], sizeof(sas));
+	memcpy(&laddr, dlm_local_addr[dlm_local_idx], sizeof(laddr));
+	if (dlm_bind_all()) {
+		if (sas.ss_family == AF_INET) {
+			sin4 = (struct sockaddr_in *) &sas;
+			sin4->sin_addr.s_addr = htonl(INADDR_ANY);
+			memcpy(&laddr, sin4, sizeof(laddr));
+		} else {
+			sin6 = (struct sockaddr_in6 *) &sas;
+			sin6->sin6_addr = in6addr_any;
+			memcpy(&laddr, sin6, sizeof(laddr));
+		}
+	}
+
+	sock = tcp_create_listen_sock(con, &laddr);
 	if (sock) {
 		add_sock(sock, con);
 		result = 0;
