@@ -31,6 +31,7 @@
  * /config/dlm/<cluster>/comms/<comm>/local
  * /config/dlm/<cluster>/comms/<comm>/addr      (write only)
  * /config/dlm/<cluster>/comms/<comm>/addr_list (read only)
+ * /config/dlm/<cluster>/comms/<comm>/error	(write only)
  * The <cluster> level is useless, but I haven't figured out how to avoid it.
  */
 
@@ -198,6 +199,7 @@ enum {
 	COMM_ATTR_LOCAL,
 	COMM_ATTR_ADDR,
 	COMM_ATTR_ADDR_LIST,
+	COMM_ATTR_ERROR,
 };
 
 enum {
@@ -662,16 +664,35 @@ static ssize_t comm_addr_list_show(struct config_item *item, char *buf)
 	return 4096 - allowance;
 }
 
+static ssize_t comm_error_store(struct config_item *item, const char *buf,
+				size_t len)
+{
+	int ret, i;
+
+	ret = kstrtoint(buf, 0, &i);
+	if (ret < 0)
+		return ret;
+
+	if (i == 0)
+		return 0;
+
+	dlm_lowcomms_next_addr();
+
+	return len;
+}
+
 CONFIGFS_ATTR(comm_, nodeid);
 CONFIGFS_ATTR(comm_, local);
 CONFIGFS_ATTR_WO(comm_, addr);
 CONFIGFS_ATTR_RO(comm_, addr_list);
+CONFIGFS_ATTR_WO(comm_, error);
 
 static struct configfs_attribute *comm_attrs[] = {
 	[COMM_ATTR_NODEID] = &comm_attr_nodeid,
 	[COMM_ATTR_LOCAL] = &comm_attr_local,
 	[COMM_ATTR_ADDR] = &comm_attr_addr,
 	[COMM_ATTR_ADDR_LIST] = &comm_attr_addr_list,
+	[COMM_ATTR_ERROR] = &comm_attr_error,
 	NULL,
 };
 
