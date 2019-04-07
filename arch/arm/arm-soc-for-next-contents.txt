@@ -1,0 +1,29 @@
+arm/soc
+
+arm/dt
+
+arm/drivers
+
+arm/defconfig
+
+arm/late
+
+arm/fixes
+	patch
+		dt-bindings: cpu: Fix JSON schema
+	<no branch> (13e8a05b922457761ddef39cfff6231bd4ed9eef)
+		git://git.pengutronix.de/pza/linux tags/reset-fixes-for-v5.1
+	<no branch> (8efd6365417a044db03009724ecc1a9521524913)
+		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/stratix10_fix_for_v5.1
+	<no branch> (1a96665143c355b1019ed13b927266185d2a1e4f)
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v5.1-rockchip-dtfixes-1
+	<no branch> (ba5e60c9b75dec92d4c695b928f69300b17d7686)
+		git://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-5.1-fixes
+	<no branch> (81717283cf2c4c4d9bf8fd618cd6e5bdfe082edd)
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.1/fixes-signed
+	patch
+		Revert "ARM: dts: nomadik: Fix polarity of SPI CS"
+		ARM: orion: don't use using 64-bit DMA masks
+		ARM: iop: don't use using 64-bit DMA masks
+		ARM: milbeaut: fix build with !CONFIG_HOTPLUG_CPU
+
