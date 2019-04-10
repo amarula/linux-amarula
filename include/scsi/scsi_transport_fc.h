@@ -473,6 +473,7 @@ enum fc_host_event_code  {
 	FCH_EVT_PORT_ONLINE		= 0x202,
 	FCH_EVT_PORT_FABRIC		= 0x204,
 	FCH_EVT_LINK_UNKNOWN		= 0x500,
+	FCH_EVT_LINK_FPIN		= 0x501,
 	FCH_EVT_VENDOR_UNIQUE		= 0xffff,
 };
 
@@ -755,7 +756,7 @@ fc_remote_port_chkready(struct fc_rport *rport)
 	return result;
 }
 
-static inline u64 wwn_to_u64(u8 *wwn)
+static inline u64 wwn_to_u64(const u8 *wwn)
 {
 	return get_unaligned_be64(wwn);
 }
@@ -798,11 +799,17 @@ u32 fc_get_event_number(void);
 void fc_host_post_event(struct Scsi_Host *shost, u32 event_number,
 		enum fc_host_event_code event_code, u32 event_data);
 void fc_host_post_vendor_event(struct Scsi_Host *shost, u32 event_number,
-		u32 data_len, char * data_buf, u64 vendor_id);
+		u32 data_len, char *data_buf, u64 vendor_id);
+void fc_host_post_fc_event(struct Scsi_Host *shost, u32 event_number,
+		enum fc_host_event_code event_code,
+		u32 data_len, char *data_buf, u64 vendor_id);
 	/* Note: when specifying vendor_id to fc_host_post_vendor_event()
-	 *   be sure to read the Vendor Type and ID formatting requirements
-	 *   specified in scsi_netlink.h
+	 *   or fc_host_post_fc_event(), be sure to read the Vendor Type
+	 *   and ID formatting requirements specified in scsi_netlink.h
+	 * Note: when calling fc_host_post_fc_event(), vendor_id may be
+	 *   specified as 0.
 	 */
+void fc_host_fpin_rcv(struct Scsi_Host *shost, u32 fpin_len, char *fpin_buf);
 struct fc_vport *fc_vport_create(struct Scsi_Host *shost, int channel,
 		struct fc_vport_identifiers *);
 int fc_vport_terminate(struct fc_vport *vport);
