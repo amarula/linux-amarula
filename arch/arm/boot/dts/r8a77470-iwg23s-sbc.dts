@@ -106,6 +106,10 @@
 	};
 };
 
+&ehci1 {
+	status = "okay";
+};
+
 &extal_clk {
 	clock-frequency = <20000000>;
 };
@@ -117,6 +121,10 @@
 		line-name = "hdmi-hpd-int";
 		input;
 	};
+};
+
+&hsusb0 {
+	status = "okay";
 };
 
 &i2c3 {
@@ -166,6 +174,10 @@
 	};
 };
 
+&ohci1 {
+	status = "okay";
+};
+
 &pfc {
 	avb_pins: avb {
 		groups = "avb_mdio", "avb_gmii_tx_rx";
@@ -213,6 +225,16 @@
 		groups = "sdhi2_data4", "sdhi2_ctrl";
 		function = "sdhi2";
 		power-source = <1800>;
+	};
+
+	usb0_pins: usb0 {
+		groups = "usb0";
+		function = "usb0";
+	};
+
+	usb1_pins: usb1 {
+		groups = "usb1";
+		function = "usb1";
 	};
 };
 
@@ -272,5 +294,27 @@
 	bus-width = <4>;
 	cd-gpios = <&gpio4 20 GPIO_ACTIVE_LOW>;
 	sd-uhs-sdr50;
+	status = "okay";
+};
+
+&usb2_phy0 {
+	status = "okay";
+};
+
+&usb2_phy1 {
+	status = "okay";
+};
+
+&usbphy0 {
+	pinctrl-0 = <&usb0_pins>;
+	pinctrl-names = "default";
+
+	status = "okay";
+};
+
+&usbphy1 {
+	pinctrl-0 = <&usb1_pins>;
+	pinctrl-names = "default";
+
 	status = "okay";
 };
