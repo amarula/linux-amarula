@@ -1482,6 +1482,7 @@ int qla24xx_post_newsess_work(struct scsi_qla_host *vha, port_id_t *id,
     u8 *port_name, u8 *node_name, void *pla, u8 fc4_type)
 {
 	struct qla_work_evt *e;
+
 	e = qla2x00_alloc_work(vha, QLA_EVT_NEW_SESS);
 	if (!e)
 		return QLA_FUNCTION_FAILED;
@@ -1558,6 +1559,7 @@ void qla2x00_fcport_event_handler(scsi_qla_host_t *vha, struct event_arg *ea)
 			return;
 		{
 			unsigned long flags;
+
 			fcport = qla2x00_find_fcport_by_nportid
 				(vha, &ea->id, 1);
 			if (fcport) {
@@ -1620,21 +1622,21 @@ void qla2x00_fcport_event_handler(scsi_qla_host_t *vha, struct event_arg *ea)
  */
 void qla_rscn_replay(fc_port_t *fcport)
 {
-       struct event_arg ea;
+	struct event_arg ea;
 
-       switch (fcport->disc_state) {
-       case DSC_DELETE_PEND:
-               return;
-       default:
-               break;
-       }
+	switch (fcport->disc_state) {
+	case DSC_DELETE_PEND:
+		return;
+	default:
+		break;
+	}
 
-       if (fcport->scan_needed) {
-               memset(&ea, 0, sizeof(ea));
-               ea.event = FCME_RSCN;
-               ea.id = fcport->d_id;
-               ea.id.b.rsvd_1 = RSCN_PORT_ADDR;
-               qla2x00_fcport_event_handler(fcport->vha, &ea);
+	if (fcport->scan_needed) {
+		memset(&ea, 0, sizeof(ea));
+		ea.event = FCME_RSCN;
+		ea.id = fcport->d_id;
+		ea.id.b.rsvd_1 = RSCN_PORT_ADDR;
+		qla2x00_fcport_event_handler(fcport->vha, &ea);
 	}
 }
 
@@ -4709,7 +4711,7 @@ qla2x00_nvram_config(scsi_qla_host_t *vha)
 			ha->zio_mode = icb->add_firmware_options[0] &
 			    (BIT_3 | BIT_2 | BIT_1 | BIT_0);
 			ha->zio_timer = icb->interrupt_delay_timer ?
-			    icb->interrupt_delay_timer: 2;
+			    icb->interrupt_delay_timer : 2;
 		}
 		icb->add_firmware_options[0] &=
 		    ~(BIT_3 | BIT_2 | BIT_1 | BIT_0);
@@ -4742,7 +4744,7 @@ qla2x00_rport_del(void *data)
 	unsigned long flags;
 
 	spin_lock_irqsave(fcport->vha->host->host_lock, flags);
-	rport = fcport->drport ? fcport->drport: fcport->rport;
+	rport = fcport->drport ? fcport->drport : fcport->rport;
 	fcport->drport = NULL;
 	spin_unlock_irqrestore(fcport->vha->host->host_lock, flags);
 	if (rport) {
@@ -4752,6 +4754,23 @@ qla2x00_rport_del(void *data)
 		    rport->roles);
 
 		fc_remote_port_delete(rport);
+	}
+}
+
+void qla2x00_set_fcport_state(fc_port_t *fcport, int state)
+{
+	int old_state;
+
+	old_state = atomic_read(&fcport->state);
+	atomic_set(&fcport->state, state);
+
+	/* Don't print state transitions during initial allocation of fcport */
+	if (old_state && old_state != state) {
+		ql_dbg(ql_dbg_disc, fcport->vha, 0x207d,
+		       "FCPort %8phC state transitioned from %s to %s - portid=%02x%02x%02x.\n",
+		       fcport->port_name, port_state_str[old_state],
+		       port_state_str[state], fcport->d_id.b.domain,
+		       fcport->d_id.b.area, fcport->d_id.b.al_pa);
 	}
 }
 
@@ -4844,6 +4863,7 @@ qla2x00_configure_loop(scsi_qla_host_t *vha)
 	int  rval;
 	unsigned long flags, save_flags;
 	struct qla_hw_data *ha = vha->hw;
+
 	rval = QLA_SUCCESS;
 
 	/* Get Initiator ID */
@@ -5275,16 +5295,23 @@ qla2x00_reg_remote_port(scsi_qla_host_t *vha, fc_port_t *fcport)
 
 	rport->supported_classes = fcport->supported_classes;
 
-	rport_ids.roles = FC_RPORT_ROLE_UNKNOWN;
+	rport_ids.roles = FC_PORT_ROLE_UNKNOWN;
 	if (fcport->port_type == FCT_INITIATOR)
-		rport_ids.roles |= FC_RPORT_ROLE_FCP_INITIATOR;
+		rport_ids.roles |= FC_PORT_ROLE_FCP_INITIATOR;
 	if (fcport->port_type == FCT_TARGET)
-		rport_ids.roles |= FC_RPORT_ROLE_FCP_TARGET;
+		rport_ids.roles |= FC_PORT_ROLE_FCP_TARGET;
+	if (fcport->port_type & FCT_NVME_INITIATOR)
+		rport_ids.roles |= FC_PORT_ROLE_NVME_INITIATOR;
+	if (fcport->port_type & FCT_NVME_TARGET)
+		rport_ids.roles |= FC_PORT_ROLE_NVME_TARGET;
+	if (fcport->port_type & FCT_NVME_DISCOVERY)
+		rport_ids.roles |= FC_PORT_ROLE_NVME_DISCOVERY;
 
 	ql_dbg(ql_dbg_disc, vha, 0x20ee,
 	    "%s %8phN. rport %p is %s mode\n",
 	    __func__, fcport->port_name, rport,
-	    (fcport->port_type == FCT_TARGET) ? "tgt" : "ini");
+	    (fcport->port_type == FCT_TARGET) ? "tgt" :
+	    ((fcport->port_type & FCT_NVME) ? "nvme" :"ini"));
 
 	fc_remote_port_rolechg(rport, rport_ids.roles);
 }
@@ -6399,6 +6426,7 @@ qla83xx_initiating_reset(scsi_qla_host_t *vha)
 		qla83xx_idc_audit(vha, IDC_AUDIT_TIMESTAMP);
 	} else {
 		const char *state = qla83xx_dev_state_to_string(dev_state);
+
 		ql_log(ql_log_info, vha, 0xb057, "HW State: %s.\n", state);
 
 		/* SV: XXX: Is timeout required here? */
@@ -7197,11 +7225,11 @@ qla24xx_nvram_config(scsi_qla_host_t *vha)
 	ha->flags.disable_risc_code_load = 0;
 	ha->flags.enable_lip_reset = 0;
 	ha->flags.enable_lip_full_login =
-	    le32_to_cpu(nv->host_p) & BIT_10 ? 1: 0;
+	    le32_to_cpu(nv->host_p) & BIT_10 ? 1 : 0;
 	ha->flags.enable_target_reset =
-	    le32_to_cpu(nv->host_p) & BIT_11 ? 1: 0;
+	    le32_to_cpu(nv->host_p) & BIT_11 ? 1 : 0;
 	ha->flags.enable_led_scheme = 0;
-	ha->flags.disable_serdes = le32_to_cpu(nv->host_p) & BIT_5 ? 1: 0;
+	ha->flags.disable_serdes = le32_to_cpu(nv->host_p) & BIT_5 ? 1 : 0;
 
 	ha->operating_mode = (le32_to_cpu(icb->firmware_options_2) &
 	    (BIT_6 | BIT_5 | BIT_4)) >> 4;
@@ -7275,7 +7303,7 @@ qla24xx_nvram_config(scsi_qla_host_t *vha)
 		ha->zio_mode = le32_to_cpu(icb->firmware_options_2) &
 		    (BIT_3 | BIT_2 | BIT_1 | BIT_0);
 		ha->zio_timer = le16_to_cpu(icb->interrupt_delay_timer) ?
-		    le16_to_cpu(icb->interrupt_delay_timer): 2;
+		    le16_to_cpu(icb->interrupt_delay_timer) : 2;
 	}
 	icb->firmware_options_2 &= cpu_to_le32(
 	    ~(BIT_3 | BIT_2 | BIT_1 | BIT_0));
@@ -7692,8 +7720,6 @@ qla24xx_load_risc_flash(scsi_qla_host_t *vha, uint32_t *srisc_addr,
 
 		dcode = fwdt->template;
 		qla24xx_read_flash_data(vha, dcode, faddr, risc_size);
-		for (i = 0; i < risc_size; i++)
-			dcode[i] = le32_to_cpu(dcode[i]);
 
 		if (!qla27xx_fwdt_template_valid(dcode)) {
 			ql_log(ql_log_warn, vha, 0x0165,
@@ -7859,20 +7885,9 @@ qla24xx_load_risc_blob(scsi_qla_host_t *vha, uint32_t *srisc_addr)
 	}
 
 	fwcode = (void *)blob->fw->data;
-	dcode = fwcode + 4;
+	dcode = fwcode;
 	if (qla24xx_risc_firmware_invalid(dcode)) {
 		ql_log(ql_log_fatal, vha, 0x0093,
-		    "Unable to verify integrity of firmware image (%zd).\n",
-		    blob->fw->size);
-		return QLA_FUNCTION_FAILED;
-	}
-	for (i = 0; i < 4; i++)
-		dcode[i] = be32_to_cpu(fwcode[i + 4]);
-	if ((dcode[0] == 0xffffffff && dcode[1] == 0xffffffff &&
-	    dcode[2] == 0xffffffff && dcode[3] == 0xffffffff) ||
-	    (dcode[0] == 0 && dcode[1] == 0 && dcode[2] == 0 &&
-		dcode[3] == 0)) {
-		ql_log(ql_log_fatal, vha, 0x0094,
 		    "Unable to verify integrity of firmware image (%zd).\n",
 		    blob->fw->size);
 		ql_log(ql_log_fatal, vha, 0x0095,
@@ -7897,7 +7912,6 @@ qla24xx_load_risc_blob(scsi_qla_host_t *vha, uint32_t *srisc_addr)
 
 		dlen = ha->fw_transfer_size >> 2;
 		for (fragment = 0; risc_size; fragment++) {
-			dlen = (uint32_t)(ha->fw_transfer_size >> 2);
 			if (dlen > risc_size)
 				dlen = risc_size;
 
@@ -8203,6 +8217,7 @@ void
 qla84xx_put_chip(struct scsi_qla_host *vha)
 {
 	struct qla_hw_data *ha = vha->hw;
+
 	if (ha->cs84xx)
 		kref_put(&ha->cs84xx->kref, __qla84xx_chip_release);
 }
@@ -8220,7 +8235,7 @@ qla84xx_init_chip(scsi_qla_host_t *vha)
 
 	mutex_unlock(&ha->cs84xx->fw_update_mutex);
 
-	return rval != QLA_SUCCESS || status[0] ? QLA_FUNCTION_FAILED:
+	return rval != QLA_SUCCESS || status[0] ? QLA_FUNCTION_FAILED :
 	    QLA_SUCCESS;
 }
 
@@ -8416,11 +8431,11 @@ qla81xx_nvram_config(scsi_qla_host_t *vha)
 	ha->flags.disable_risc_code_load = 0;
 	ha->flags.enable_lip_reset = 0;
 	ha->flags.enable_lip_full_login =
-	    le32_to_cpu(nv->host_p) & BIT_10 ? 1: 0;
+	    le32_to_cpu(nv->host_p) & BIT_10 ? 1 : 0;
 	ha->flags.enable_target_reset =
-	    le32_to_cpu(nv->host_p) & BIT_11 ? 1: 0;
+	    le32_to_cpu(nv->host_p) & BIT_11 ? 1 : 0;
 	ha->flags.enable_led_scheme = 0;
-	ha->flags.disable_serdes = le32_to_cpu(nv->host_p) & BIT_5 ? 1: 0;
+	ha->flags.disable_serdes = le32_to_cpu(nv->host_p) & BIT_5 ? 1 : 0;
 
 	ha->operating_mode = (le32_to_cpu(icb->firmware_options_2) &
 	    (BIT_6 | BIT_5 | BIT_4)) >> 4;
@@ -8493,7 +8508,7 @@ qla81xx_nvram_config(scsi_qla_host_t *vha)
 		ha->zio_mode = le32_to_cpu(icb->firmware_options_2) &
 		    (BIT_3 | BIT_2 | BIT_1 | BIT_0);
 		ha->zio_timer = le16_to_cpu(icb->interrupt_delay_timer) ?
-		    le16_to_cpu(icb->interrupt_delay_timer): 2;
+		    le16_to_cpu(icb->interrupt_delay_timer) : 2;
 	}
 	icb->firmware_options_2 &= cpu_to_le32(
 	    ~(BIT_3 | BIT_2 | BIT_1 | BIT_0));

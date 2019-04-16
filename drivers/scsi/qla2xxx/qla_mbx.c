@@ -2033,7 +2033,7 @@ qla2x00_get_port_database(scsi_qla_host_t *vha, fc_port_t *fcport, uint8_t opt)
 
 		/* Passback COS information. */
 		fcport->supported_classes = (pd->options & BIT_4) ?
-		    FC_COS_CLASS2: FC_COS_CLASS3;
+		    FC_COS_CLASS2 : FC_COS_CLASS3;
 	}
 
 gpd_error_out:
@@ -3277,7 +3277,7 @@ __qla24xx_issue_tmf(char *name, uint32_t type, struct fc_port *fcport,
 
 	/* Issue marker IOCB. */
 	rval2 = qla2x00_marker(vha, ha->base_qpair, fcport->loop_id, l,
-	    type == TCF_LUN_RESET ? MK_SYNC_ID_LUN: MK_SYNC_ID);
+	    type == TCF_LUN_RESET ? MK_SYNC_ID_LUN : MK_SYNC_ID);
 	if (rval2 != QLA_SUCCESS) {
 		ql_dbg(ql_dbg_mbx, vha, 0x1099,
 		    "Failed to issue marker IOCB (%x).\n", rval2);
@@ -5730,6 +5730,7 @@ qla8044_md_get_template(scsi_qla_host_t *vha)
 	mbx_cmd_t *mcp = &mc;
 	int rval = QLA_FUNCTION_FAILED;
 	int offset = 0, size = MINIDUMP_SIZE_36K;
+
 	ql_dbg(ql_dbg_mbx + ql_dbg_verbose, vha, 0xb11f,
 	    "Entered %s.\n", __func__);
 
@@ -6387,7 +6388,13 @@ int __qla24xx_parse_gpdb(struct scsi_qla_host *vha, fc_port_t *fcport,
 	fcport->d_id.b.rsvd_1 = 0;
 
 	if (fcport->fc4f_nvme) {
-		fcport->port_type = FCT_NVME;
+		fcport->port_type = 0;
+		if ((pd->prli_svc_param_word_3[0] & BIT_5) == 0)
+			fcport->port_type |= FCT_NVME_INITIATOR;
+		if ((pd->prli_svc_param_word_3[0] & BIT_4) == 0)
+			fcport->port_type |= FCT_NVME_TARGET;
+		if ((pd->prli_svc_param_word_3[0] & BIT_3) == 0)
+			fcport->port_type |= FCT_NVME_DISCOVERY;
 	} else {
 		/* If not target must be initiator or unknown type. */
 		if ((pd->prli_svc_param_word_3[0] & BIT_4) == 0)

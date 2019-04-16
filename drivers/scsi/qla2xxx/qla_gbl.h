@@ -80,6 +80,7 @@ int qla2x00_post_work(struct scsi_qla_host *vha, struct qla_work_evt *e);
 extern void *qla2x00_alloc_iocbs_ready(struct qla_qpair *, srb_t *);
 extern int qla24xx_update_fcport_fcp_prio(scsi_qla_host_t *, fc_port_t *);
 
+extern void qla2x00_set_fcport_state(fc_port_t *fcport, int state);
 extern fc_port_t *
 qla2x00_alloc_fcport(scsi_qla_host_t *, gfp_t );
 
@@ -243,7 +244,7 @@ extern void qla24xx_report_id_acquisition(scsi_qla_host_t *,
     struct vp_rpt_id_entry_24xx *);
 extern void qla2x00_do_dpc_all_vps(scsi_qla_host_t *);
 extern int qla24xx_vport_create_req_sanity_check(struct fc_vport *);
-extern scsi_qla_host_t * qla24xx_create_vhost(struct fc_vport *);
+extern scsi_qla_host_t *qla24xx_create_vhost(struct fc_vport *);
 
 extern void qla2x00_sp_free_dma(void *);
 extern char *qla2x00_get_fw_version_str(struct scsi_qla_host *, char *);
@@ -294,8 +295,6 @@ extern int qla24xx_walk_and_build_prot_sglist(struct qla_hw_data *, srb_t *,
 	uint32_t *, uint16_t, struct qla_tgt_cmd *);
 extern int qla24xx_get_one_block_sg(uint32_t, struct qla2_sgx *, uint32_t *);
 extern int qla24xx_configure_prot_mode(srb_t *, uint16_t *);
-extern int qla24xx_build_scsi_crc_2_iocbs(srb_t *,
-	struct cmd_type_crc_2 *, uint16_t, uint16_t, uint16_t);
 
 /*
  * Global Function Prototypes in qla_mbx.c source file.

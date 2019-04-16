@@ -108,7 +108,7 @@ MODULE_PARM_DESC(ql2xshiftctondsd,
 		"Set to control shifting of command type processing "
 		"based on total number of SG elements.");
 
-int ql2xfdmienable=1;
+int ql2xfdmienable = 1;
 module_param(ql2xfdmienable, int, S_IRUGO|S_IWUSR);
 module_param_named(fdmi, ql2xfdmienable, int, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(ql2xfdmienable,
@@ -154,7 +154,7 @@ MODULE_PARM_DESC(ql2xenablehba_err_chk,
 		"  1 -- Error isolation enabled only for DIX Type 0\n"
 		"  2 -- Error isolation enabled for all Types\n");
 
-int ql2xiidmaenable=1;
+int ql2xiidmaenable = 1;
 module_param(ql2xiidmaenable, int, S_IRUGO);
 MODULE_PARM_DESC(ql2xiidmaenable,
 		"Enables iIDMA settings "
@@ -365,6 +365,7 @@ static void qla_init_base_qpair(struct scsi_qla_host *vha, struct req_que *req,
     struct rsp_que *rsp)
 {
 	struct qla_hw_data *ha = vha->hw;
+
 	rsp->qpair = ha->base_qpair;
 	rsp->req = req;
 	ha->base_qpair->hw = ha;
@@ -389,6 +390,7 @@ static int qla2x00_alloc_queues(struct qla_hw_data *ha, struct req_que *req,
 				struct rsp_que *rsp)
 {
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
+
 	ha->req_q_map = kcalloc(ha->max_req_queues, sizeof(struct req_que *),
 				GFP_KERNEL);
 	if (!ha->req_q_map) {
@@ -1221,7 +1223,7 @@ qla2x00_wait_for_chip_reset(scsi_qla_host_t *vha)
 static int
 sp_get(struct srb *sp)
 {
-	if (!refcount_inc_not_zero((refcount_t*)&sp->ref_count))
+	if (!refcount_inc_not_zero((refcount_t *)&sp->ref_count))
 		/* kref get fail */
 		return ENXIO;
 	else
@@ -3397,6 +3399,7 @@ skip_dpc:
 	if (IS_T10_PI_CAPABLE(ha) && ql2xenabledif) {
 		if (ha->fw_attributes & BIT_4) {
 			int prot = 0, guard;
+
 			base_vha->flags.difdix_supported = 1;
 			ql_dbg(ql_dbg_init, base_vha, 0x00f1,
 			    "Registering for DIF/DIX type 1 and 3 protection.\n");
@@ -3889,6 +3892,7 @@ qla2x00_schedule_rport_del(struct scsi_qla_host *vha, fc_port_t *fcport,
 		qla2xxx_wake_dpc(base_vha);
 	} else {
 		int now;
+
 		if (rport) {
 			ql_dbg(ql_dbg_disc, fcport->vha, 0x2109,
 			    "%s %8phN. rport %p roles %x\n",
@@ -5631,6 +5635,7 @@ qla83xx_force_lock_recovery(scsi_qla_host_t *base_vha)
 	uint32_t idc_lck_rcvry_stage_mask = 0x3;
 	uint32_t idc_lck_rcvry_owner_mask = 0x3c;
 	struct qla_hw_data *ha = base_vha->hw;
+
 	ql_dbg(ql_dbg_p3p, base_vha, 0xb086,
 	    "Trying force recovery of the IDC lock.\n");
 

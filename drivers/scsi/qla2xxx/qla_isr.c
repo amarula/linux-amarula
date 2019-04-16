@@ -23,6 +23,14 @@ static void qla2x00_status_cont_entry(struct rsp_que *, sts_cont_entry_t *);
 static int qla2x00_error_entry(scsi_qla_host_t *, struct rsp_que *,
 	sts_entry_t *);
 
+const char *const port_state_str[] = {
+	"Unknown",
+	"UNCONFIGURED",
+	"DEAD",
+	"LOST",
+	"ONLINE"
+};
+
 /**
  * qla2100_intr_handler() - Process interrupts for the ISP2100 and ISP2200.
  * @irq: interrupt number
@@ -840,6 +848,7 @@ skip_rio:
 				if (ha->flags.fawwpn_enabled &&
 				    (ha->current_topology == ISP_CFG_F)) {
 					void *wwpn = ha->init_cb->port_name;
+
 					memcpy(vha->port_name, wwpn, WWN_SIZE);
 					fc_host_port_name(vha->host) =
 					    wwn_to_u64(vha->port_name);
@@ -1594,8 +1603,8 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	}
 
 	comp_status = fw_status[0] = le16_to_cpu(pkt->comp_status);
-	fw_status[1] = le16_to_cpu(((struct els_sts_entry_24xx*)pkt)->error_subcode_1);
-	fw_status[2] = le16_to_cpu(((struct els_sts_entry_24xx*)pkt)->error_subcode_2);
+	fw_status[1] = le16_to_cpu(((struct els_sts_entry_24xx *)pkt)->error_subcode_1);
+	fw_status[2] = le16_to_cpu(((struct els_sts_entry_24xx *)pkt)->error_subcode_2);
 
 	if (iocb_type == ELS_IOCB_TYPE) {
 		els = &sp->u.iocb_cmd;
@@ -2250,6 +2259,7 @@ qla25xx_process_bidir_status_iocb(scsi_qla_host_t *vha, void *pkt,
 	struct fc_bsg_reply *bsg_reply;
 	sts_entry_t *sts;
 	struct sts_entry_24xx *sts24;
+
 	sts = (sts_entry_t *) pkt;
 	sts24 = (struct sts_entry_24xx *) pkt;
 
@@ -3085,6 +3095,7 @@ process_err:
 	/* Adjust ring index */
 	if (IS_P3P_TYPE(ha)) {
 		struct device_reg_82xx __iomem *reg = &ha->iobase->isp82;
+
 		WRT_REG_DWORD(&reg->rsp_q_out[0], rsp->ring_index);
 	} else {
 		WRT_REG_DWORD(rsp->rsp_q_out, rsp->ring_index);
