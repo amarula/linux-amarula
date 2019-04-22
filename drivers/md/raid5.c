@@ -711,6 +711,8 @@ static bool is_full_stripe_write(struct stripe_head *sh)
 }
 
 static void lock_two_stripes(struct stripe_head *sh1, struct stripe_head *sh2)
+		__acquires(&sh1->stripe_lock)
+		__acquires(&sh2->stripe_lock)
 {
 	if (sh1 > sh2) {
 		spin_lock_irq(&sh2->stripe_lock);
@@ -722,6 +724,8 @@ static void lock_two_stripes(struct stripe_head *sh1, struct stripe_head *sh2)
 }
 
 static void unlock_two_stripes(struct stripe_head *sh1, struct stripe_head *sh2)
+		__releases(&sh1->stripe_lock)
+		__releases(&sh2->stripe_lock)
 {
 	spin_unlock(&sh1->stripe_lock);
 	spin_unlock_irq(&sh2->stripe_lock);
@@ -4223,26 +4227,15 @@ static void handle_parity_checks6(struct r5conf *conf, struct stripe_head *sh,
 	case check_state_check_result:
 		sh->check_state = check_state_idle;
 
+		if (s->failed > 1)
+			break;
 		/* handle a successful check operation, if parity is correct
 		 * we are done.  Otherwise update the mismatch count and repair
 		 * parity if !MD_RECOVERY_CHECK
 		 */
 		if (sh->ops.zero_sum_result == 0) {
-			/* both parities are correct */
-			if (!s->failed)
-				set_bit(STRIPE_INSYNC, &sh->state);
-			else {
-				/* in contrast to the raid5 case we can validate
-				 * parity, but still have a failure to write
-				 * back
-				 */
-				sh->check_state = check_state_compute_result;
-				/* Returning at this point means that we may go
-				 * off and bring p and/or q uptodate again so
-				 * we make sure to check zero_sum_result again
-				 * to verify if p or q need writeback
-				 */
-			}
+			/* Any parity checked was correct */
+			set_bit(STRIPE_INSYNC, &sh->state);
 		} else {
 			atomic64_add(STRIPE_SECTORS, &conf->mddev->resync_mismatches);
 			if (test_bit(MD_RECOVERY_CHECK, &conf->mddev->recovery)) {
@@ -6166,6 +6159,8 @@ static int  retry_aligned_read(struct r5conf *conf, struct bio *raid_bio,
 static int handle_active_stripes(struct r5conf *conf, int group,
 				 struct r5worker *worker,
 				 struct list_head *temp_inactive_list)
+		__releases(&conf->device_lock)
+		__acquires(&conf->device_lock)
 {
 	struct stripe_head *batch[MAX_STRIPE_BATCH], *sh;
 	int i, batch_size = 0, hash;

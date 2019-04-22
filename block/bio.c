@@ -647,25 +647,70 @@ struct bio *bio_clone_fast(struct bio *bio, gfp_t gfp_mask, struct bio_set *bs)
 }
 EXPORT_SYMBOL(bio_clone_fast);
 
+static inline bool page_is_mergeable(const struct bio_vec *bv,
+		struct page *page, unsigned int len, unsigned int off,
+		bool same_page)
+{
+	phys_addr_t vec_end_addr = page_to_phys(bv->bv_page) +
+		bv->bv_offset + bv->bv_len - 1;
+	phys_addr_t page_addr = page_to_phys(page);
+
+	if (vec_end_addr + 1 != page_addr + off)
+		return false;
+	if (xen_domain() && !xen_biovec_phys_mergeable(bv, page))
+		return false;
+
+	if ((vec_end_addr & PAGE_MASK) != page_addr) {
+		if (same_page)
+			return false;
+		if (pfn_to_page(PFN_DOWN(vec_end_addr)) + 1 != page)
+			return false;
+	}
+
+	return true;
+}
+
+/*
+ * Check if the @page can be added to the current segment(@bv), and make
+ * sure to call it only if page_is_mergeable(@bv, @page) is true
+ */
+static bool can_add_page_to_seg(struct request_queue *q,
+		struct bio_vec *bv, struct page *page, unsigned len,
+		unsigned offset)
+{
+	unsigned long mask = queue_segment_boundary(q);
+	phys_addr_t addr1 = page_to_phys(bv->bv_page) + bv->bv_offset;
+	phys_addr_t addr2 = page_to_phys(page) + offset + len - 1;
+
+	if ((addr1 | mask) != (addr2 | mask))
+		return false;
+
+	if (bv->bv_len + len > queue_max_segment_size(q))
+		return false;
+
+	return true;
+}
+
 /**
- *	bio_add_pc_page	-	attempt to add page to bio
+ *	__bio_add_pc_page	- attempt to add page to passthrough bio
  *	@q: the target queue
  *	@bio: destination bio
  *	@page: page to add
  *	@len: vec entry length
  *	@offset: vec entry offset
+ *	@put_same_page: put the page if it is same with last added page
  *
  *	Attempt to add a page to the bio_vec maplist. This can fail for a
  *	number of reasons, such as the bio being full or target block device
  *	limitations. The target block device must allow bio's up to PAGE_SIZE,
  *	so it is always possible to add a single page to an empty bio.
  *
- *	This should only be used by REQ_PC bios.
+ *	This should only be used by passthrough bios.
  */
-int bio_add_pc_page(struct request_queue *q, struct bio *bio, struct page
-		    *page, unsigned int len, unsigned int offset)
+int __bio_add_pc_page(struct request_queue *q, struct bio *bio,
+		struct page *page, unsigned int len, unsigned int offset,
+		bool put_same_page)
 {
-	int retried_segments = 0;
 	struct bio_vec *bvec;
 
 	/*
@@ -683,11 +728,14 @@ int bio_add_pc_page(struct request_queue *q, struct bio *bio, struct page
 	 * a consecutive offset.  Optimize this special case.
 	 */
 	if (bio->bi_vcnt > 0) {
-		struct bio_vec *prev = &bio->bi_io_vec[bio->bi_vcnt - 1];
+		bvec = &bio->bi_io_vec[bio->bi_vcnt - 1];
 
-		if (page == prev->bv_page &&
-		    offset == prev->bv_offset + prev->bv_len) {
-			prev->bv_len += len;
+		if (page == bvec->bv_page &&
+		    offset == bvec->bv_offset + bvec->bv_len) {
+			if (put_same_page)
+				put_page(page);
+ bvec_merge:
+			bvec->bv_len += len;
 			bio->bi_iter.bi_size += len;
 			goto done;
 		}
@@ -696,11 +744,18 @@ int bio_add_pc_page(struct request_queue *q, struct bio *bio, struct page
 		 * If the queue doesn't support SG gaps and adding this
 		 * offset would create a gap, disallow it.
 		 */
-		if (bvec_gap_to_prev(q, prev, offset))
+		if (bvec_gap_to_prev(q, bvec, offset))
 			return 0;
+
+		if (page_is_mergeable(bvec, page, len, offset, false) &&
+				can_add_page_to_seg(q, bvec, page, len, offset))
+			goto bvec_merge;
 	}
 
 	if (bio_full(bio))
+		return 0;
+
+	if (bio->bi_phys_segments >= queue_max_segments(q))
 		return 0;
 
 	/*
@@ -712,38 +767,19 @@ int bio_add_pc_page(struct request_queue *q, struct bio *bio, struct page
 	bvec->bv_len = len;
 	bvec->bv_offset = offset;
 	bio->bi_vcnt++;
-	bio->bi_phys_segments++;
 	bio->bi_iter.bi_size += len;
 
-	/*
-	 * Perform a recount if the number of segments is greater
-	 * than queue_max_segments(q).
-	 */
-
-	while (bio->bi_phys_segments > queue_max_segments(q)) {
-
-		if (retried_segments)
-			goto failed;
-
-		retried_segments = 1;
-		blk_recount_segments(q, bio);
-	}
-
-	/* If we may be able to merge these biovecs, force a recount */
-	if (bio->bi_vcnt > 1 && biovec_phys_mergeable(q, bvec - 1, bvec))
-		bio_clear_flag(bio, BIO_SEG_VALID);
-
  done:
+	bio->bi_phys_segments = bio->bi_vcnt;
+	bio_set_flag(bio, BIO_SEG_VALID);
 	return len;
+}
+EXPORT_SYMBOL(__bio_add_pc_page);
 
- failed:
-	bvec->bv_page = NULL;
-	bvec->bv_len = 0;
-	bvec->bv_offset = 0;
-	bio->bi_vcnt--;
-	bio->bi_iter.bi_size -= len;
-	blk_recount_segments(q, bio);
-	return 0;
+int bio_add_pc_page(struct request_queue *q, struct bio *bio,
+		struct page *page, unsigned int len, unsigned int offset)
+{
+	return __bio_add_pc_page(q, bio, page, len, offset, false);
 }
 EXPORT_SYMBOL(bio_add_pc_page);
 
@@ -770,18 +806,12 @@ bool __bio_try_merge_page(struct bio *bio, struct page *page,
 
 	if (bio->bi_vcnt > 0) {
 		struct bio_vec *bv = &bio->bi_io_vec[bio->bi_vcnt - 1];
-		phys_addr_t vec_end_addr = page_to_phys(bv->bv_page) +
-			bv->bv_offset + bv->bv_len - 1;
-		phys_addr_t page_addr = page_to_phys(page);
 
-		if (vec_end_addr + 1 != page_addr + off)
-			return false;
-		if (same_page && (vec_end_addr & PAGE_MASK) != page_addr)
-			return false;
-
-		bv->bv_len += len;
-		bio->bi_iter.bi_size += len;
-		return true;
+		if (page_is_mergeable(bv, page, len, off, same_page)) {
+			bv->bv_len += len;
+			bio->bi_iter.bi_size += len;
+			return true;
+		}
 	}
 	return false;
 }
@@ -836,6 +866,26 @@ int bio_add_page(struct bio *bio, struct page *page,
 }
 EXPORT_SYMBOL(bio_add_page);
 
+static void bio_get_pages(struct bio *bio)
+{
+	struct bvec_iter_all iter_all;
+	struct bio_vec *bvec;
+	int i;
+
+	bio_for_each_segment_all(bvec, bio, i, iter_all)
+		get_page(bvec->bv_page);
+}
+
+static void bio_release_pages(struct bio *bio)
+{
+	struct bvec_iter_all iter_all;
+	struct bio_vec *bvec;
+	int i;
+
+	bio_for_each_segment_all(bvec, bio, i, iter_all)
+		put_page(bvec->bv_page);
+}
+
 static int __bio_iov_bvec_add_pages(struct bio *bio, struct iov_iter *iter)
 {
 	const struct bio_vec *bv = iter->bvec;
@@ -848,20 +898,10 @@ static int __bio_iov_bvec_add_pages(struct bio *bio, struct iov_iter *iter)
 	len = min_t(size_t, bv->bv_len - iter->iov_offset, iter->count);
 	size = bio_add_page(bio, bv->bv_page, len,
 				bv->bv_offset + iter->iov_offset);
-	if (size == len) {
-		if (!bio_flagged(bio, BIO_NO_PAGE_REF)) {
-			struct page *page;
-			int i;
-
-			mp_bvec_for_each_page(page, bv, i)
-				get_page(page);
-		}
-
-		iov_iter_advance(iter, size);
-		return 0;
-	}
-
-	return -EINVAL;
+	if (unlikely(size != len))
+		return -EINVAL;
+	iov_iter_advance(iter, size);
+	return 0;
 }
 
 #define PAGE_PTRS_PER_BVEC     (sizeof(struct bio_vec) / sizeof(struct page *))
@@ -934,29 +974,24 @@ static int __bio_iov_iter_get_pages(struct bio *bio, struct iov_iter *iter)
 int bio_iov_iter_get_pages(struct bio *bio, struct iov_iter *iter)
 {
 	const bool is_bvec = iov_iter_is_bvec(iter);
-	unsigned short orig_vcnt = bio->bi_vcnt;
+	int ret;
 
-	/*
-	 * If this is a BVEC iter, then the pages are kernel pages. Don't
-	 * release them on IO completion, if the caller asked us to.
-	 */
-	if (is_bvec && iov_iter_bvec_no_ref(iter))
-		bio_set_flag(bio, BIO_NO_PAGE_REF);
+	if (WARN_ON_ONCE(bio->bi_vcnt))
+		return -EINVAL;
 
 	do {
-		int ret;
-
 		if (is_bvec)
 			ret = __bio_iov_bvec_add_pages(bio, iter);
 		else
 			ret = __bio_iov_iter_get_pages(bio, iter);
+	} while (!ret && iov_iter_count(iter) && !bio_full(bio));
 
-		if (unlikely(ret))
-			return bio->bi_vcnt > orig_vcnt ? 0 : ret;
+	if (iov_iter_bvec_no_ref(iter))
+		bio_set_flag(bio, BIO_NO_PAGE_REF);
+	else
+		bio_get_pages(bio);
 
-	} while (iov_iter_count(iter) && !bio_full(bio));
-
-	return 0;
+	return bio->bi_vcnt ? 0 : ret;
 }
 
 static void submit_bio_wait_endio(struct bio *bio)
@@ -1388,20 +1423,13 @@ struct bio *bio_map_user_iov(struct request_queue *q,
 			for (j = 0; j < npages; j++) {
 				struct page *page = pages[j];
 				unsigned int n = PAGE_SIZE - offs;
-				unsigned short prev_bi_vcnt = bio->bi_vcnt;
 
 				if (n > bytes)
 					n = bytes;
 
-				if (!bio_add_pc_page(q, bio, page, n, offs))
+				if (!__bio_add_pc_page(q, bio, page, n, offs,
+							true))
 					break;
-
-				/*
-				 * check if vector was merged with previous
-				 * drop page reference if needed
-				 */
-				if (bio->bi_vcnt == prev_bi_vcnt)
-					put_page(page);
 
 				added += n;
 				bytes -= n;
@@ -1657,16 +1685,6 @@ void bio_set_pages_dirty(struct bio *bio)
 		if (!PageCompound(bvec->bv_page))
 			set_page_dirty_lock(bvec->bv_page);
 	}
-}
-
-static void bio_release_pages(struct bio *bio)
-{
-	struct bio_vec *bvec;
-	int i;
-	struct bvec_iter_all iter_all;
-
-	bio_for_each_segment_all(bvec, bio, i, iter_all)
-		put_page(bvec->bv_page);
 }
 
 /*
@@ -2203,6 +2221,9 @@ static int __init init_bio(void)
 	bio_slab_nr = 0;
 	bio_slabs = kcalloc(bio_slab_max, sizeof(struct bio_slab),
 			    GFP_KERNEL);
+
+	BUILD_BUG_ON(BIO_FLAG_LAST > BVEC_POOL_OFFSET);
+
 	if (!bio_slabs)
 		panic("bio: can't allocate bios\n");
 
