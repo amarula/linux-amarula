@@ -2,6 +2,10 @@
 #ifndef _UAPI_LINUX_BYTEORDER_LITTLE_ENDIAN_H
 #define _UAPI_LINUX_BYTEORDER_LITTLE_ENDIAN_H
 
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ !=  __ORDER_LITTLE_ENDIAN__
+#error "Unsupported endianess, check your toolchain"
+#endif
+
 #ifndef __LITTLE_ENDIAN
 #define __LITTLE_ENDIAN 1234
 #endif

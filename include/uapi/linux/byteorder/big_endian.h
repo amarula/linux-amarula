@@ -2,6 +2,10 @@
 #ifndef _UAPI_LINUX_BYTEORDER_BIG_ENDIAN_H
 #define _UAPI_LINUX_BYTEORDER_BIG_ENDIAN_H
 
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ != __ORDER_BIG_ENDIAN__
+#error "Unsupported endianess, check your toolchain"
+#endif
+
 #ifndef __BIG_ENDIAN
 #define __BIG_ENDIAN 4321
 #endif
