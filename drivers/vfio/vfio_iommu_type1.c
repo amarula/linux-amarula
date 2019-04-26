@@ -263,7 +263,8 @@ static int vfio_iova_put_vfio_pfn(struct vfio_dma *dma, struct vfio_pfn *vpfn)
 static int vfio_lock_acct(struct vfio_dma *dma, long npage, bool async)
 {
 	struct mm_struct *mm;
-	int ret;
+	s64 locked_vm;
+	int ret = 0;
 
 	if (!npage)
 		return 0;
@@ -272,25 +273,15 @@ static int vfio_lock_acct(struct vfio_dma *dma, long npage, bool async)
 	if (!mm)
 		return -ESRCH; /* process exited */
 
-	ret = down_write_killable(&mm->mmap_sem);
-	if (!ret) {
-		if (npage > 0) {
-			if (!dma->lock_cap) {
-				s64 locked_vm = atomic64_read(&mm->locked_vm);
-				unsigned long limit;
+	locked_vm = atomic64_add_return(npage, &mm->locked_vm);
 
-				limit = task_rlimit(dma->task,
-						RLIMIT_MEMLOCK) >> PAGE_SHIFT;
-
-				if (locked_vm + npage > limit)
-					ret = -ENOMEM;
-			}
+	if (npage > 0 && !dma->lock_cap) {
+		unsigned long limit = task_rlimit(dma->task, RLIMIT_MEMLOCK) >>
+								   PAGE_SHIFT;
+		if (locked_vm > limit) {
+			atomic64_sub(npage, &mm->locked_vm);
+			ret = -ENOMEM;
 		}
-
-		if (!ret)
-			atomic64_add(npage, &mm->locked_vm);
-
-		up_write(&mm->mmap_sem);
 	}
 
 	if (async)
