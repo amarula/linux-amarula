@@ -36,8 +36,9 @@ static void tce_iommu_detach_group(void *iommu_data,
 
 static long try_increment_locked_vm(struct mm_struct *mm, long npages)
 {
-	long ret = 0, lock_limit;
+	long ret = 0;
 	s64 locked;
+	unsigned long lock_limit;
 
 	if (WARN_ON_ONCE(!mm))
 		return -EPERM;
@@ -45,39 +46,32 @@ static long try_increment_locked_vm(struct mm_struct *mm, long npages)
 	if (!npages)
 		return 0;
 
-	down_write(&mm->mmap_sem);
-	locked = atomic64_read(&mm->locked_vm) + npages;
+	locked = atomic64_add_return(npages, &mm->locked_vm);
 	lock_limit = rlimit(RLIMIT_MEMLOCK) >> PAGE_SHIFT;
-	if (locked > lock_limit && !capable(CAP_IPC_LOCK))
+	if (locked > lock_limit && !capable(CAP_IPC_LOCK)) {
 		ret = -ENOMEM;
-	else
-		atomic64_add(npages, &mm->locked_vm);
+		atomic64_sub(npages, &mm->locked_vm);
+	}
 
-	pr_debug("[%d] RLIMIT_MEMLOCK +%ld %ld/%ld%s\n", current->pid,
-			npages << PAGE_SHIFT,
-			atomic64_read(&mm->locked_vm) << PAGE_SHIFT,
-			rlimit(RLIMIT_MEMLOCK),
-			ret ? " - exceeded" : "");
-
-	up_write(&mm->mmap_sem);
+	pr_debug("[%d] RLIMIT_MEMLOCK +%ld %lld/%lu%s\n", current->pid,
+			npages << PAGE_SHIFT, locked << PAGE_SHIFT,
+			lock_limit, ret ? " - exceeded" : "");
 
 	return ret;
 }
 
 static void decrement_locked_vm(struct mm_struct *mm, long npages)
 {
+	s64 locked;
+
 	if (!mm || !npages)
 		return;
 
-	down_write(&mm->mmap_sem);
-	if (WARN_ON_ONCE(npages > atomic64_read(&mm->locked_vm)))
-		npages = atomic64_read(&mm->locked_vm);
-	atomic64_sub(npages, &mm->locked_vm);
-	pr_debug("[%d] RLIMIT_MEMLOCK -%ld %ld/%ld\n", current->pid,
-			npages << PAGE_SHIFT,
-			atomic64_read(&mm->locked_vm) << PAGE_SHIFT,
+	locked = atomic64_sub_return(npages, &mm->locked_vm);
+	WARN_ON_ONCE(locked < 0);
+	pr_debug("[%d] RLIMIT_MEMLOCK -%ld %lld/%lu\n", current->pid,
+			npages << PAGE_SHIFT, locked << PAGE_SHIFT,
 			rlimit(RLIMIT_MEMLOCK));
-	up_write(&mm->mmap_sem);
 }
 
 /*
