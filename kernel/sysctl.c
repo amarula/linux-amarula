@@ -3274,7 +3274,6 @@ int proc_do_large_bitmap(struct ctl_table *table, int write,
 	bitmap_free(tmp_bitmap);
 	return err;
 }
-EXPORT_SYMBOL_GPL(proc_do_large_bitmap);
 
 #else /* CONFIG_PROC_SYSCTL */
 
@@ -3379,3 +3378,4 @@ EXPORT_SYMBOL(proc_dointvec_ms_jiffies);
 EXPORT_SYMBOL(proc_dostring);
 EXPORT_SYMBOL(proc_doulongvec_minmax);
 EXPORT_SYMBOL(proc_doulongvec_ms_jiffies_minmax);
+EXPORT_SYMBOL(proc_do_large_bitmap);
