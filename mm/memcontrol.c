@@ -2144,15 +2144,17 @@ static void high_work_func(struct work_struct *work)
 void mem_cgroup_handle_over_high(void)
 {
 	unsigned int nr_pages = current->memcg_nr_pages_over_high;
-	struct mem_cgroup *memcg;
+	struct mem_cgroup *memcg = current->memcg_high_reclaim;
 
 	if (likely(!nr_pages))
 		return;
 
-	memcg = current->memcg_high_reclaim;
-	current->memcg_high_reclaim = NULL;
+	if (!memcg)
+		memcg = get_mem_cgroup_from_mm(current->mm);
+
 	reclaim_high(memcg, nr_pages, GFP_KERNEL);
 	css_put(&memcg->css);
+	current->memcg_high_reclaim = NULL;
 	current->memcg_nr_pages_over_high = 0;
 }
 
