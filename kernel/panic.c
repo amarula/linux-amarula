@@ -137,8 +137,6 @@ static void panic_print_sys_info(void)
 {
 	if (panic_print & PANIC_PRINT_ALL_PRINTK_MSG)
 		console_flush_on_panic(CONSOLE_REPLAY_ALL);
-	else
-		console_flush_on_panic(CONSOLE_FLUSH_PENDING);
 
 	if (panic_print & PANIC_PRINT_TASK_INFO)
 		show_state();
@@ -283,6 +281,8 @@ void panic(const char *fmt, ...)
 	 * panic() is not being callled from OOPS.
 	 */
 	debug_locks_off();
+	console_flush_on_panic(CONSOLE_FLUSH_PENDING);
+
 	panic_print_sys_info();
 
 	if (!panic_blink)
