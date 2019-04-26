@@ -4329,7 +4329,7 @@ static int leaks_show(struct seq_file *m, void *p)
 	do {
 		drain_cpu_caches(cachep);
 		/*
-		 * drain_cpu_caches() could always make kmemleak_object and
+		 * drain_cpu_caches() could make kmemleak_object and
 		 * debug_objects_cache dirty, so reset afterwards.
 		 */
 		set_store_user_clean(cachep);
