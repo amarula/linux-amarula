@@ -3274,6 +3274,7 @@ int proc_do_large_bitmap(struct ctl_table *table, int write,
 	bitmap_free(tmp_bitmap);
 	return err;
 }
+EXPORT_SYMBOL_GPL(proc_do_large_bitmap);
 
 #else /* CONFIG_PROC_SYSCTL */
 
