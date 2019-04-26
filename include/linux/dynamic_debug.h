@@ -16,10 +16,17 @@ struct _ddebug {
 	 * These fields are used to drive the user interface
 	 * for selecting and displaying debug callsites.
 	 */
+#ifdef CONFIG_DYNAMIC_DEBUG_RELATIVE_POINTERS
+	signed int modname_disp;
+	signed int function_disp;
+	signed int filename_disp;
+	signed int format_disp;
+#else
 	const char *modname;
 	const char *function;
 	const char *filename;
 	const char *format;
+#endif
 	/*
 	 * The flags field controls the behaviour at the callsite.
 	 * The bits here are changed dynamically when the user
@@ -70,6 +77,12 @@ void __dynamic_netdev_dbg(struct _ddebug *descriptor,
 			  const struct net_device *dev,
 			  const char *fmt, ...);
 
+#ifdef CONFIG_DYNAMIC_DEBUG_RELATIVE_POINTERS
+#include <asm/dynamic_debug.h>
+#ifndef DEFINE_DYNAMIC_DEBUG_METADATA
+# error "asm/dynamic_debug.h must provide definition of DEFINE_DYNAMIC_DEBUG_METADATA"
+#endif
+#else
 #define DEFINE_DYNAMIC_DEBUG_METADATA(name, fmt)		\
 	static struct _ddebug  __aligned(8)			\
 	__attribute__((section("__verbose"))) name = {		\
@@ -80,6 +93,7 @@ void __dynamic_netdev_dbg(struct _ddebug *descriptor,
 		.flags_lineno = _DPRINTK_FLAGS_LINENO_INIT,	\
 		_DPRINTK_KEY_INIT				\
 	}
+#endif
 
 #ifdef CONFIG_JUMP_LABEL
 

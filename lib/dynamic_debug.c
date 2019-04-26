@@ -37,6 +37,24 @@
 #include <linux/device.h>
 #include <linux/netdevice.h>
 
+#ifdef CONFIG_DYNAMIC_DEBUG_RELATIVE_POINTERS
+static inline const char *dd_modname(const struct _ddebug *dd)
+{
+	return (const char *)dd + dd->modname_disp;
+}
+static inline const char *dd_function(const struct _ddebug *dd)
+{
+	return (const char *)dd + dd->function_disp;
+}
+static inline const char *dd_filename(const struct _ddebug *dd)
+{
+	return (const char *)dd + dd->filename_disp;
+}
+static inline const char *dd_format(const struct _ddebug *dd)
+{
+	return (const char *)dd + dd->format_disp;
+}
+#else
 static inline const char *dd_modname(const struct _ddebug *dd)
 {
 	return dd->modname;
@@ -53,6 +71,8 @@ static inline const char *dd_format(const struct _ddebug *dd)
 {
 	return dd->format;
 }
+#endif
+
 static inline unsigned dd_lineno(const struct _ddebug *dd)
 {
 	return dd->flags_lineno >> 8;
