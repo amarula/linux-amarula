@@ -1018,6 +1018,15 @@ long get_user_pages_locked(unsigned long start, unsigned long nr_pages,
 			   unsigned int gup_flags, struct page **pages,
 			   int *locked)
 {
+	/*
+	 * FIXME: Current FOLL_LONGTERM behavior is incompatible with
+	 * FAULT_FLAG_ALLOW_RETRY because of the FS DAX check requirement on
+	 * vmas.  As there are no users of this flag in this call we simply
+	 * disallow this option for now.
+	 */
+	if (WARN_ON_ONCE(gup_flags & FOLL_LONGTERM))
+		return -EINVAL;
+
 	return __get_user_pages_locked(current, current->mm, start, nr_pages,
 				       pages, NULL, locked,
 				       gup_flags | FOLL_TOUCH);
@@ -1045,6 +1054,15 @@ long get_user_pages_unlocked(unsigned long start, unsigned long nr_pages,
 	struct mm_struct *mm = current->mm;
 	int locked = 1;
 	long ret;
+
+	/*
+	 * FIXME: Current FOLL_LONGTERM behavior is incompatible with
+	 * FAULT_FLAG_ALLOW_RETRY because of the FS DAX check requirement on
+	 * vmas.  As there are no users of this flag in this call we simply
+	 * disallow this option for now.
+	 */
+	if (WARN_ON_ONCE(gup_flags & FOLL_LONGTERM))
+		return -EINVAL;
 
 	down_read(&mm->mmap_sem);
 	ret = __get_user_pages_locked(current, mm, start, nr_pages, pages, NULL,
@@ -1116,6 +1134,15 @@ long get_user_pages_remote(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned int gup_flags, struct page **pages,
 		struct vm_area_struct **vmas, int *locked)
 {
+	/*
+	 * FIXME: Current FOLL_LONGTERM behavior is incompatible with
+	 * FAULT_FLAG_ALLOW_RETRY because of the FS DAX check requirement on
+	 * vmas.  As there are no users of this flag in this call we simply
+	 * disallow this option for now.
+	 */
+	if (WARN_ON_ONCE(gup_flags & FOLL_LONGTERM))
+		return -EINVAL;
+
 	return __get_user_pages_locked(tsk, mm, start, nr_pages, pages, vmas,
 				       locked,
 				       gup_flags | FOLL_TOUCH | FOLL_REMOTE);
@@ -1286,30 +1313,16 @@ static long check_and_migrate_cma_pages(struct task_struct *tsk,
 #endif
 
 /*
- * __gup_longterm_locked() is a wrapper for __get_uer_pages_locked which
- * allows us to process the FOLL_LONGTERM flag if present.
- *
- * FOLL_LONGTERM Checks for either DAX VMAs or PPC CMA regions and either fails
- * the pin or attempts to migrate the page as appropriate.
- *
- * In the filesystem-dax case mappings are subject to the lifetime enforced by
- * the filesystem and we need guarantees that longterm users like RDMA and V4L2
- * only establish mappings that have a kernel enforced revocation mechanism.
- *
- * In the CMA case pages can't be pinned in a CMA region as this would
- * unnecessarily fragment that region.  So CMA attempts to migrate the page
- * before pinning.
- *
- * "longterm" == userspace controlled elevated page count lifetime.
- * Contrast this to iov_iter_get_pages() usages which are transient.
+ * __gup_longterm_locked() is a wrapper for __get_user_pages_locked which
+ * allows us to process the FOLL_LONGTERM flag.
  */
-static __always_inline long __gup_longterm_locked(struct task_struct *tsk,
-						  struct mm_struct *mm,
-						  unsigned long start,
-						  unsigned long nr_pages,
-						  struct page **pages,
-						  struct vm_area_struct **vmas,
-						  unsigned int gup_flags)
+static long __gup_longterm_locked(struct task_struct *tsk,
+				  struct mm_struct *mm,
+				  unsigned long start,
+				  unsigned long nr_pages,
+				  struct page **pages,
+				  struct vm_area_struct **vmas,
+				  unsigned int gup_flags)
 {
 	struct vm_area_struct **vmas_tmp = vmas;
 	unsigned long flags = 0;
