@@ -54,6 +54,16 @@ enum {
 };
 
 /*
+ * Restrictions for the memory hotplug:
+ * flags:  MHP_ flags
+ * altmap: alternative allocator for memmap array
+ */
+struct mhp_restrictions {
+	unsigned long flags;
+	struct vmem_altmap *altmap;
+};
+
+/*
  * Zone resizing functions
  *
  * Note: any attempt to resize a zone should has pgdat_resize_lock()
@@ -101,6 +111,8 @@ extern void __online_page_free(struct page *page);
 
 extern int try_online_node(int nid);
 
+extern int arch_add_memory(int nid, u64 start, u64 size,
+			struct mhp_restrictions *restrictions);
 extern u64 max_mem_size;
 
 extern bool memhp_auto_online;
@@ -125,16 +137,6 @@ extern int __remove_pages(struct zone *zone, unsigned long start_pfn,
  */
 
 #define MHP_MEMBLOCK_API               (1<<0)
-
-/*
- * Restrictions for the memory hotplug:
- * flags:  MHP_ flags
- * altmap: alternative allocator for memmap array
- */
-struct mhp_restrictions {
-	unsigned long flags;
-	struct vmem_altmap *altmap;
-};
 
 /* reasonably generic interface to expand the physical pages */
 extern int __add_pages(int nid, unsigned long start_pfn, unsigned long nr_pages,
@@ -349,8 +351,6 @@ extern int walk_memory_range(unsigned long start_pfn, unsigned long end_pfn,
 extern int __add_memory(int nid, u64 start, u64 size);
 extern int add_memory(int nid, u64 start, u64 size);
 extern int add_memory_resource(int nid, struct resource *resource);
-extern int arch_add_memory(int nid, u64 start, u64 size,
-			struct mhp_restrictions *restrictions);
 extern void move_pfn_range_to_zone(struct zone *zone, unsigned long start_pfn,
 		unsigned long nr_pages, struct vmem_altmap *altmap);
 extern bool is_memblock_offlined(struct memory_block *mem);
