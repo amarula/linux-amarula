@@ -40,7 +40,7 @@ static inline void shuffle_zone(struct zone *z)
 static inline bool is_shuffle_order(int order)
 {
 	if (!static_branch_unlikely(&page_alloc_shuffle_key))
-                return false;
+		return false;
 	return order >= SHUFFLE_ORDER;
 }
 #else
