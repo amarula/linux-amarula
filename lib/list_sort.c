@@ -7,13 +7,7 @@
 #include <linux/list_sort.h>
 #include <linux/list.h>
 
-/*
- * By declaring the compare function with the __pure attribute, we give
- * the compiler more opportunity to optimize.  Ideally, we'd use this in
- * the prototype of list_sort(), but that would involve a lot of churn
- * at all call sites, so just cast the function pointer passed in.
- */
-typedef int __pure __attribute__((nonnull(2,3))) (*cmp_func)(void *,
+typedef int __attribute__((nonnull(2,3))) (*cmp_func)(void *,
 		struct list_head const *, struct list_head const *);
 
 /*
