@@ -321,7 +321,9 @@ unsigned long vmalloc_to_pfn(const void *vmalloc_addr)
 }
 EXPORT_SYMBOL(vmalloc_to_pfn);
 
+
 /*** Global kva allocator ***/
+
 #define VM_LAZY_FREE	0x02
 #define VM_VM_AREA	0x04
 
@@ -359,7 +361,7 @@ static LIST_HEAD(free_vmap_area_list);
 static struct rb_root free_vmap_area_root = RB_ROOT;
 
 static __always_inline unsigned long
-__va_size(struct vmap_area *va)
+va_size(struct vmap_area *va)
 {
 	return (va->va_end - va->va_start);
 }
@@ -379,18 +381,9 @@ get_subtree_max_size(struct rb_node *node)
 static __always_inline unsigned long
 compute_subtree_max_size(struct vmap_area *va)
 {
-	unsigned long max_size = __va_size(va);
-	unsigned long child_max_size;
-
-	child_max_size = get_subtree_max_size(va->rb_node.rb_right);
-	if (child_max_size > max_size)
-		max_size = child_max_size;
-
-	child_max_size = get_subtree_max_size(va->rb_node.rb_left);
-	if (child_max_size > max_size)
-		max_size = child_max_size;
-
-	return max_size;
+	return max3(va_size(va),
+		get_subtree_max_size(va->rb_node.rb_left),
+		get_subtree_max_size(va->rb_node.rb_right));
 }
 
 RB_DECLARE_CALLBACKS(static, free_vmap_area_rb_augment_cb,
@@ -432,7 +425,7 @@ static struct vmap_area *__find_vmap_area(unsigned long addr)
  * and its left or right link for further processing.
  */
 static __always_inline struct rb_node **
-__find_va_links(struct vmap_area *va,
+find_va_links(struct vmap_area *va,
 	struct rb_root *root, struct rb_node *from,
 	struct rb_node **parent)
 {
@@ -450,7 +443,9 @@ __find_va_links(struct vmap_area *va,
 	}
 
 	/*
-	 * Go to the bottom of the tree.
+	 * Go to the bottom of the tree. When we hit the last point
+	 * we end up with parent rb_node and correct direction, i name
+	 * it link, where the new va->rb_node will be attached to.
 	 */
 	do {
 		tmp_va = rb_entry(*link, struct vmap_area, rb_node);
@@ -475,26 +470,25 @@ __find_va_links(struct vmap_area *va,
 }
 
 static __always_inline struct list_head *
-__get_va_next_sibling(struct rb_node *parent, struct rb_node **link)
+get_va_next_sibling(struct rb_node *parent, struct rb_node **link)
 {
 	struct list_head *list;
 
-	if (likely(parent)) {
-		list = &rb_entry(parent, struct vmap_area, rb_node)->list;
-		return (&parent->rb_right == link ? list->next:list);
-	}
+	if (unlikely(!parent))
+		/*
+		 * The red-black tree where we try to find VA neighbors
+		 * before merging or inserting is empty, i.e. it means
+		 * there is no free vmap space. Normally it does not
+		 * happen but we handle this case anyway.
+		 */
+		return NULL;
 
-	/*
-	 * The red-black tree where we try to find VA neighbors
-	 * before merging or inserting is empty, i.e. it means
-	 * there is no free vmap space. Normally it does not
-	 * happen but we handle this case anyway.
-	 */
-	return NULL;
+	list = &rb_entry(parent, struct vmap_area, rb_node)->list;
+	return (&parent->rb_right == link ? list->next : list);
 }
 
 static __always_inline void
-__link_va(struct vmap_area *va, struct rb_root *root,
+link_va(struct vmap_area *va, struct rb_root *root,
 	struct rb_node *parent, struct rb_node **link, struct list_head *head)
 {
 	/*
@@ -533,7 +527,7 @@ __link_va(struct vmap_area *va, struct rb_root *root,
 }
 
 static __always_inline void
-__unlink_va(struct vmap_area *va, struct rb_root *root)
+unlink_va(struct vmap_area *va, struct rb_root *root)
 {
 	/*
 	 * During merging a VA node can be empty, therefore
@@ -579,7 +573,7 @@ __unlink_va(struct vmap_area *va, struct rb_root *root)
  * node becomes 4--6.
  */
 static __always_inline void
-__augment_tree_propagate_from(struct vmap_area *va)
+augment_tree_propagate_from(struct vmap_area *va)
 {
 	struct rb_node *node = &va->rb_node;
 	unsigned long new_va_sub_max_size;
@@ -603,18 +597,18 @@ __augment_tree_propagate_from(struct vmap_area *va)
 }
 
 static void
-__insert_vmap_area(struct vmap_area *va,
+insert_vmap_area(struct vmap_area *va,
 	struct rb_root *root, struct list_head *head)
 {
 	struct rb_node **link;
 	struct rb_node *parent;
 
-	link = __find_va_links(va, root, NULL, &parent);
-	__link_va(va, root, parent, link, head);
+	link = find_va_links(va, root, NULL, &parent);
+	link_va(va, root, parent, link, head);
 }
 
 static void
-__insert_vmap_area_augment(struct vmap_area *va,
+insert_vmap_area_augment(struct vmap_area *va,
 	struct rb_node *from, struct rb_root *root,
 	struct list_head *head)
 {
@@ -622,12 +616,12 @@ __insert_vmap_area_augment(struct vmap_area *va,
 	struct rb_node *parent;
 
 	if (from)
-		link = __find_va_links(va, NULL, from, &parent);
+		link = find_va_links(va, NULL, from, &parent);
 	else
-		link = __find_va_links(va, root, NULL, &parent);
+		link = find_va_links(va, root, NULL, &parent);
 
-	__link_va(va, root, parent, link, head);
-	__augment_tree_propagate_from(va);
+	link_va(va, root, parent, link, head);
+	augment_tree_propagate_from(va);
 }
 
 /*
@@ -637,7 +631,7 @@ __insert_vmap_area_augment(struct vmap_area *va,
  * freed.
  */
 static __always_inline void
-__merge_or_add_vmap_area(struct vmap_area *va,
+merge_or_add_vmap_area(struct vmap_area *va,
 	struct rb_root *root, struct list_head *head)
 {
 	struct vmap_area *sibling;
@@ -650,12 +644,12 @@ __merge_or_add_vmap_area(struct vmap_area *va,
 	 * Find a place in the tree where VA potentially will be
 	 * inserted, unless it is merged with its sibling/siblings.
 	 */
-	link = __find_va_links(va, root, NULL, &parent);
+	link = find_va_links(va, root, NULL, &parent);
 
 	/*
 	 * Get next node of VA to check if merging can be done.
 	 */
-	next = __get_va_next_sibling(parent, link);
+	next = get_va_next_sibling(parent, link);
 	if (unlikely(next == NULL))
 		goto insert;
 
@@ -672,10 +666,10 @@ __merge_or_add_vmap_area(struct vmap_area *va,
 			sibling->va_start = va->va_start;
 
 			/* Check and update the tree if needed. */
-			__augment_tree_propagate_from(sibling);
+			augment_tree_propagate_from(sibling);
 
 			/* Remove this VA, it has been merged. */
-			__unlink_va(va, root);
+			unlink_va(va, root);
 
 			/* Free vmap_area object. */
 			kmem_cache_free(vmap_area_cachep, va);
@@ -699,10 +693,10 @@ __merge_or_add_vmap_area(struct vmap_area *va,
 			sibling->va_end = va->va_end;
 
 			/* Check and update the tree if needed. */
-			__augment_tree_propagate_from(sibling);
+			augment_tree_propagate_from(sibling);
 
 			/* Remove this VA, it has been merged. */
-			__unlink_va(va, root);
+			unlink_va(va, root);
 
 			/* Free vmap_area object. */
 			kmem_cache_free(vmap_area_cachep, va);
@@ -713,8 +707,8 @@ __merge_or_add_vmap_area(struct vmap_area *va,
 
 insert:
 	if (!merged) {
-		__link_va(va, root, parent, link, head);
-		__augment_tree_propagate_from(va);
+		link_va(va, root, parent, link, head);
+		augment_tree_propagate_from(va);
 	}
 }
 
@@ -743,7 +737,7 @@ is_within_this_va(struct vmap_area *va, unsigned long size,
  * parameters.
  */
 static __always_inline struct vmap_area *
-__find_vmap_lowest_match(unsigned long size,
+find_vmap_lowest_match(unsigned long size,
 	unsigned long align, unsigned long vstart)
 {
 	struct vmap_area *va;
@@ -798,7 +792,7 @@ __find_vmap_lowest_match(unsigned long size,
 	return NULL;
 }
 
-enum alloc_fit_type {
+enum fit_type {
 	NOTHING_FIT = 0,
 	FL_FIT_TYPE = 1,	/* full fit */
 	LE_FIT_TYPE = 2,	/* left edge fit */
@@ -806,11 +800,11 @@ enum alloc_fit_type {
 	NE_FIT_TYPE = 4		/* no edge fit */
 };
 
-static __always_inline u8
-__classify_va_fit_type(struct vmap_area *va,
+static __always_inline enum fit_type
+classify_va_fit_type(struct vmap_area *va,
 	unsigned long nva_start_addr, unsigned long size)
 {
-	u8 fit_type;
+	enum fit_type type;
 
 	/* Check if it is within VA. */
 	if (nva_start_addr < va->va_start ||
@@ -820,25 +814,26 @@ __classify_va_fit_type(struct vmap_area *va,
 	/* Now classify. */
 	if (va->va_start == nva_start_addr) {
 		if (va->va_end == nva_start_addr + size)
-			fit_type = FL_FIT_TYPE;
+			type = FL_FIT_TYPE;
 		else
-			fit_type = LE_FIT_TYPE;
+			type = LE_FIT_TYPE;
 	} else if (va->va_end == nva_start_addr + size) {
-		fit_type = RE_FIT_TYPE;
+		type = RE_FIT_TYPE;
 	} else {
-		fit_type = NE_FIT_TYPE;
+		type = NE_FIT_TYPE;
 	}
 
-	return fit_type;
+	return type;
 }
 
 static __always_inline int
-__adjust_va_to_fit_type(struct vmap_area *va,
-	unsigned long nva_start_addr, unsigned long size, u8 fit_type)
+adjust_va_to_fit_type(struct vmap_area *va,
+	unsigned long nva_start_addr, unsigned long size,
+	enum fit_type type)
 {
 	struct vmap_area *lva;
 
-	if (fit_type == FL_FIT_TYPE) {
+	if (type == FL_FIT_TYPE) {
 		/*
 		 * No need to split VA, it fully fits.
 		 *
@@ -846,9 +841,9 @@ __adjust_va_to_fit_type(struct vmap_area *va,
 		 * V      NVA      V
 		 * |---------------|
 		 */
-		__unlink_va(va, &free_vmap_area_root);
+		unlink_va(va, &free_vmap_area_root);
 		kmem_cache_free(vmap_area_cachep, va);
-	} else if (fit_type == LE_FIT_TYPE) {
+	} else if (type == LE_FIT_TYPE) {
 		/*
 		 * Split left edge of fit VA.
 		 *
@@ -857,7 +852,7 @@ __adjust_va_to_fit_type(struct vmap_area *va,
 		 * |-------|-------|
 		 */
 		va->va_start += size;
-	} else if (fit_type == RE_FIT_TYPE) {
+	} else if (type == RE_FIT_TYPE) {
 		/*
 		 * Split right edge of fit VA.
 		 *
@@ -866,7 +861,7 @@ __adjust_va_to_fit_type(struct vmap_area *va,
 		 * |-------|-------|
 		 */
 		va->va_end = nva_start_addr;
-	} else if (fit_type == NE_FIT_TYPE) {
+	} else if (type == NE_FIT_TYPE) {
 		/*
 		 * Split no edge of fit VA.
 		 *
@@ -892,11 +887,11 @@ __adjust_va_to_fit_type(struct vmap_area *va,
 		return -1;
 	}
 
-	if (fit_type != FL_FIT_TYPE) {
-		__augment_tree_propagate_from(va);
+	if (type != FL_FIT_TYPE) {
+		augment_tree_propagate_from(va);
 
-		if (fit_type == NE_FIT_TYPE)
-			__insert_vmap_area_augment(lva, &va->rb_node,
+		if (type == NE_FIT_TYPE)
+			insert_vmap_area_augment(lva, &va->rb_node,
 				&free_vmap_area_root, &free_vmap_area_list);
 	}
 
@@ -913,10 +908,10 @@ __alloc_vmap_area(unsigned long size, unsigned long align,
 {
 	unsigned long nva_start_addr;
 	struct vmap_area *va;
-	u8 fit_type;
+	enum fit_type type;
 	int ret;
 
-	va = __find_vmap_lowest_match(size, align, vstart);
+	va = find_vmap_lowest_match(size, align, vstart);
 	if (unlikely(!va))
 		return vend;
 
@@ -930,12 +925,12 @@ __alloc_vmap_area(unsigned long size, unsigned long align,
 		return vend;
 
 	/* Classify what we have found. */
-	fit_type = __classify_va_fit_type(va, nva_start_addr, size);
-	if (WARN_ON_ONCE(fit_type == NOTHING_FIT))
+	type = classify_va_fit_type(va, nva_start_addr, size);
+	if (WARN_ON_ONCE(type == NOTHING_FIT))
 		return vend;
 
 	/* Update the free vmap_area. */
-	ret = __adjust_va_to_fit_type(va, nva_start_addr, size, fit_type);
+	ret = adjust_va_to_fit_type(va, nva_start_addr, size, type);
 	if (ret)
 		return vend;
 
@@ -989,7 +984,7 @@ retry:
 	va->va_start = addr;
 	va->va_end = addr + size;
 	va->flags = 0;
-	__insert_vmap_area(va, &vmap_area_root, &vmap_area_list);
+	insert_vmap_area(va, &vmap_area_root, &vmap_area_list);
 
 	spin_unlock(&vmap_area_lock);
 
@@ -1043,12 +1038,12 @@ static void __free_vmap_area(struct vmap_area *va)
 	/*
 	 * Remove from the busy tree/list.
 	 */
-	__unlink_va(va, &vmap_area_root);
+	unlink_va(va, &vmap_area_root);
 
 	/*
 	 * Merge VA with its neighbors, otherwise just add it.
 	 */
-	__merge_or_add_vmap_area(va,
+	merge_or_add_vmap_area(va,
 		&free_vmap_area_root, &free_vmap_area_list);
 }
 
@@ -1725,11 +1720,14 @@ static void vmap_init_free_space(void)
 	list_for_each_entry(busy, &vmap_area_list, list) {
 		if (busy->va_start - vmap_start > 0) {
 			free = kmem_cache_zalloc(vmap_area_cachep, GFP_NOWAIT);
-			free->va_start = vmap_start;
-			free->va_end = busy->va_start;
+			if (!WARN_ON_ONCE(!free)) {
+				free->va_start = vmap_start;
+				free->va_end = busy->va_start;
 
-			__insert_vmap_area_augment(free, NULL,
-				&free_vmap_area_root, &free_vmap_area_list);
+				insert_vmap_area_augment(free, NULL,
+					&free_vmap_area_root,
+						&free_vmap_area_list);
+			}
 		}
 
 		vmap_start = busy->va_end;
@@ -1737,11 +1735,14 @@ static void vmap_init_free_space(void)
 
 	if (vmap_end - vmap_start > 0) {
 		free = kmem_cache_zalloc(vmap_area_cachep, GFP_NOWAIT);
-		free->va_start = vmap_start;
-		free->va_end = vmap_end;
+		if (!WARN_ON_ONCE(!free)) {
+			free->va_start = vmap_start;
+			free->va_end = vmap_end;
 
-		__insert_vmap_area_augment(free, NULL,
-			&free_vmap_area_root, &free_vmap_area_list);
+			insert_vmap_area_augment(free, NULL,
+				&free_vmap_area_root,
+					&free_vmap_area_list);
+		}
 	}
 }
 
@@ -1771,11 +1772,14 @@ void __init vmalloc_init(void)
 	/* Import existing vmlist entries. */
 	for (tmp = vmlist; tmp; tmp = tmp->next) {
 		va = kmem_cache_zalloc(vmap_area_cachep, GFP_NOWAIT);
+		if (WARN_ON_ONCE(!va))
+			continue;
+
 		va->flags = VM_VM_AREA;
 		va->va_start = (unsigned long)tmp->addr;
 		va->va_end = va->va_start + tmp->size;
 		va->vm = tmp;
-		__insert_vmap_area(va, &vmap_area_root, &vmap_area_list);
+		insert_vmap_area(va, &vmap_area_root, &vmap_area_list);
 	}
 
 	/*
@@ -2961,17 +2965,15 @@ pvm_determine_end_from_reverse(struct vmap_area **va, unsigned long align)
 	unsigned long vmalloc_end = VMALLOC_END & ~(align - 1);
 	unsigned long addr;
 
-	if (unlikely(!(*va)))
-		goto leave;
-
-	list_for_each_entry_from_reverse((*va),
-			&free_vmap_area_list, list) {
-		addr = min((*va)->va_end & ~(align - 1), vmalloc_end);
-		if ((*va)->va_start < addr)
-			return addr;
+	if (likely(*va)) {
+		list_for_each_entry_from_reverse((*va),
+				&free_vmap_area_list, list) {
+			addr = min((*va)->va_end & ~(align - 1), vmalloc_end);
+			if ((*va)->va_start < addr)
+				return addr;
+		}
 	}
 
-leave:
 	return 0;
 }
 
@@ -3010,7 +3012,7 @@ struct vm_struct **pcpu_get_vm_areas(const unsigned long *offsets,
 	int area, area2, last_area, term_area;
 	unsigned long base, start, size, end, last_end;
 	bool purged = false;
-	u8 fit_type;
+	enum fit_type type;
 
 	/* verify parameters and allocate data structures */
 	BUG_ON(offset_in_page(align) || !is_power_of_2(align));
@@ -3111,12 +3113,12 @@ retry:
 			/* It is a BUG(), but trigger recovery instead. */
 			goto recovery;
 
-		fit_type = __classify_va_fit_type(va, start, size);
-		if (WARN_ON_ONCE(fit_type == NOTHING_FIT))
+		type = classify_va_fit_type(va, start, size);
+		if (WARN_ON_ONCE(type == NOTHING_FIT))
 			/* It is a BUG(), but trigger recovery instead. */
 			goto recovery;
 
-		ret = __adjust_va_to_fit_type(va, start, size, fit_type);
+		ret = adjust_va_to_fit_type(va, start, size, type);
 		if (unlikely(ret))
 			goto recovery;
 
@@ -3125,7 +3127,7 @@ retry:
 		va->va_start = start;
 		va->va_end = start + size;
 
-		__insert_vmap_area(va, &vmap_area_root, &vmap_area_list);
+		insert_vmap_area(va, &vmap_area_root, &vmap_area_list);
 	}
 
 	spin_unlock(&vmap_area_lock);
