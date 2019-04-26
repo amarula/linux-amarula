@@ -20,6 +20,8 @@
 
 #include <asm/page.h>
 
+#include "kstrtox.h"
+
 /**
  * DOC: bitmap introduction
  *
@@ -515,22 +517,17 @@ static int bitmap_check_region(const struct region *r)
 
 static const char *bitmap_getnum(const char *str, unsigned int *num)
 {
-	unsigned int n = 0, _num = 0;
+	unsigned long long n;
+	unsigned int len;
 
-	if (!isdigit(*str))
+	len = _parse_integer(str, 10, &n);
+	if (!len)
 		return ERR_PTR(-EINVAL);
+	if (len & KSTRTOX_OVERFLOW || n != (unsigned int)n)
+		return ERR_PTR(-EOVERFLOW);
 
-	for (; isdigit(*str); str++) {
-		_num = _num * 10 + (*str - '0');
-		if (_num < n)
-			return ERR_PTR(-EOVERFLOW);
-
-		n = _num;
-	}
-
-	*num = _num;
-
-	return str;
+	*num = n;
+	return str + len;
 }
 
 static inline bool end_of_str(char c)
