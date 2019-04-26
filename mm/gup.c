@@ -1122,26 +1122,7 @@ long get_user_pages_remote(struct task_struct *tsk, struct mm_struct *mm,
 }
 EXPORT_SYMBOL(get_user_pages_remote);
 
-/*
- * This is the same as get_user_pages_remote(), just with a
- * less-flexible calling convention where we assume that the task
- * and mm being operated on are the current task's and don't allow
- * passing of a locked parameter.  We also obviously don't pass
- * FOLL_REMOTE in here.
- */
-long get_user_pages(unsigned long start, unsigned long nr_pages,
-		unsigned int gup_flags, struct page **pages,
-		struct vm_area_struct **vmas)
-{
-	return __get_user_pages_locked(current, current->mm, start, nr_pages,
-				       pages, vmas, NULL,
-				       gup_flags | FOLL_TOUCH);
-}
-EXPORT_SYMBOL(get_user_pages);
-
 #if defined(CONFIG_FS_DAX) || defined (CONFIG_CMA)
-
-#ifdef CONFIG_FS_DAX
 static bool check_dax_vmas(struct vm_area_struct **vmas, long nr_pages)
 {
 	long i;
@@ -1160,12 +1141,6 @@ static bool check_dax_vmas(struct vm_area_struct **vmas, long nr_pages)
 	}
 	return false;
 }
-#else
-static inline bool check_dax_vmas(struct vm_area_struct **vmas, long nr_pages)
-{
-	return false;
-}
-#endif
 
 #ifdef CONFIG_CMA
 static struct page *new_non_cma_page(struct page *page, unsigned long private)
@@ -1219,10 +1194,13 @@ static struct page *new_non_cma_page(struct page *page, unsigned long private)
 	return __alloc_pages_node(nid, gfp_mask, 0);
 }
 
-static long check_and_migrate_cma_pages(unsigned long start, long nr_pages,
-					unsigned int gup_flags,
+static long check_and_migrate_cma_pages(struct task_struct *tsk,
+					struct mm_struct *mm,
+					unsigned long start,
+					unsigned long nr_pages,
 					struct page **pages,
-					struct vm_area_struct **vmas)
+					struct vm_area_struct **vmas,
+					unsigned int gup_flags)
 {
 	long i;
 	bool drain_allow = true;
@@ -1278,10 +1256,14 @@ check_again:
 				putback_movable_pages(&cma_page_list);
 		}
 		/*
-		 * We did migrate all the pages, Try to get the page references again
-		 * migrating any new CMA pages which we failed to isolate earlier.
+		 * We did migrate all the pages, Try to get the page references
+		 * again migrating any new CMA pages which we failed to isolate
+		 * earlier.
 		 */
-		nr_pages = get_user_pages(start, nr_pages, gup_flags, pages, vmas);
+		nr_pages = __get_user_pages_locked(tsk, mm, start, nr_pages,
+						   pages, vmas, NULL,
+						   gup_flags);
+
 		if ((nr_pages > 0) && migrate_allow) {
 			drain_allow = true;
 			goto check_again;
@@ -1291,66 +1273,115 @@ check_again:
 	return nr_pages;
 }
 #else
-static inline long check_and_migrate_cma_pages(unsigned long start, long nr_pages,
-					       unsigned int gup_flags,
-					       struct page **pages,
-					       struct vm_area_struct **vmas)
+static long check_and_migrate_cma_pages(struct task_struct *tsk,
+					struct mm_struct *mm,
+					unsigned long start,
+					unsigned long nr_pages,
+					struct page **pages,
+					struct vm_area_struct **vmas,
+					unsigned int gup_flags)
 {
 	return nr_pages;
 }
 #endif
 
 /*
- * This is the same as get_user_pages() in that it assumes we are
- * operating on the current task's mm, but it goes further to validate
- * that the vmas associated with the address range are suitable for
- * longterm elevated page reference counts. For example, filesystem-dax
- * mappings are subject to the lifetime enforced by the filesystem and
- * we need guarantees that longterm users like RDMA and V4L2 only
- * establish mappings that have a kernel enforced revocation mechanism.
+ * __gup_longterm_locked() is a wrapper for __get_uer_pages_locked which
+ * allows us to process the FOLL_LONGTERM flag if present.
+ *
+ * FOLL_LONGTERM Checks for either DAX VMAs or PPC CMA regions and either fails
+ * the pin or attempts to migrate the page as appropriate.
+ *
+ * In the filesystem-dax case mappings are subject to the lifetime enforced by
+ * the filesystem and we need guarantees that longterm users like RDMA and V4L2
+ * only establish mappings that have a kernel enforced revocation mechanism.
+ *
+ * In the CMA case pages can't be pinned in a CMA region as this would
+ * unnecessarily fragment that region.  So CMA attempts to migrate the page
+ * before pinning.
  *
  * "longterm" == userspace controlled elevated page count lifetime.
  * Contrast this to iov_iter_get_pages() usages which are transient.
  */
-long get_user_pages_longterm(unsigned long start, unsigned long nr_pages,
-			     unsigned int gup_flags, struct page **pages,
-			     struct vm_area_struct **vmas_arg)
+static __always_inline long __gup_longterm_locked(struct task_struct *tsk,
+						  struct mm_struct *mm,
+						  unsigned long start,
+						  unsigned long nr_pages,
+						  struct page **pages,
+						  struct vm_area_struct **vmas,
+						  unsigned int gup_flags)
 {
-	struct vm_area_struct **vmas = vmas_arg;
-	unsigned long flags;
+	struct vm_area_struct **vmas_tmp = vmas;
+	unsigned long flags = 0;
 	long rc, i;
 
-	if (!pages)
-		return -EINVAL;
+	if (gup_flags & FOLL_LONGTERM) {
+		if (!pages)
+			return -EINVAL;
 
-	if (!vmas) {
-		vmas = kcalloc(nr_pages, sizeof(struct vm_area_struct *),
-			       GFP_KERNEL);
-		if (!vmas)
-			return -ENOMEM;
+		if (!vmas_tmp) {
+			vmas_tmp = kcalloc(nr_pages,
+					   sizeof(struct vm_area_struct *),
+					   GFP_KERNEL);
+			if (!vmas_tmp)
+				return -ENOMEM;
+		}
+		flags = memalloc_nocma_save();
 	}
 
-	flags = memalloc_nocma_save();
-	rc = get_user_pages(start, nr_pages, gup_flags, pages, vmas);
-	memalloc_nocma_restore(flags);
-	if (rc < 0)
-		goto out;
+	rc = __get_user_pages_locked(tsk, mm, start, nr_pages, pages,
+				     vmas_tmp, NULL, gup_flags);
 
-	if (check_dax_vmas(vmas, rc)) {
-		for (i = 0; i < rc; i++)
-			put_page(pages[i]);
-		rc = -EOPNOTSUPP;
-		goto out;
+	if (gup_flags & FOLL_LONGTERM) {
+		memalloc_nocma_restore(flags);
+		if (rc < 0)
+			goto out;
+
+		if (check_dax_vmas(vmas_tmp, rc)) {
+			for (i = 0; i < rc; i++)
+				put_page(pages[i]);
+			rc = -EOPNOTSUPP;
+			goto out;
+		}
+
+		rc = check_and_migrate_cma_pages(tsk, mm, start, rc, pages,
+						 vmas_tmp, gup_flags);
 	}
 
-	rc = check_and_migrate_cma_pages(start, rc, gup_flags, pages, vmas);
 out:
-	if (vmas != vmas_arg)
-		kfree(vmas);
+	if (vmas_tmp != vmas)
+		kfree(vmas_tmp);
 	return rc;
 }
-EXPORT_SYMBOL(get_user_pages_longterm);
-#endif /* CONFIG_FS_DAX */
+#else /* !CONFIG_FS_DAX && !CONFIG_CMA */
+static __always_inline long __gup_longterm_locked(struct task_struct *tsk,
+						  struct mm_struct *mm,
+						  unsigned long start,
+						  unsigned long nr_pages,
+						  struct page **pages,
+						  struct vm_area_struct **vmas,
+						  unsigned int flags)
+{
+	return __get_user_pages_locked(tsk, mm, start, nr_pages, pages, vmas,
+				       NULL, flags);
+}
+#endif /* CONFIG_FS_DAX || CONFIG_CMA */
+
+/*
+ * This is the same as get_user_pages_remote(), just with a
+ * less-flexible calling convention where we assume that the task
+ * and mm being operated on are the current task's and don't allow
+ * passing of a locked parameter.  We also obviously don't pass
+ * FOLL_REMOTE in here.
+ */
+long get_user_pages(unsigned long start, unsigned long nr_pages,
+		unsigned int gup_flags, struct page **pages,
+		struct vm_area_struct **vmas)
+{
+	return __gup_longterm_locked(current, current->mm, start, nr_pages,
+				     pages, vmas, gup_flags | FOLL_TOUCH);
+}
+EXPORT_SYMBOL(get_user_pages);
 
 /**
  * populate_vma_page_range() -  populate a range of pages in the vma.

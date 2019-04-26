@@ -148,7 +148,8 @@ static long mm_iommu_do_alloc(struct mm_struct *mm, unsigned long ua,
 	}
 
 	down_read(&mm->mmap_sem);
-	ret = get_user_pages_longterm(ua, entries, FOLL_WRITE, mem->hpages, NULL);
+	ret = get_user_pages(ua, entries, FOLL_WRITE | FOLL_LONGTERM,
+			     mem->hpages, NULL);
 	up_read(&mm->mmap_sem);
 	if (ret != entries) {
 		/* free the reference taken */
