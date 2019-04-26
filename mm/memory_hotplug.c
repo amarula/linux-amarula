@@ -1804,7 +1804,8 @@ void try_offline_node(int nid)
 }
 EXPORT_SYMBOL(try_offline_node);
 
-static void __release_memory_resource(u64 start, u64 size)
+static void __release_memory_resource(resource_size_t start,
+				      resource_size_t size)
 {
 	int ret;
 
