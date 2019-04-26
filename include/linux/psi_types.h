@@ -70,20 +70,19 @@ struct psi_group_cpu {
 
 struct psi_group {
 	/* Protects data used by the aggregator */
-	struct mutex update_lock;
+	struct mutex avgs_lock;
 
 	/* Per-cpu task state & time tracking */
 	struct psi_group_cpu __percpu *pcpu;
-
-	struct delayed_work clock_work;
-
-	/* Total stall times observed */
-	u64 total[NR_PSI_STATES - 1];
 
 	/* Running pressure averages */
 	u64 avg_total[NR_PSI_STATES - 1];
 	u64 avg_last_update;
 	u64 avg_next_update;
+	struct delayed_work avgs_work;
+
+	/* Total stall times and sampled pressure averages */
+	u64 total[NR_PSI_STATES - 1];
 	unsigned long avg[NR_PSI_STATES - 1][3];
 };
 
