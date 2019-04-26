@@ -595,7 +595,11 @@ static void __init clean_rootfs(void)
 	ksys_close(fd);
 	kfree(buf);
 }
-#endif
+#else
+static inline void clean_rootfs(void)
+{
+}
+#endif /* CONFIG_BLK_DEV_RAM */
 
 #ifdef CONFIG_BLK_DEV_RAM
 static void populate_initrd_image(char *err)
