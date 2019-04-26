@@ -2535,10 +2535,11 @@ void console_unblank(void)
 
 /**
  * console_flush_on_panic - flush console content on panic
+ * @mode: flush all messages in buffer or just the pending ones
  *
  * Immediately output all pending messages no matter what.
  */
-void console_flush_on_panic(void)
+void console_flush_on_panic(enum con_flush_mode mode)
 {
 	/*
 	 * If someone else is holding the console lock, trylock will fail
@@ -2549,6 +2550,11 @@ void console_flush_on_panic(void)
 	 */
 	console_trylock();
 	console_may_schedule = 0;
+
+	if (mode == CONSOLE_REPLAY_ALL) {
+		console_seq = log_first_seq;
+		console_idx = log_first_idx;
+	}
 	console_unlock();
 }
 
