@@ -1209,7 +1209,7 @@ long hmm_range_dma_map(struct hmm_range *range,
 
 	npages = (range->end - range->start) >> PAGE_SHIFT;
 	for (i = 0, mapped = 0; i < npages; ++i) {
-		enum dma_data_direction dir = DMA_FROM_DEVICE;
+		enum dma_data_direction dir = DMA_TO_DEVICE;
 		struct page *page;
 
 		/*
@@ -1233,7 +1233,7 @@ long hmm_range_dma_map(struct hmm_range *range,
 		}
 
 		/* If it is read and write than map bi-directional. */
-		if (range->pfns[i] & range->values[HMM_PFN_WRITE])
+		if (range->pfns[i] & range->flags[HMM_PFN_WRITE])
 			dir = DMA_BIDIRECTIONAL;
 
 		daddrs[i] = dma_map_page(device, page, 0, PAGE_SIZE, dir);
@@ -1249,7 +1249,7 @@ long hmm_range_dma_map(struct hmm_range *range,
 
 unmap:
 	for (npages = i, i = 0; (i < npages) && mapped; ++i) {
-		enum dma_data_direction dir = DMA_FROM_DEVICE;
+		enum dma_data_direction dir = DMA_TO_DEVICE;
 		struct page *page;
 
 		page = hmm_pfn_to_page(range, range->pfns[i]);
@@ -1260,7 +1260,7 @@ unmap:
 			continue;
 
 		/* If it is read and write than map bi-directional. */
-		if (range->pfns[i] & range->values[HMM_PFN_WRITE])
+		if (range->pfns[i] & range->flags[HMM_PFN_WRITE])
 			dir = DMA_BIDIRECTIONAL;
 
 		dma_unmap_page(device, daddrs[i], PAGE_SIZE, dir);
@@ -1304,7 +1304,7 @@ long hmm_range_dma_unmap(struct hmm_range *range,
 
 	npages = (range->end - range->start) >> PAGE_SHIFT;
 	for (i = 0; i < npages; ++i) {
-		enum dma_data_direction dir = DMA_FROM_DEVICE;
+		enum dma_data_direction dir = DMA_TO_DEVICE;
 		struct page *page;
 
 		page = hmm_pfn_to_page(range, range->pfns[i]);
@@ -1312,7 +1312,7 @@ long hmm_range_dma_unmap(struct hmm_range *range,
 			continue;
 
 		/* If it is read and write than map bi-directional. */
-		if (range->pfns[i] & range->values[HMM_PFN_WRITE]) {
+		if (range->pfns[i] & range->flags[HMM_PFN_WRITE]) {
 			dir = DMA_BIDIRECTIONAL;
 
 			/*
