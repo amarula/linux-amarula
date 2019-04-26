@@ -563,7 +563,7 @@ static void __init bootmem_init(void)
 		offset = __pa_symbol(_text) - __pa_symbol(VMLINUX_LOAD_ADDRESS);
 		memblock_free(__pa_symbol(VMLINUX_LOAD_ADDRESS), offset);
 
-#if defined(CONFIG_DEBUG_KERNEL) && defined(CONFIG_DEBUG_INFO)
+#if defined(CONFIG_DEBUG_MISC) && defined(CONFIG_DEBUG_INFO)
 		/*
 		 * This information is necessary when debugging the kernel
 		 * But is a security vulnerability otherwise!
