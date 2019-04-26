@@ -2067,6 +2067,29 @@ int __get_user_pages_fast(unsigned long start, int nr_pages, int write,
 	return nr;
 }
 
+static int __gup_longterm_unlocked(unsigned long start, int nr_pages,
+				   unsigned int gup_flags, struct page **pages)
+{
+	int ret;
+
+	/*
+	 * FIXME: FOLL_LONGTERM does not work with
+	 * get_user_pages_unlocked() (see comments in that function)
+	 */
+	if (gup_flags & FOLL_LONGTERM) {
+		down_read(&current->mm->mmap_sem);
+		ret = __gup_longterm_locked(current, current->mm,
+					    start, nr_pages,
+					    pages, NULL, gup_flags);
+		up_read(&current->mm->mmap_sem);
+	} else {
+		ret = get_user_pages_unlocked(start, nr_pages,
+					      pages, gup_flags);
+	}
+
+	return ret;
+}
+
 /**
  * get_user_pages_fast() - pin user pages in memory
  * @start:	starting user address
@@ -2112,20 +2135,8 @@ int get_user_pages_fast(unsigned long start, int nr_pages,
 		start += nr << PAGE_SHIFT;
 		pages += nr;
 
-		if (gup_flags & FOLL_LONGTERM) {
-			down_read(&current->mm->mmap_sem);
-			ret = __gup_longterm_locked(current, current->mm,
-						    start, nr_pages - nr,
-						    pages, NULL, gup_flags);
-			up_read(&current->mm->mmap_sem);
-		} else {
-			/*
-			 * retain FAULT_FOLL_ALLOW_RETRY optimization if
-			 * possible
-			 */
-			ret = get_user_pages_unlocked(start, nr_pages - nr,
-						      pages, gup_flags);
-		}
+		ret = __gup_longterm_unlocked(start, nr_pages - nr,
+					      gup_flags, pages);
 
 		/* Have to be a bit careful with return values */
 		if (nr > 0) {
