@@ -323,6 +323,7 @@ EXPORT_SYMBOL(vmalloc_to_pfn);
 
 
 /*** Global kva allocator ***/
+
 #define DEBUG_AUGMENT_PROPAGATE_CHECK 0
 
 #define VM_LAZY_FREE	0x02
@@ -548,7 +549,7 @@ unlink_va(struct vmap_area *va, struct rb_root *root)
 
 #if DEBUG_AUGMENT_PROPAGATE_CHECK
 static void
-augment_tree_propagate_do_check(struct rb_node *n)
+augment_tree_propagate_check(struct rb_node *n)
 {
 	struct vmap_area *va;
 	struct rb_node *node;
@@ -568,7 +569,7 @@ augment_tree_propagate_do_check(struct rb_node *n)
 		if (get_subtree_max_size(node->rb_left) == size) {
 			node = node->rb_left;
 		} else {
-			if (__va_size(va) == size) {
+			if (va_size(va) == size) {
 				found = true;
 				break;
 			}
@@ -580,16 +581,11 @@ augment_tree_propagate_do_check(struct rb_node *n)
 	if (!found) {
 		va = rb_entry(n, struct vmap_area, rb_node);
 		pr_emerg("tree is corrupted: %lu, %lu\n",
-			__va_size(va), va->subtree_max_size);
+			va_size(va), va->subtree_max_size);
 	}
 
-	augment_tree_propagate_do_check(n->rb_left);
-	augment_tree_propagate_do_check(n->rb_right);
-}
-
-static void augment_tree_propagate_from_check(void)
-{
-	augment_tree_propagate_do_check(free_vmap_area_root.rb_node);
+	augment_tree_propagate_check(n->rb_left);
+	augment_tree_propagate_check(n->rb_right);
 }
 #endif
 
@@ -644,7 +640,7 @@ augment_tree_propagate_from(struct vmap_area *va)
 	}
 
 #if DEBUG_AUGMENT_PROPAGATE_CHECK
-	augment_tree_propagate_from_check();
+	augment_tree_propagate_check(free_vmap_area_root.rb_node);
 #endif
 }
 
