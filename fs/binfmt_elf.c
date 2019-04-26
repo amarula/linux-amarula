@@ -777,7 +777,7 @@ static int load_elf_binary(struct linux_binprm *bprm)
 			kfree(elf_interpreter);
 			retval = PTR_ERR(interpreter);
 			if (IS_ERR(interpreter))
-				goto out_free_dentry;
+				goto out_free_ph;
 
 			/*
 			 * If the binary is not readable then enforce
