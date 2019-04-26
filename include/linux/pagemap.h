@@ -335,12 +335,15 @@ static inline struct page *grab_cache_page_nowait(struct address_space *mapping,
 
 static inline struct page *find_subpage(struct page *page, pgoff_t offset)
 {
-	unsigned long index = page_index(page);
+	unsigned long mask;
+
+	if (PageHuge(page))
+		return page;
 
 	VM_BUG_ON_PAGE(PageTail(page), page);
-	VM_BUG_ON_PAGE(index > offset, page);
-	VM_BUG_ON_PAGE(index + (1 << compound_order(page)) <= offset, page);
-	return page - index + offset;
+
+	mask = (1UL << compound_order(page)) - 1;
+	return page + (offset & mask);
 }
 
 struct page *find_get_entry(struct address_space *mapping, pgoff_t offset);
