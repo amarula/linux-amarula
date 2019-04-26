@@ -254,11 +254,11 @@ static const struct test_bitmap_parselist parselist_tests[] __initconst = {
 
 	{0, "0-2047:128/256", NULL, 2048, PARSE_TIME},
 
-	{0, "",				&exp[12], 8, 0},
-	{0, "\n",			&exp[12], 8, 0},
-	{0, ",,  ,,  , ,  ,",		&exp[12], 8, 0},
-	{0, " ,  ,,  , ,   ",		&exp[12], 8, 0},
-	{0, " ,  ,,  , ,   \n",		&exp[12], 8, 0},
+	{0, "",				&exp[12 * step], 8, 0},
+	{0, "\n",			&exp[12 * step], 8, 0},
+	{0, ",,  ,,  , ,  ,",		&exp[12 * step], 8, 0},
+	{0, " ,  ,,  , ,   ",		&exp[12 * step], 8, 0},
+	{0, " ,  ,,  , ,   \n",		&exp[12 * step], 8, 0},
 
 	{-EINVAL, "-1",	NULL, 8, 0},
 	{-EINVAL, "-0",	NULL, 8, 0},
