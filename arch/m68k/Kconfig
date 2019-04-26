@@ -27,7 +27,6 @@ config M68K
 	select MODULES_USE_ELF_RELA
 	select OLD_SIGSUSPEND3
 	select OLD_SIGACTION
-	select ARCH_DISCARD_MEMBLOCK
 
 config CPU_BIG_ENDIAN
 	def_bool y
