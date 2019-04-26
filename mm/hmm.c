@@ -519,6 +519,7 @@ static int hmm_vma_handle_pmd(struct mm_walk *walk,
 			      uint64_t *pfns,
 			      pmd_t pmd)
 {
+#ifdef CONFIG_TRANSPARENT_HUGEPAGE
 	struct hmm_vma_walk *hmm_vma_walk = walk->private;
 	struct hmm_range *range = hmm_vma_walk->range;
 	unsigned long pfn, npages, i;
@@ -549,6 +550,10 @@ static int hmm_vma_handle_pmd(struct mm_walk *walk,
 	}
 	hmm_vma_walk->last = end;
 	return 0;
+#else
+	/* If THP is not enabled then we should never reach that code ! */
+	return -EINVAL;
+#endif
 }
 
 static inline uint64_t pte_to_hmm_pfn_flags(struct hmm_range *range, pte_t pte)
@@ -790,6 +795,7 @@ again:
 			return hmm_vma_walk_hole_(addr, end, fault,
 						write_fault, walk);
 
+#ifdef CONFIG_HUGETLB_PAGE
 		pfn = pud_pfn(pud) + ((addr & ~PUD_MASK) >> PAGE_SHIFT);
 		for (i = 0; i < npages; ++i, ++pfn) {
 			hmm_vma_walk->pgmap = get_dev_pagemap(pfn,
@@ -804,6 +810,9 @@ again:
 		}
 		hmm_vma_walk->last = end;
 		return 0;
+#else
+		return -EINVAL;
+#endif
 	}
 
 	split_huge_pud(walk->vma, pudp, addr);
