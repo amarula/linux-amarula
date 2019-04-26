@@ -755,7 +755,7 @@ static int hmm_vma_walk_hugetlb_entry(pte_t *pte, unsigned long hmask,
 		goto unlock;
 	}
 
-	pfn = pte_pfn(entry) + (start & mask);
+	pfn = pte_pfn(entry) + ((start & mask) >> range->page_shift);
 	for (; addr < end; addr += size, i++, pfn += pfn_inc)
 		range->pfns[i] = hmm_pfn_from_pfn(range, pfn) | cpu_flags;
 	hmm_vma_walk->last = end;
