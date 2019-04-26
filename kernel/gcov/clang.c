@@ -86,10 +86,8 @@ void llvm_gcov_init(llvm_gcov_callback writeout, llvm_gcov_callback flush)
 {
 	struct gcov_info *info = kzalloc(sizeof(*info), GFP_KERNEL);
 
-	if (!info) {
-		pr_warn_ratelimited("failed to allocate gcov info\n");
+	if (!info)
 		return;
-	}
 
 	INIT_LIST_HEAD(&info->head);
 	INIT_LIST_HEAD(&info->functions);
@@ -121,11 +119,8 @@ void llvm_gcda_emit_function(u32 ident, const char *function_name,
 {
 	struct gcov_fn_info *info = kzalloc(sizeof(*info), GFP_KERNEL);
 
-	if (!info) {
-		pr_warn_ratelimited("failed to allocate gcov function info for %s\n",
-				function_name ?: "UNKNOWN");
+	if (!info)
 		return;
-	}
 
 	INIT_LIST_HEAD(&info->head);
 	info->ident = ident;
