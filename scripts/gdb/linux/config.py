@@ -7,6 +7,7 @@ import zlib
 
 from linux import utils
 
+
 class LxConfigDump(gdb.Command):
     """Output kernel config to the filename specified as the command
        argument. Equivalent to 'zcat /proc/config.gz > config.txt' on
@@ -14,7 +15,7 @@ class LxConfigDump(gdb.Command):
 
     def __init__(self):
         super(LxConfigDump, self).__init__("lx-configdump", gdb.COMMAND_DATA,
-                                        gdb.COMPLETE_FILENAME)
+                                           gdb.COMPLETE_FILENAME)
 
     def invoke(self, arg, from_tty):
         if len(arg) == 0:
@@ -23,26 +24,21 @@ class LxConfigDump(gdb.Command):
             filename = arg
 
         try:
-            py_config_ptr = gdb.parse_and_eval(
-                "kernel_config_data + 8")
+            py_config_ptr = gdb.parse_and_eval("kernel_config_data + 8")
             py_config_size = gdb.parse_and_eval(
-                "sizeof(kernel_config_data) - 2 - 8 * 2")
-        except:
+                    "sizeof(kernel_config_data) - 1 - 8 * 2")
+        except gdb.error as e:
             raise gdb.GdbError("Can't find config, enable CONFIG_IKCONFIG?")
 
         inf = gdb.inferiors()[0]
         zconfig_buf = utils.read_memoryview(inf, py_config_ptr,
-                                        py_config_size).tobytes()
+                                            py_config_size).tobytes()
 
         config_buf = zlib.decompress(zconfig_buf, 16)
-        try:
-            f = open(filename, 'wb')
-        except:
-            raise gdb.GdbError("Could not open file to dump config")
-
-        f.write(config_buf)
-        f.close()
+        with open(filename, 'wb') as f:
+            f.write(config_buf)
 
         gdb.write("Dumped config to " + filename + "\n")
+
 
 LxConfigDump()
