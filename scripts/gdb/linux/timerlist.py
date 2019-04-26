@@ -2,6 +2,7 @@
 #
 # Copyright 2019 Google LLC.
 
+import binascii
 import gdb
 
 from linux import constants
@@ -9,8 +10,8 @@ from linux import cpus
 from linux import rbtree
 from linux import utils
 
-timerqueue_node_type = utils.CachedType("struct timerqueue_node")
-hrtimer_type = utils.CachedType("struct hrtimer")
+timerqueue_node_type = utils.CachedType("struct timerqueue_node").get_type()
+hrtimer_type = utils.CachedType("struct hrtimer").get_type()
 
 
 def ktime_get():
@@ -23,9 +24,11 @@ def ktime_get():
 
     return tk_core['timekeeper']['tkr_mono']['base']
 
+
 def print_timer(rb_node, idx):
-    timerqueue = utils.container_of(rb_node, timerqueue_node_type.get_type().pointer(), "node")
-    timer = utils.container_of(timerqueue, hrtimer_type.get_type().pointer(), "node")
+    timerqueue = utils.container_of(rb_node, timerqueue_node_type.pointer(),
+                                    "node")
+    timer = utils.container_of(timerqueue, hrtimer_type.pointer(), "node")
 
     function = str(timer['function']).split(" ")[1].strip("<>")
     softexpires = timer['_softexpires']
@@ -34,9 +37,10 @@ def print_timer(rb_node, idx):
 
     text = " #{}: <{}>, {}, ".format(idx, timer, function)
     text += "S:{:02x}\n".format(int(timer['state']))
-    text += " # expires at {}-{} nsecs [in {} to {} nsecs]\n".format(softexpires,
-            expires, softexpires - now, expires - now)
+    text += " # expires at {}-{} nsecs [in {} to {} nsecs]\n".format(
+            softexpires, expires, softexpires - now, expires - now)
     return text
+
 
 def print_active_timers(base):
     curr = base['active']['next']['node']
@@ -46,6 +50,7 @@ def print_active_timers(base):
         yield print_timer(curr, idx)
         curr = rbtree.rb_next(curr)
         idx += 1
+
 
 def print_base(base):
     text = " .base:       {}\n".format(base.address)
@@ -60,9 +65,10 @@ def print_base(base):
     text += "".join([x for x in print_active_timers(base)])
     return text
 
+
 def print_cpu(hrtimer_bases, cpu, max_clock_bases):
     cpu_base = cpus.per_cpu(hrtimer_bases, cpu)
-    jiffies = gdb.parse_and_eval("jiffies")
+    jiffies = gdb.parse_and_eval("jiffies_64")
     tick_sched_ptr = gdb.parse_and_eval("&tick_cpu_sched")
     ts = cpus.per_cpu(tick_sched_ptr, cpu)
 
@@ -70,54 +76,39 @@ def print_cpu(hrtimer_bases, cpu, max_clock_bases):
     for i in xrange(max_clock_bases):
         text += " clock {}:\n".format(i)
         text += print_base(cpu_base['clock_base'][i])
+
         if constants.LX_CONFIG_HIGH_RES_TIMERS:
-            text += """  .expires_next   : {} nsecs
-  .hres_active    : {}
-  .nr_events      : {}
-  .nr_retries     : {}
-  .nr_hangs       : {}
-  .max_hang_time  : {}
-""".format(cpu_base['expires_next'],
-           cpu_base['hres_active'],
-           cpu_base['nr_events'],
-           cpu_base['nr_retries'],
-           cpu_base['nr_hangs'],
-           cpu_base['max_hang_time'])
+            fmts = [("  .{}   : {} nsecs", 'expires_next'),
+                    ("  .{}    : {}", 'hres_active'),
+                    ("  .{}      : {}", 'nr_events'),
+                    ("  .{}     : {}", 'nr_retries'),
+                    ("  .{}       : {}", 'nr_hangs'),
+                    ("  .{}  : {}", 'max_hang_time')]
+            text += "\n".join([s.format(f, cpu_base[f]) for s, f in fmts])
+            text += "\n"
+
         if constants.LX_CONFIG_TICK_ONESHOT:
-            text += """  .nohz_mode      : {}
-  .last_tick      : {} nsecs
-  .tick_stopped   : {}
-  .idle_jiffies   : {}
-  .idle_calls     : {}
-  .idle_sleeps    : {}
-  .idle_entrytime : {} nsecs
-  .idle_waketime  : {} nsecs
-  .idle_exittime  : {} nsecs
-  .idle_sleeptime : {} nsecs
-  .iowait_sleeptime: {} nsecs
-  .last_jiffies   : {}
-  .next_timer     : {}
-  .idle_expires   : {} nsecs
-jiffies: {}
-""".format(ts['nohz_mode'],
-           ts['last_tick'],
-           ts['tick_stopped'],
-           ts['idle_jiffies'],
-           ts['idle_calls'],
-           ts['idle_sleeps'],
-           ts['idle_entrytime'],
-           ts['idle_waketime'],
-           ts['idle_exittime'],
-           ts['idle_sleeptime'],
-           ts['iowait_sleeptime'],
-           ts['last_jiffies'],
-           ts['next_timer'],
-           ts['idle_expires'],
-           jiffies)
+            fmts = [("  .{}      : {}", 'nohz_mode'),
+                    ("  .{}      : {} nsecs", 'last_tick'),
+                    ("  .{}   : {}", 'tick_stopped'),
+                    ("  .{}   : {}", 'idle_jiffies'),
+                    ("  .{}     : {}", 'idle_calls'),
+                    ("  .{}    : {}", 'idle_sleeps'),
+                    ("  .{} : {} nsecs", 'idle_entrytime'),
+                    ("  .{}  : {} nsecs", 'idle_waketime'),
+                    ("  .{}  : {} nsecs", 'idle_exittime'),
+                    ("  .{} : {} nsecs", 'idle_sleeptime'),
+                    ("  .{}: {} nsecs", 'iowait_sleeptime'),
+                    ("  .{}   : {}", 'last_jiffies'),
+                    ("  .{}     : {}", 'next_timer'),
+                    ("  .{}   : {} nsecs", 'idle_expires')]
+            text += "\n".join([s.format(f, ts[f]) for s, f in fmts])
+            text += "\njiffies: {}\n".format(jiffies)
 
         text += "\n"
 
     return text
+
 
 def print_tickdevice(td, cpu):
     dev = td['evtdev']
@@ -146,9 +137,8 @@ def print_tickdevice(td, cpu):
                ('set_state_periodic', " periodic: {}\n"),
                ('set_state_oneshot', " oneshot:  {}\n"),
                ('set_state_oneshot_stopped', " oneshot stopped: {}\n"),
-               ('tick_resume', " resume:   {}\n"),
-              ]
-    for (member, fmt) in members:
+               ('tick_resume', " resume:   {}\n")]
+    for member, fmt in members:
         if dev[member]:
             text += fmt.format(dev[member])
 
@@ -156,6 +146,35 @@ def print_tickdevice(td, cpu):
     text += " retries:        {}\n".format(dev['retries'])
 
     return text
+
+
+def pr_cpumask(mask):
+    nr_cpu_ids = 1
+    if constants.LX_NR_CPUS > 1:
+        nr_cpu_ids = gdb.parse_and_eval("nr_cpu_ids")
+
+    inf = gdb.inferiors()[0]
+    bits = mask['bits']
+    num_bytes = (nr_cpu_ids + 7) / 8
+    buf = utils.read_memoryview(inf, bits, num_bytes).tobytes()
+    buf = binascii.b2a_hex(buf)
+
+    chunks = []
+    i = num_bytes
+    while i > 0:
+        i -= 1
+        start = i * 2
+        end = start + 2
+        chunks.append(buf[start:end])
+        if i != 0 and i % 4 == 0:
+            chunks.append(',')
+
+    extra = nr_cpu_ids % 8
+    if 0 < extra <= 4:
+        chunks[0] = chunks[0][0]  # Cut off the first 0
+
+    return "".join(chunks)
+
 
 class LxTimerList(gdb.Command):
     """Print /proc/timer_list"""
@@ -180,15 +199,21 @@ class LxTimerList(gdb.Command):
                 text += print_tickdevice(bc_dev, -1)
                 text += "\n"
                 mask = gdb.parse_and_eval("tick_broadcast_mask")
-                text += "tick_broadcast_mask: {}\n".format(mask) # TODO: format properly
+                mask = pr_cpumask(mask)
+                text += "tick_broadcast_mask: {}\n".format(mask)
                 if constants.LX_CONFIG_TICK_ONESHOT:
                     mask = gdb.parse_and_eval("tick_broadcast_oneshot_mask")
-                    text += "tick_broadcast_oneshot_mask: {}\n".format(mask) # TODO: format properly
+                    mask = pr_cpumask(mask)
+                    text += "tick_broadcast_oneshot_mask: {}\n".format(mask)
                 text += "\n"
 
             tick_cpu_devices = gdb.parse_and_eval("&tick_cpu_device")
-            text += "\n".join([print_tickdevice(cpus.per_cpu(tick_cpu_devices, cpu), cpu) for cpu in cpus.each_online_cpu()])
+            for cpu in cpus.each_online_cpu():
+                tick_dev = cpus.per_cpu(tick_cpu_devices, cpu)
+                text += print_tickdevice(tick_dev, cpu)
+                text += "\n"
 
         gdb.write(text)
+
 
 LxTimerList()
