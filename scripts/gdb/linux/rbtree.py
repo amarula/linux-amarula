@@ -14,8 +14,7 @@ def rb_first(root):
     if root.type == rb_root_type.get_type():
         node = node.address.cast(rb_root_type.get_type().pointer())
     elif root.type != rb_root_type.get_type().pointer():
-        raise gdb.GdbError("Must be struct rb_root not {}"
-                .format(root.type))
+        raise gdb.GdbError("Must be struct rb_root not {}".format(root.type))
 
     node = root['rb_node']
     if node is 0:
@@ -26,12 +25,12 @@ def rb_first(root):
 
     return node
 
+
 def rb_last(root):
     if root.type == rb_root_type.get_type():
         node = node.address.cast(rb_root_type.get_type().pointer())
     elif root.type != rb_root_type.get_type().pointer():
-        raise gdb.GdbError("Must be struct rb_root not {}"
-                .format(root.type))
+        raise gdb.GdbError("Must be struct rb_root not {}".format(root.type))
 
     node = root['rb_node']
     if node is 0:
@@ -42,19 +41,21 @@ def rb_last(root):
 
     return node
 
+
 def rb_parent(node):
     parent = gdb.Value(node['__rb_parent_color'] & ~3)
     return parent.cast(rb_node_type.get_type().pointer())
 
+
 def rb_empty_node(node):
     return node['__rb_parent_color'] == node.address
+
 
 def rb_next(node):
     if node.type == rb_node_type.get_type():
         node = node.address.cast(rb_node_type.get_type().pointer())
     elif node.type != rb_node_type.get_type().pointer():
-        raise gdb.GdbError("Must be struct rb_node not {}"
-                .format(node.type))
+        raise gdb.GdbError("Must be struct rb_node not {}".format(node.type))
 
     if rb_empty_node(node):
         return None
@@ -72,12 +73,12 @@ def rb_next(node):
 
     return parent
 
+
 def rb_prev(node):
     if node.type == rb_node_type.get_type():
         node = node.address.cast(rb_node_type.get_type().pointer())
     elif node.type != rb_node_type.get_type().pointer():
-        raise gdb.GdbError("Must be struct rb_node not {}"
-                .format(node.type))
+        raise gdb.GdbError("Must be struct rb_node not {}".format(node.type))
 
     if rb_empty_node(node):
         return None
@@ -112,7 +113,9 @@ If index is omitted, the root node is dereferenced and returned."""
 
         return result
 
+
 LxRbFirst()
+
 
 class LxRbLast(gdb.Function):
     """Lookup and return a node from an RBTree.
@@ -130,7 +133,9 @@ If index is omitted, the root node is dereferenced and returned."""
 
         return result
 
+
 LxRbLast()
+
 
 class LxRbNext(gdb.Function):
     """Lookup and return a node from an RBTree.
@@ -148,7 +153,9 @@ If index is omitted, the root node is dereferenced and returned."""
 
         return result
 
+
 LxRbNext()
+
 
 class LxRbPrev(gdb.Function):
     """Lookup and return a node from an RBTree.
@@ -165,5 +172,6 @@ If index is omitted, the root node is dereferenced and returned."""
             raise gdb.GdbError("No entry in tree")
 
         return result
+
 
 LxRbPrev()
