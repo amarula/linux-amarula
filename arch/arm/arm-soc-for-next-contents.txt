@@ -164,6 +164,8 @@ arm/drivers
 		git://git.pengutronix.de/pza/linux tags/reset-for-5.2
 	rockchip/drivers
 		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v5.2-rockchip-drivers-1
+	patch
+		soc: aspeed: fix Kconfig
 
 arm/defconfig
 	amlogic/defconfig
