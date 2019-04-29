@@ -27,6 +27,12 @@ arm/soc
 		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-soc-for-v5.2
 	ipx4xx/cleanup
 		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-nomadik tags/ixp4xx-for-armsoc
+	lpc32xx/soc
+		https://github.com/vzapolskiy/linux-lpc32xx tags/lpc32xx-soc-for-5.2
+	imx/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-soc-5.2
+	rockchip/soc32
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v5.2-rockchip-soc32-1
 
 arm/dt
 	amlogic/dt64
@@ -114,6 +120,12 @@ arm/dt
 		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt-5.2-2
 	samsung/dt64-2
 		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt64-5.2-2
+	lpc32xx/dt
+		https://github.com/vzapolskiy/linux-lpc32xx tags/lpc32xx-dt-for-5.2
+	imx/dt64
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-dt64-5.2
+	bitmain/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/mani/linux-bitmain tags/bitmain-soc-5.2
 
 arm/drivers
 	amlogic/drivers
@@ -138,6 +150,20 @@ arm/drivers
 		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-drivers-for-v5.2
 	amlogic/drivers-2
 		https://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-drivers-2
+	patch
+		spi: zynqmp: Fix build break
+	imx/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/shawnguo/linux tags/imx-drivers-5.2
+	patch
+		soc: add aspeed folder and misc drivers
+	qcom/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-drivers-for-5.2
+	mediatek/soc
+		https://git.kernel.org/pub/scm/linux/kernel/git/matthias.bgg/linux tags/v5.1-next-soc
+	drivers/reset
+		git://git.pengutronix.de/pza/linux tags/reset-for-5.2
+	rockchip/drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v5.2-rockchip-drivers-1
 
 arm/defconfig
 	amlogic/defconfig
@@ -160,6 +186,12 @@ arm/defconfig
 		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-defconfig-for-v5.2
 	renesas/arm-defconfig
 		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-defconfig-for-v5.2
+	qcom/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/agross/linux tags/qcom-defconfig-for-5.2
+	mvebu/arm64
+		git://git.infradead.org/linux-mvebu tags/mvebu-arm64-5.2-1
+	rockchip/defconfig32
+		git://git.kernel.org/pub/scm/linux/kernel/git/mmind/linux-rockchip tags/v5.2-rockchip-defconfig32-1
 
 arm/late
 
