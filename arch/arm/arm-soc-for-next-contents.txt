@@ -1,4 +1,32 @@
 arm/soc
+	patch
+		ARM: stm32: add AMBA support for stm32 family
+	omap/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.2/soc-signed
+	omap/ti-sysc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.2/ti-sysc-signed
+	samsung/soc
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-soc-5.2
+	pxa/devel
+		https://github.com/rjarzmik/linux tags/pxa-for-5.2
+	davinci/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/nsekhar/linux-davinci tags/davinci-for-v5.2/soc
+	patch
+		ARM: ep93xx: move network platform data to separate header
+		ARM: ep93xx: keypad: stop using mach/platform.h
+		ARM: ep93xx: move pinctrl interfaces into include/linux/soc
+		ARM: ep93xx: move private headers out of mach/*
+		ARM: u300: regulator: add MODULE_LICENSE()
+	socfpga/maintainers
+		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/maintainers_for_v5.2
+	patch
+		ARM: debug-ll: add default address for digicolor
+	tegra/firmware
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.2-firmware
+	renesas/soc
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-soc-for-v5.2
+	ipx4xx/cleanup
+		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-nomadik tags/ixp4xx-for-armsoc
 
 arm/dt
 	amlogic/dt64
@@ -27,6 +55,7 @@ arm/dt
 		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.2/dt-signed
 	omap/dt-ti-sysc
 		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.2/dt-ti-sysc-signed
+		contains omap/ti-sysc
 	ux500/dts
 		git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-stericsson tags/ux500-dts-v5.2-armsoc
 	socfpga/dts
@@ -89,10 +118,48 @@ arm/dt
 arm/drivers
 	amlogic/drivers
 		https://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-drivers
+	omap/am4-pm
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v5.2/am4-pm-v2-signed
+	zynqmp/soc
+		https://github.com/Xilinx/linux-xlnx tags/zynqmp-soc-for-v5.2
+	drivers/scmi
+		git://git.kernel.org/pub/scm/linux/kernel/git/sudeep.holla/linux tags/scmi-fixes-5.2
+	drivers/tee
+		http://git.linaro.org:/people/jens.wiklander/linux-tee tags/tee-optee-for-5.2
+	tegra/bus
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.2-bus
+	tegra/soc-drivers
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.2-soc
+	tegra/memory
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.2-memory
+	tegra/soc
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.2-arm-soc
+	renesas/drivers
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-drivers-for-v5.2
+	amlogic/drivers-2
+		https://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-drivers-2
 
 arm/defconfig
 	amlogic/defconfig
 		https://git.kernel.org/pub/scm/linux/kernel/git/khilman/linux-amlogic tags/amlogic-defconfig
+	patch
+		ARM: multi_v7_defconfig: Enable support for STPMIC1
+	socfpga/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/dinguyen/linux tags/arm64_defconfig_for_v5.2
+	omap/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/multi-v7-defconfig-for-v5.2-signed
+	patch
+		arm64: defconfig: Update UFSHCD for Hi3660 soc
+	tegra/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.2-arm-defconfig
+	tegra/defconfig64
+		git://git.kernel.org/pub/scm/linux/kernel/git/tegra/linux tags/tegra-for-5.2-arm64-defconfig
+	sunxi/defconfig64
+		https://git.kernel.org/pub/scm/linux/kernel/git/sunxi/linux tags/sunxi-config64-for-5.2
+	renesas/arm64-defconfig
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm64-defconfig-for-v5.2
+	renesas/arm-defconfig
+		https://git.kernel.org/pub/scm/linux/kernel/git/horms/renesas tags/renesas-arm-defconfig-for-v5.2
 
 arm/late
 
