@@ -1197,11 +1197,12 @@ void qedf_scsi_completion(struct qedf_ctx *qedf, struct fcoe_cqe *cqe,
 	fw_residual_flag = GET_FIELD(cqe->cqe_info.rsp_info.fw_error_flags,
 	    FCOE_CQE_RSP_INFO_FW_UNDERRUN);
 	if (fw_residual_flag) {
-		QEDF_ERR(&(qedf->dbg_ctx),
-		    "Firmware detected underrun: xid=0x%x fcp_rsp.flags=0x%02x "
-		    "fcp_resid=%d fw_residual=0x%x.\n", io_req->xid,
-		    fcp_rsp->rsp_flags.flags, io_req->fcp_resid,
-		    cqe->cqe_info.rsp_info.fw_residual);
+		QEDF_ERR(&qedf->dbg_ctx,
+			 "Firmware detected underrun: xid=0x%x fcp_rsp.flags=0x%02x fcp_resid=%d fw_residual=0x%x lba=%02x%02x%02x%02x.\n",
+			 io_req->xid, fcp_rsp->rsp_flags.flags,
+			 io_req->fcp_resid,
+			 cqe->cqe_info.rsp_info.fw_residual, sc_cmd->cmnd[2],
+			 sc_cmd->cmnd[3], sc_cmd->cmnd[4], sc_cmd->cmnd[5]);
 
 		if (io_req->cdb_status == 0)
 			sc_cmd->result = (DID_ERROR << 16) | io_req->cdb_status;
@@ -1859,9 +1860,9 @@ int qedf_initiate_abts(struct qedf_ioreq *io_req, bool return_scsi_cmd_on_abts)
 	if (!test_bit(QEDF_CMD_OUTSTANDING, &io_req->flags) ||
 	    test_bit(QEDF_CMD_IN_CLEANUP, &io_req->flags) ||
 	    test_bit(QEDF_CMD_IN_ABORT, &io_req->flags)) {
-		QEDF_ERR(&(qedf->dbg_ctx), "io_req xid=0x%x already in "
-			  "cleanup or abort processing or already "
-			  "completed.\n", io_req->xid);
+		QEDF_ERR(&qedf->dbg_ctx,
+			 "io_req xid=0x%x sc_cmd=%p already in cleanup or abort processing or already completed.\n",
+			 io_req->xid, io_req->sc_cmd);
 		rc = 1;
 		goto drop_rdata_kref;
 	}
@@ -2153,9 +2154,9 @@ int qedf_initiate_cleanup(struct qedf_ioreq *io_req,
 	refcount = kref_read(&io_req->refcount);
 
 	QEDF_INFO(&qedf->dbg_ctx, QEDF_LOG_IO,
-		  "Entered xid=0x%x sc_cmd=%p cmd_type=%d flags=0x%lx refcount=%d\n",
+		  "Entered xid=0x%x sc_cmd=%p cmd_type=%d flags=0x%lx refcount=%d fcport=%p port_id=0x%06x\n",
 		  io_req->xid, io_req->sc_cmd, io_req->cmd_type, io_req->flags,
-		  refcount);
+		  refcount, fcport, fcport->rdata->ids.port_id);
 
 	/* Cleanup cmds re-use the same TID as the original I/O */
 	xid = io_req->xid;

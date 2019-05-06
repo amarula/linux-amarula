@@ -714,25 +714,19 @@ qla2x00_sp_compl(void *ptr, int res)
 {
 	srb_t *sp = ptr;
 	struct scsi_cmnd *cmd = GET_CMD_SP(sp);
-	wait_queue_head_t *cwaitq = sp->cwaitq;
+	struct completion *comp = sp->comp;
 
-	if (atomic_read(&sp->ref_count) == 0) {
-		ql_dbg(ql_dbg_io, sp->vha, 0x3015,
-		    "SP reference-count to ZERO -- sp=%p cmd=%p.\n",
-		    sp, GET_CMD_SP(sp));
-		if (ql2xextended_error_logging & ql_dbg_io)
-			WARN_ON(atomic_read(&sp->ref_count) == 0);
+	if (WARN_ON_ONCE(atomic_read(&sp->ref_count) == 0))
 		return;
-	}
-	if (!atomic_dec_and_test(&sp->ref_count))
-		return;
+
+	atomic_dec(&sp->ref_count);
 
 	sp->free(sp);
 	cmd->result = res;
 	CMD_SP(cmd) = NULL;
 	cmd->scsi_done(cmd);
-	if (cwaitq)
-		wake_up(cwaitq);
+	if (comp)
+		complete(comp);
 	qla2x00_rel_sp(sp);
 }
 
@@ -764,25 +758,8 @@ qla2xxx_qpair_sp_free_dma(void *ptr)
 		sp->flags &= ~SRB_CRC_CTX_DSD_VALID;
 	}
 
-	if (sp->flags & SRB_CRC_CTX_DMA_VALID) {
-		struct crc_context *ctx0 = ctx;
-
-		dma_pool_free(ha->dl_dma_pool, ctx, ctx0->crc_ctx_dma);
-		sp->flags &= ~SRB_CRC_CTX_DMA_VALID;
-	}
-
-	if (sp->flags & SRB_FCP_CMND_DMA_VALID) {
-		struct ct6_dsd *ctx1 = ctx;
-		dma_pool_free(ha->fcp_cmnd_dma_pool, ctx1->fcp_cmnd,
-		    ctx1->fcp_cmnd_dma);
-		list_splice(&ctx1->dsd_list, &ha->gbl_dsd_list);
-		ha->gbl_dsd_inuse -= ctx1->dsd_use_cnt;
-		ha->gbl_dsd_avail += ctx1->dsd_use_cnt;
-		mempool_free(ctx1, ha->ctx_mempool);
-		sp->flags &= ~SRB_FCP_CMND_DMA_VALID;
-	}
 	if (sp->flags & SRB_DIF_BUNDL_DMA_VALID) {
-		struct crc_context *difctx = sp->u.scmd.ctx;
+		struct crc_context *difctx = ctx;
 		struct dsd_dma *dif_dsd, *nxt_dsd;
 
 		list_for_each_entry_safe(dif_dsd, nxt_dsd,
@@ -816,6 +793,25 @@ qla2xxx_qpair_sp_free_dma(void *ptr)
 		}
 		sp->flags &= ~SRB_DIF_BUNDL_DMA_VALID;
 	}
+
+	if (sp->flags & SRB_FCP_CMND_DMA_VALID) {
+		struct ct6_dsd *ctx1 = ctx;
+
+		dma_pool_free(ha->fcp_cmnd_dma_pool, ctx1->fcp_cmnd,
+		    ctx1->fcp_cmnd_dma);
+		list_splice(&ctx1->dsd_list, &ha->gbl_dsd_list);
+		ha->gbl_dsd_inuse -= ctx1->dsd_use_cnt;
+		ha->gbl_dsd_avail += ctx1->dsd_use_cnt;
+		mempool_free(ctx1, ha->ctx_mempool);
+		sp->flags &= ~SRB_FCP_CMND_DMA_VALID;
+	}
+
+	if (sp->flags & SRB_CRC_CTX_DMA_VALID) {
+		struct crc_context *ctx0 = ctx;
+
+		dma_pool_free(ha->dl_dma_pool, ctx, ctx0->crc_ctx_dma);
+		sp->flags &= ~SRB_CRC_CTX_DMA_VALID;
+	}
 }
 
 void
@@ -823,25 +819,19 @@ qla2xxx_qpair_sp_compl(void *ptr, int res)
 {
 	srb_t *sp = ptr;
 	struct scsi_cmnd *cmd = GET_CMD_SP(sp);
-	wait_queue_head_t *cwaitq = sp->cwaitq;
+	struct completion *comp = sp->comp;
 
-	if (atomic_read(&sp->ref_count) == 0) {
-		ql_dbg(ql_dbg_io, sp->fcport->vha, 0x3079,
-		    "SP reference-count to ZERO -- sp=%p cmd=%p.\n",
-		    sp, GET_CMD_SP(sp));
-		if (ql2xextended_error_logging & ql_dbg_io)
-			WARN_ON(atomic_read(&sp->ref_count) == 0);
+	if (WARN_ON_ONCE(atomic_read(&sp->ref_count) == 0))
 		return;
-	}
-	if (!atomic_dec_and_test(&sp->ref_count))
-		return;
+
+	atomic_dec(&sp->ref_count);
 
 	sp->free(sp);
 	cmd->result = res;
 	CMD_SP(cmd) = NULL;
 	cmd->scsi_done(cmd);
-	if (cwaitq)
-		wake_up(cwaitq);
+	if (comp)
+		complete(comp);
 	qla2xxx_rel_qpair_sp(sp->qpair, sp);
 }
 
@@ -859,7 +849,8 @@ qla2xxx_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 	uint32_t tag;
 	uint16_t hwq;
 
-	if (unlikely(test_bit(UNLOADING, &base_vha->dpc_flags))) {
+	if (unlikely(test_bit(UNLOADING, &base_vha->dpc_flags)) ||
+	    WARN_ON_ONCE(!rport)) {
 		cmd->result = DID_NO_CONNECT << 16;
 		goto qc24_fail_command;
 	}
@@ -982,7 +973,7 @@ qla2xxx_mqueuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd,
 	srb_t *sp;
 	int rval;
 
-	rval = fc_remote_port_chkready(rport);
+	rval = rport ? fc_remote_port_chkready(rport) : FC_PORTSTATE_OFFLINE;
 	if (rval) {
 		cmd->result = rval;
 		ql_dbg(ql_dbg_io + ql_dbg_verbose, vha, 0x3076,
@@ -1283,7 +1274,7 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 	unsigned int id;
 	uint64_t lun;
 	unsigned long flags;
-	int rval, wait = 0;
+	int rval;
 	struct qla_hw_data *ha = vha->hw;
 	struct qla_qpair *qpair;
 
@@ -1296,7 +1287,6 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 	ret = fc_block_scsi_eh(cmd);
 	if (ret != 0)
 		return ret;
-	ret = SUCCESS;
 
 	sp = (srb_t *) CMD_SP(cmd);
 	if (!sp)
@@ -1307,7 +1297,7 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 		return SUCCESS;
 
 	spin_lock_irqsave(qpair->qp_lock_ptr, flags);
-	if (!CMD_SP(cmd)) {
+	if (sp->type != SRB_SCSI_CMD || GET_CMD_SP(sp) != cmd) {
 		/* there's a chance an interrupt could clear
 		   the ptr as part of done & free */
 		spin_unlock_irqrestore(qpair->qp_lock_ptr, flags);
@@ -1328,66 +1318,31 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 	    "Aborting from RISC nexus=%ld:%d:%llu sp=%p cmd=%p handle=%x\n",
 	    vha->host_no, id, lun, sp, cmd, sp->handle);
 
-	/* Get a reference to the sp and drop the lock.*/
 	rval = ha->isp_ops->abort_command(sp);
-	if (rval) {
-		if (rval == QLA_FUNCTION_PARAMETER_ERROR)
-			ret = SUCCESS;
-		else
-			ret = FAILED;
+	ql_dbg(ql_dbg_taskm, vha, 0x8003,
+	       "Abort command mbx cmd=%p, rval=%x.\n", cmd, rval);
 
-		ql_dbg(ql_dbg_taskm, vha, 0x8003,
-		    "Abort command mbx failed cmd=%p, rval=%x.\n", cmd, rval);
-	} else {
-		ql_dbg(ql_dbg_taskm, vha, 0x8004,
-		    "Abort command mbx success cmd=%p.\n", cmd);
-		wait = 1;
-	}
-
-	spin_lock_irqsave(qpair->qp_lock_ptr, flags);
-
-	/*
-	 * Releasing of the SRB and associated command resources
-	 * is managed through ref_count.
-	 * Whether we need to wait for the abort completion or complete
-	 * the abort handler should be based on the ref_count.
-	 */
-	if (atomic_read(&sp->ref_count) > 1) {
+	switch (rval) {
+	case QLA_SUCCESS:
 		/*
-		 * The command is not yet completed. We need to wait for either
-		 * command completion or abort completion.
+		 * The command has been aborted. That means that the firmware
+		 * won't report a completion.
 		 */
-		DECLARE_WAIT_QUEUE_HEAD_ONSTACK(eh_waitq);
-		uint32_t ratov = ha->r_a_tov/10;
-
-		/* Go ahead and release the extra ref_count obtained earlier */
-		sp->done(sp, DID_RESET << 16);
-		sp->cwaitq = &eh_waitq;
-
-		if (!wait_event_lock_irq_timeout(eh_waitq,
-		    CMD_SP(cmd) == NULL, *qpair->qp_lock_ptr,
-		    msecs_to_jiffies(4 * ratov * 1000))) {
-			/*
-			 * The abort got dropped, LOGO will be sent and the
-			 * original command will be completed with CS_TIMEOUT
-			 * completion
-			 */
-			ql_dbg(ql_dbg_taskm, vha, 0xffff,
-			    "%s: Abort wait timer (4 * R_A_TOV[%d]) expired\n",
-			    __func__, ha->r_a_tov);
-			sp->cwaitq = NULL;
-			ret = FAILED;
-			goto end;
-		}
-	} else {
-		/* Command completed while processing the abort */
-		sp->done(sp, DID_RESET << 16);
+		sp->done(sp, DID_ABORT << 16);
+		ret = SUCCESS;
+		break;
+	default:
+		/*
+		 * Either abort failed or abort and completion raced. Let
+		 * the SCSI core retry the abort in the former case.
+		 */
+		ret = FAILED;
+		break;
 	}
-end:
-	spin_unlock_irqrestore(qpair->qp_lock_ptr, flags);
+
 	ql_log(ql_log_info, vha, 0x801c,
-	    "Abort command issued nexus=%ld:%d:%llu --  %d %x.\n",
-	    vha->host_no, id, lun, wait, ret);
+	    "Abort command issued nexus=%ld:%d:%llu -- %x.\n",
+	    vha->host_no, id, lun, ret);
 
 	return ret;
 }
@@ -1763,42 +1718,34 @@ static void qla2x00_abort_srb(struct qla_qpair *qp, srb_t *sp, const int res,
 	__releases(qp->qp_lock_ptr)
 	__acquires(qp->qp_lock_ptr)
 {
+	DECLARE_COMPLETION_ONSTACK(comp);
 	scsi_qla_host_t *vha = qp->vha;
 	struct qla_hw_data *ha = vha->hw;
+	int rval;
 
-	if (sp->type == SRB_NVME_CMD || sp->type == SRB_NVME_LS) {
-		if (!sp_get(sp)) {
-			/* got sp */
-			spin_unlock_irqrestore(qp->qp_lock_ptr, *flags);
-			qla_nvme_abort(ha, sp, res);
-			spin_lock_irqsave(qp->qp_lock_ptr, *flags);
-		}
-	} else if (GET_CMD_SP(sp) && !ha->flags.eeh_busy &&
-		   !test_bit(ABORT_ISP_ACTIVE, &vha->dpc_flags) &&
-		   !qla2x00_isp_reg_stat(ha) && sp->type == SRB_SCSI_CMD) {
-		/*
-		 * Don't abort commands in adapter during EEH recovery as it's
-		 * not accessible/responding.
-		 *
-		 * Get a reference to the sp and drop the lock. The reference
-		 * ensures this sp->done() call and not the call in
-		 * qla2xxx_eh_abort() ends the SCSI cmd (with result 'res').
-		 */
-		if (!sp_get(sp)) {
-			int status;
+	if (sp_get(sp))
+		return;
 
-			spin_unlock_irqrestore(qp->qp_lock_ptr, *flags);
-			status = qla2xxx_eh_abort(GET_CMD_SP(sp));
-			spin_lock_irqsave(qp->qp_lock_ptr, *flags);
-			/*
-			 * Get rid of extra reference caused
-			 * by early exit from qla2xxx_eh_abort
-			 */
-			if (status == FAST_IO_FAIL)
-				atomic_dec(&sp->ref_count);
+	if (sp->type == SRB_NVME_CMD || sp->type == SRB_NVME_LS ||
+	    (sp->type == SRB_SCSI_CMD && !ha->flags.eeh_busy &&
+	     !test_bit(ABORT_ISP_ACTIVE, &vha->dpc_flags) &&
+	     !qla2x00_isp_reg_stat(ha))) {
+		sp->comp = &comp;
+		rval = ha->isp_ops->abort_command(sp);
+		spin_unlock_irqrestore(qp->qp_lock_ptr, *flags);
+
+		switch (rval) {
+		case QLA_SUCCESS:
+			sp->done(sp, res);
+			break;
+		case QLA_FUNCTION_PARAMETER_ERROR:
+			wait_for_completion(&comp);
+			break;
 		}
+
+		spin_lock_irqsave(qp->qp_lock_ptr, *flags);
+		sp->comp = NULL;
 	}
-	sp->done(sp, res);
 }
 
 static void
@@ -1834,15 +1781,10 @@ __qla2x00_abort_all_cmds(struct qla_qpair *qp, int res)
 					continue;
 				}
 				cmd = (struct qla_tgt_cmd *)sp;
-				qlt_abort_cmd_on_host_reset(cmd->vha, cmd);
+				cmd->aborted = 1;
 				break;
 			case TYPE_TGT_TMCMD:
-				/*
-				 * Currently, only ABTS response gets on the
-				 * outstanding_cmds[]
-				 */
-				ha->tgt.tgt_ops->free_mcmd(
-				   (struct qla_tgt_mgmt_cmd *)sp);
+				/* Skip task management functions. */
 				break;
 			default:
 				break;
@@ -3984,6 +3926,19 @@ qla2x00_mark_all_devices_lost(scsi_qla_host_t *vha, int defer)
 	}
 }
 
+static void qla2x00_set_reserved_loop_ids(struct qla_hw_data *ha)
+{
+	int i;
+
+	if (IS_FWI2_CAPABLE(ha))
+		return;
+
+	for (i = 0; i < SNS_FIRST_LOOP_ID; i++)
+		set_bit(i, ha->loop_id_map);
+	set_bit(MANAGEMENT_SERVER, ha->loop_id_map);
+	set_bit(BROADCAST, ha->loop_id_map);
+}
+
 /*
 * qla2x00_mem_alloc
 *      Allocates adapter memory.
@@ -4666,48 +4621,68 @@ qla2x00_mem_free(struct qla_hw_data *ha)
 	if (ha->mctp_dump)
 		dma_free_coherent(&ha->pdev->dev, MCTP_DUMP_SIZE, ha->mctp_dump,
 		    ha->mctp_dump_dma);
+	ha->mctp_dump = NULL;
 
 	mempool_destroy(ha->srb_mempool);
+	ha->srb_mempool = NULL;
 
 	if (ha->dcbx_tlv)
 		dma_free_coherent(&ha->pdev->dev, DCBX_TLV_DATA_SIZE,
 		    ha->dcbx_tlv, ha->dcbx_tlv_dma);
+	ha->dcbx_tlv = NULL;
 
 	if (ha->xgmac_data)
 		dma_free_coherent(&ha->pdev->dev, XGMAC_DATA_SIZE,
 		    ha->xgmac_data, ha->xgmac_data_dma);
+	ha->xgmac_data = NULL;
 
 	if (ha->sns_cmd)
 		dma_free_coherent(&ha->pdev->dev, sizeof(struct sns_cmd_pkt),
 		ha->sns_cmd, ha->sns_cmd_dma);
+	ha->sns_cmd = NULL;
+	ha->sns_cmd_dma = 0;
 
 	if (ha->ct_sns)
 		dma_free_coherent(&ha->pdev->dev, sizeof(struct ct_sns_pkt),
 		ha->ct_sns, ha->ct_sns_dma);
+	ha->ct_sns = NULL;
+	ha->ct_sns_dma = 0;
 
 	if (ha->sfp_data)
 		dma_free_coherent(&ha->pdev->dev, SFP_DEV_SIZE, ha->sfp_data,
 		    ha->sfp_data_dma);
+	ha->sfp_data = NULL;
 
 	if (ha->flt)
 		dma_free_coherent(&ha->pdev->dev, SFP_DEV_SIZE,
 		    ha->flt, ha->flt_dma);
+	ha->flt = NULL;
+	ha->flt_dma = 0;
 
 	if (ha->ms_iocb)
 		dma_pool_free(ha->s_dma_pool, ha->ms_iocb, ha->ms_iocb_dma);
+	ha->ms_iocb = NULL;
+	ha->ms_iocb_dma = 0;
 
 	if (ha->ex_init_cb)
 		dma_pool_free(ha->s_dma_pool,
 			ha->ex_init_cb, ha->ex_init_cb_dma);
+	ha->ex_init_cb = NULL;
+	ha->ex_init_cb_dma = 0;
 
 	if (ha->async_pd)
 		dma_pool_free(ha->s_dma_pool, ha->async_pd, ha->async_pd_dma);
+	ha->async_pd = NULL;
+	ha->async_pd_dma = 0;
 
 	dma_pool_destroy(ha->s_dma_pool);
+	ha->s_dma_pool = NULL;
 
 	if (ha->gid_list)
 		dma_free_coherent(&ha->pdev->dev, qla2x00_gid_list_size(ha),
 		ha->gid_list, ha->gid_list_dma);
+	ha->gid_list = NULL;
+	ha->gid_list_dma = 0;
 
 	if (IS_QLA82XX(ha)) {
 		if (!list_empty(&ha->gbl_dsd_list)) {
@@ -4725,10 +4700,13 @@ qla2x00_mem_free(struct qla_hw_data *ha)
 	}
 
 	dma_pool_destroy(ha->dl_dma_pool);
+	ha->dl_dma_pool = NULL;
 
 	dma_pool_destroy(ha->fcp_cmnd_dma_pool);
+	ha->fcp_cmnd_dma_pool = NULL;
 
 	mempool_destroy(ha->ctx_mempool);
+	ha->ctx_mempool = NULL;
 
 	if (ql2xenabledif) {
 		struct dsd_dma *dsd, *nxt;
@@ -4755,53 +4733,26 @@ qla2x00_mem_free(struct qla_hw_data *ha)
 
 	if (ha->dif_bundl_pool)
 		dma_pool_destroy(ha->dif_bundl_pool);
+	ha->dif_bundl_pool = NULL;
 
 	qlt_mem_free(ha);
 
 	if (ha->init_cb)
 		dma_free_coherent(&ha->pdev->dev, ha->init_cb_size,
 			ha->init_cb, ha->init_cb_dma);
-
-	vfree(ha->optrom_buffer);
-	kfree(ha->nvram);
-	kfree(ha->npiv_info);
-	kfree(ha->swl);
-	kfree(ha->loop_id_map);
-
-	ha->srb_mempool = NULL;
-	ha->ctx_mempool = NULL;
-	ha->sns_cmd = NULL;
-	ha->sns_cmd_dma = 0;
-	ha->ct_sns = NULL;
-	ha->ct_sns_dma = 0;
-	ha->ms_iocb = NULL;
-	ha->ms_iocb_dma = 0;
 	ha->init_cb = NULL;
 	ha->init_cb_dma = 0;
-	ha->ex_init_cb = NULL;
-	ha->ex_init_cb_dma = 0;
-	ha->async_pd = NULL;
-	ha->async_pd_dma = 0;
-	ha->loop_id_map = NULL;
-	ha->npiv_info = NULL;
+
+	vfree(ha->optrom_buffer);
 	ha->optrom_buffer = NULL;
-	ha->swl = NULL;
+	kfree(ha->nvram);
 	ha->nvram = NULL;
-	ha->mctp_dump = NULL;
-	ha->dcbx_tlv = NULL;
-	ha->xgmac_data = NULL;
-	ha->sfp_data = NULL;
-
-	ha->s_dma_pool = NULL;
-	ha->dl_dma_pool = NULL;
-	ha->fcp_cmnd_dma_pool = NULL;
-
-	ha->gid_list = NULL;
-	ha->gid_list_dma = 0;
-
-	ha->tgt.atio_ring = NULL;
-	ha->tgt.atio_dma = 0;
-	ha->tgt.tgt_vp_map = NULL;
+	kfree(ha->npiv_info);
+	ha->npiv_info = NULL;
+	kfree(ha->swl);
+	ha->swl = NULL;
+	kfree(ha->loop_id_map);
+	ha->loop_id_map = NULL;
 }
 
 struct scsi_qla_host *qla2x00_create_host(struct scsi_host_template *sht,
@@ -7321,6 +7272,30 @@ static int __init
 qla2x00_module_init(void)
 {
 	int ret = 0;
+
+	BUILD_BUG_ON(sizeof(cmd_entry_t) != 64);
+	BUILD_BUG_ON(sizeof(cont_a64_entry_t) != 64);
+	BUILD_BUG_ON(sizeof(cont_entry_t) != 64);
+	BUILD_BUG_ON(sizeof(init_cb_t) != 96);
+	BUILD_BUG_ON(sizeof(ms_iocb_entry_t) != 64);
+	BUILD_BUG_ON(sizeof(request_t) != 64);
+	BUILD_BUG_ON(sizeof(struct access_chip_84xx) != 64);
+	BUILD_BUG_ON(sizeof(struct cmd_bidir) != 64);
+	BUILD_BUG_ON(sizeof(struct cmd_nvme) != 64);
+	BUILD_BUG_ON(sizeof(struct cmd_type_6) != 64);
+	BUILD_BUG_ON(sizeof(struct cmd_type_7) != 64);
+	BUILD_BUG_ON(sizeof(struct cmd_type_7_fx00) != 64);
+	BUILD_BUG_ON(sizeof(struct cmd_type_crc_2) != 64);
+	BUILD_BUG_ON(sizeof(struct ct_entry_24xx) != 64);
+	BUILD_BUG_ON(sizeof(struct ctio_crc2_to_fw) != 64);
+	BUILD_BUG_ON(sizeof(struct els_entry_24xx) != 64);
+	BUILD_BUG_ON(sizeof(struct fxdisc_entry_fx00) != 64);
+	BUILD_BUG_ON(sizeof(struct init_cb_24xx) != 128);
+	BUILD_BUG_ON(sizeof(struct init_cb_81xx) != 128);
+	BUILD_BUG_ON(sizeof(struct pt_ls4_request) != 64);
+	BUILD_BUG_ON(sizeof(struct sns_cmd_pkt) != 2064);
+	BUILD_BUG_ON(sizeof(struct verify_chip_entry_84xx) != 64);
+	BUILD_BUG_ON(sizeof(struct vf_evfp_entry_24xx) != 56);
 
 	/* Allocate cache for SRBs. */
 	srb_cachep = kmem_cache_create("qla2xxx_srbs", sizeof(srb_t), 0,

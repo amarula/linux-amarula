@@ -95,6 +95,79 @@ qla2x00_get_async_timeout(struct scsi_qla_host *vha)
 	return tmo;
 }
 
+static void qla24xx_abort_iocb_timeout(void *data)
+{
+	srb_t *sp = data;
+	struct srb_iocb *abt = &sp->u.iocb_cmd;
+
+	abt->u.abt.comp_status = CS_TIMEOUT;
+	sp->done(sp, QLA_FUNCTION_TIMEOUT);
+}
+
+static void qla24xx_abort_sp_done(void *ptr, int res)
+{
+	srb_t *sp = ptr;
+	struct srb_iocb *abt = &sp->u.iocb_cmd;
+
+	if (del_timer(&sp->u.iocb_cmd.timer)) {
+		if (sp->flags & SRB_WAKEUP_ON_COMP)
+			complete(&abt->u.abt.comp);
+		else
+			sp->free(sp);
+	}
+}
+
+static int qla24xx_async_abort_cmd(srb_t *cmd_sp, bool wait)
+{
+	scsi_qla_host_t *vha = cmd_sp->vha;
+	struct srb_iocb *abt_iocb;
+	srb_t *sp;
+	int rval = QLA_FUNCTION_FAILED;
+
+	sp = qla2xxx_get_qpair_sp(cmd_sp->vha, cmd_sp->qpair, cmd_sp->fcport,
+				  GFP_ATOMIC);
+	if (!sp)
+		goto done;
+
+	abt_iocb = &sp->u.iocb_cmd;
+	sp->type = SRB_ABT_CMD;
+	sp->name = "abort";
+	sp->qpair = cmd_sp->qpair;
+	if (wait)
+		sp->flags = SRB_WAKEUP_ON_COMP;
+
+	abt_iocb->timeout = qla24xx_abort_iocb_timeout;
+	init_completion(&abt_iocb->u.abt.comp);
+	/* FW can send 2 x ABTS's timeout/20s */
+	qla2x00_init_timer(sp, 42);
+
+	abt_iocb->u.abt.cmd_hndl = cmd_sp->handle;
+	abt_iocb->u.abt.req_que_no = cpu_to_le16(cmd_sp->qpair->req->id);
+
+	sp->done = qla24xx_abort_sp_done;
+
+	ql_dbg(ql_dbg_async, vha, 0x507c,
+	       "Abort command issued - hdl=%x, type=%x\n", cmd_sp->handle,
+	       cmd_sp->type);
+
+	rval = qla2x00_start_sp(sp);
+	if (rval != QLA_SUCCESS)
+		goto done_free_sp;
+
+	if (wait) {
+		wait_for_completion(&abt_iocb->u.abt.comp);
+		rval = abt_iocb->u.abt.comp_status == CS_COMPLETE ?
+			QLA_SUCCESS : QLA_FUNCTION_FAILED;
+	} else {
+		goto done;
+	}
+
+done_free_sp:
+	sp->free(sp);
+done:
+	return rval;
+}
+
 void
 qla2x00_async_iocb_timeout(void *data)
 {
@@ -512,6 +585,72 @@ done:
 	fcport->flags &= ~(FCF_ASYNC_SENT | FCF_ASYNC_ACTIVE);
 	qla2x00_post_async_adisc_work(vha, fcport, data);
 	return rval;
+}
+
+static bool qla2x00_is_reserved_id(scsi_qla_host_t *vha, uint16_t loop_id)
+{
+	struct qla_hw_data *ha = vha->hw;
+
+	if (IS_FWI2_CAPABLE(ha))
+		return loop_id > NPH_LAST_HANDLE;
+
+	return (loop_id > ha->max_loop_id && loop_id < SNS_FIRST_LOOP_ID) ||
+		loop_id == MANAGEMENT_SERVER || loop_id == BROADCAST;
+}
+
+/**
+ * qla2x00_find_new_loop_id - scan through our port list and find a new usable loop ID
+ * @vha: adapter state pointer.
+ * @dev: port structure pointer.
+ *
+ * Returns:
+ *	qla2x00 local function return status code.
+ *
+ * Context:
+ *	Kernel context.
+ */
+static int qla2x00_find_new_loop_id(scsi_qla_host_t *vha, fc_port_t *dev)
+{
+	int	rval;
+	struct qla_hw_data *ha = vha->hw;
+	unsigned long flags = 0;
+
+	rval = QLA_SUCCESS;
+
+	spin_lock_irqsave(&ha->vport_slock, flags);
+
+	dev->loop_id = find_first_zero_bit(ha->loop_id_map, LOOPID_MAP_SIZE);
+	if (dev->loop_id >= LOOPID_MAP_SIZE ||
+	    qla2x00_is_reserved_id(vha, dev->loop_id)) {
+		dev->loop_id = FC_NO_LOOP_ID;
+		rval = QLA_FUNCTION_FAILED;
+	} else {
+		set_bit(dev->loop_id, ha->loop_id_map);
+	}
+	spin_unlock_irqrestore(&ha->vport_slock, flags);
+
+	if (rval == QLA_SUCCESS)
+		ql_dbg(ql_dbg_disc, dev->vha, 0x2086,
+		       "Assigning new loopid=%x, portid=%x.\n",
+		       dev->loop_id, dev->d_id.b24);
+	else
+		ql_log(ql_log_warn, dev->vha, 0x2087,
+		       "No loop_id's available, portid=%x.\n",
+		       dev->d_id.b24);
+
+	return rval;
+}
+
+void qla2x00_clear_loop_id(fc_port_t *fcport)
+{
+	struct qla_hw_data *ha = fcport->vha->hw;
+
+	if (fcport->loop_id == FC_NO_LOOP_ID ||
+	    qla2x00_is_reserved_id(fcport->vha, fcport->loop_id))
+		return;
+
+	clear_bit(fcport->loop_id, ha->loop_id_map);
+	fcport->loop_id = FC_NO_LOOP_ID;
 }
 
 static void qla24xx_handle_gnl_done_event(scsi_qla_host_t *vha,
@@ -1715,82 +1854,6 @@ qla2x00_async_tm_cmd(fc_port_t *fcport, uint32_t flags, uint32_t lun,
 done_free_sp:
 	sp->free(sp);
 	fcport->flags &= ~FCF_ASYNC_SENT;
-done:
-	return rval;
-}
-
-static void
-qla24xx_abort_iocb_timeout(void *data)
-{
-	srb_t *sp = data;
-	struct srb_iocb *abt = &sp->u.iocb_cmd;
-
-	abt->u.abt.comp_status = CS_TIMEOUT;
-	sp->done(sp, QLA_FUNCTION_TIMEOUT);
-}
-
-static void
-qla24xx_abort_sp_done(void *ptr, int res)
-{
-	srb_t *sp = ptr;
-	struct srb_iocb *abt = &sp->u.iocb_cmd;
-
-	if (del_timer(&sp->u.iocb_cmd.timer)) {
-		if (sp->flags & SRB_WAKEUP_ON_COMP)
-			complete(&abt->u.abt.comp);
-		else
-			sp->free(sp);
-	}
-}
-
-int
-qla24xx_async_abort_cmd(srb_t *cmd_sp, bool wait)
-{
-	scsi_qla_host_t *vha = cmd_sp->vha;
-	struct srb_iocb *abt_iocb;
-	srb_t *sp;
-	int rval = QLA_FUNCTION_FAILED;
-
-	sp = qla2xxx_get_qpair_sp(cmd_sp->vha, cmd_sp->qpair, cmd_sp->fcport,
-	    GFP_ATOMIC);
-	if (!sp)
-		goto done;
-
-	abt_iocb = &sp->u.iocb_cmd;
-	sp->type = SRB_ABT_CMD;
-	sp->name = "abort";
-	sp->qpair = cmd_sp->qpair;
-	if (wait)
-		sp->flags = SRB_WAKEUP_ON_COMP;
-
-	abt_iocb->timeout = qla24xx_abort_iocb_timeout;
-	init_completion(&abt_iocb->u.abt.comp);
-	/* FW can send 2 x ABTS's timeout/20s */
-	qla2x00_init_timer(sp, 42);
-
-	abt_iocb->u.abt.cmd_hndl = cmd_sp->handle;
-	abt_iocb->u.abt.req_que_no = cpu_to_le16(cmd_sp->qpair->req->id);
-
-	sp->done = qla24xx_abort_sp_done;
-
-	ql_dbg(ql_dbg_async, vha, 0x507c,
-	    "Abort command issued - hdl=%x, type=%x\n",
-	    cmd_sp->handle, cmd_sp->type);
-
-	rval = qla2x00_start_sp(sp);
-	if (rval != QLA_SUCCESS)
-		goto done_free_sp;
-
-	if (wait) {
-		wait_for_completion(&abt_iocb->u.abt.comp);
-		rval = abt_iocb->u.abt.comp_status == CS_COMPLETE ?
-			QLA_SUCCESS : QLA_FUNCTION_FAILED;
-	} else {
-		goto done;
-	}
-
-done_free_sp:
-	sp->free(sp);
 done:
 	return rval;
 }
@@ -3878,10 +3941,8 @@ qla2x00_config_rings(struct scsi_qla_host *vha)
 	ha->init_cb->response_q_inpointer = cpu_to_le16(0);
 	ha->init_cb->request_q_length = cpu_to_le16(req->length);
 	ha->init_cb->response_q_length = cpu_to_le16(rsp->length);
-	ha->init_cb->request_q_address[0] = cpu_to_le32(LSD(req->dma));
-	ha->init_cb->request_q_address[1] = cpu_to_le32(MSD(req->dma));
-	ha->init_cb->response_q_address[0] = cpu_to_le32(LSD(rsp->dma));
-	ha->init_cb->response_q_address[1] = cpu_to_le32(MSD(rsp->dma));
+	put_unaligned_le64(req->dma, &ha->init_cb->request_q_address);
+	put_unaligned_le64(rsp->dma, &ha->init_cb->response_q_address);
 
 	WRT_REG_WORD(ISP_REQ_Q_IN(ha, reg), 0);
 	WRT_REG_WORD(ISP_REQ_Q_OUT(ha, reg), 0);
@@ -3908,16 +3969,13 @@ qla24xx_config_rings(struct scsi_qla_host *vha)
 	icb->response_q_inpointer = cpu_to_le16(0);
 	icb->request_q_length = cpu_to_le16(req->length);
 	icb->response_q_length = cpu_to_le16(rsp->length);
-	icb->request_q_address[0] = cpu_to_le32(LSD(req->dma));
-	icb->request_q_address[1] = cpu_to_le32(MSD(req->dma));
-	icb->response_q_address[0] = cpu_to_le32(LSD(rsp->dma));
-	icb->response_q_address[1] = cpu_to_le32(MSD(rsp->dma));
+	put_unaligned_le64(req->dma, &icb->request_q_address);
+	put_unaligned_le64(rsp->dma, &icb->response_q_address);
 
 	/* Setup ATIO queue dma pointers for target mode */
 	icb->atio_q_inpointer = cpu_to_le16(0);
 	icb->atio_q_length = cpu_to_le16(ha->tgt.atio_q_length);
-	icb->atio_q_address[0] = cpu_to_le32(LSD(ha->tgt.atio_dma));
-	icb->atio_q_address[1] = cpu_to_le32(MSD(ha->tgt.atio_dma));
+	put_unaligned_le64(ha->tgt.atio_dma, &icb->atio_q_address);
 
 	if (IS_SHADOW_REG_CAPABLE(ha))
 		icb->firmware_options_2 |= cpu_to_le32(BIT_30|BIT_29);
@@ -5885,55 +5943,6 @@ qla2x00_find_all_fabric_devs(scsi_qla_host_t *vha)
 	}
 	return (rval);
 }
-
-/*
- * qla2x00_find_new_loop_id
- *	Scan through our port list and find a new usable loop ID.
- *
- * Input:
- *	ha:	adapter state pointer.
- *	dev:	port structure pointer.
- *
- * Returns:
- *	qla2x00 local function return status code.
- *
- * Context:
- *	Kernel context.
- */
-int
-qla2x00_find_new_loop_id(scsi_qla_host_t *vha, fc_port_t *dev)
-{
-	int	rval;
-	struct qla_hw_data *ha = vha->hw;
-	unsigned long flags = 0;
-
-	rval = QLA_SUCCESS;
-
-	spin_lock_irqsave(&ha->vport_slock, flags);
-
-	dev->loop_id = find_first_zero_bit(ha->loop_id_map,
-	    LOOPID_MAP_SIZE);
-	if (dev->loop_id >= LOOPID_MAP_SIZE ||
-	    qla2x00_is_reserved_id(vha, dev->loop_id)) {
-		dev->loop_id = FC_NO_LOOP_ID;
-		rval = QLA_FUNCTION_FAILED;
-	} else
-		set_bit(dev->loop_id, ha->loop_id_map);
-
-	spin_unlock_irqrestore(&ha->vport_slock, flags);
-
-	if (rval == QLA_SUCCESS)
-		ql_dbg(ql_dbg_disc, dev->vha, 0x2086,
-		    "Assigning new loopid=%x, portid=%x.\n",
-		    dev->loop_id, dev->d_id.b24);
-	else
-		ql_log(ql_log_warn, dev->vha, 0x2087,
-		    "No loop_id's available, portid=%x.\n",
-		    dev->d_id.b24);
-
-	return (rval);
-}
-
 
 /* FW does not set aside Loop id for MGMT Server/FFFFFAh */
 int

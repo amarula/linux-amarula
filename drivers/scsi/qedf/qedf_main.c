@@ -786,11 +786,13 @@ static int qedf_eh_device_reset(struct scsi_cmnd *sc_cmd)
 bool qedf_wait_for_upload(struct qedf_ctx *qedf)
 {
 	struct qedf_rport *fcport = NULL;
+	int wait_cnt = 120;
 
-	while (1) {
+	while (wait_cnt--) {
 		if (atomic_read(&qedf->num_offloads))
-			QEDF_INFO(&(qedf->dbg_ctx), QEDF_LOG_DISC,
-			    "Waiting for all uploads to complete.\n");
+			QEDF_INFO(&qedf->dbg_ctx, QEDF_LOG_DISC,
+				  "Waiting for all uploads to complete num_offloads = 0x%x.\n",
+				  atomic_read(&qedf->num_offloads));
 		else
 			return true;
 		msleep(500);
@@ -1141,7 +1143,12 @@ static int qedf_xmit(struct fc_lport *lport, struct fc_frame *fp)
 	if (qedf_dump_frames)
 		print_hex_dump(KERN_WARNING, "fcoe: ", DUMP_PREFIX_OFFSET, 16,
 		    1, skb->data, skb->len, false);
-	qed_ops->ll2->start_xmit(qedf->cdev, skb, 0);
+	rc = qed_ops->ll2->start_xmit(qedf->cdev, skb, 0);
+	if (rc) {
+		QEDF_ERR(&qedf->dbg_ctx, "start_xmit failed rc = %d.\n", rc);
+		kfree_skb(skb);
+		return rc;
+	}
 
 	return 0;
 }
@@ -1618,7 +1625,11 @@ static int qedf_lport_setup(struct qedf_ctx *qedf)
 	fc_set_wwnn(lport, qedf->wwnn);
 	fc_set_wwpn(lport, qedf->wwpn);
 
-	fcoe_libfc_config(lport, &qedf->ctlr, &qedf_lport_template, 0);
+	if (fcoe_libfc_config(lport, &qedf->ctlr, &qedf_lport_template, 0)) {
+		QEDF_ERR(&qedf->dbg_ctx,
+			 "fcoe_libfc_config failed.\n");
+		return -ENOMEM;
+	}
 
 	/* Allocate the exchange manager */
 	fc_exch_mgr_alloc(lport, FC_CLASS_3, FCOE_PARAMS_NUM_TASKS,
@@ -1752,7 +1763,8 @@ static int qedf_vport_create(struct fc_vport *vport, bool disabled)
 
 	rc = scsi_add_host(vn_port->host, &vport->dev);
 	if (rc) {
-		QEDF_WARN(&(base_qedf->dbg_ctx), "Error adding Scsi_Host.\n");
+		QEDF_WARN(&base_qedf->dbg_ctx,
+			  "Error adding Scsi_Host rc=0x%x.\n", rc);
 		goto err2;
 	}
 
@@ -2275,7 +2287,8 @@ static int qedf_setup_int(struct qedf_ctx *qedf)
 	    QEDF_SIMD_HANDLER_NUM, qedf_simd_int_handler);
 	qedf->int_info.used_cnt = 1;
 
-	QEDF_ERR(&qedf->dbg_ctx, "Only MSI-X supported. Failing probe.\n");
+	QEDF_ERR(&qedf->dbg_ctx,
+		 "Cannot load driver due to a lack of MSI-X vectors.\n");
 	return -EINVAL;
 }
 
@@ -3325,8 +3338,11 @@ static int __qedf_probe(struct pci_dev *pdev, int mode)
 		host->max_cmd_len = QEDF_MAX_CDB_LEN;
 		host->can_queue = FCOE_PARAMS_NUM_TASKS;
 		rc = scsi_add_host(host, &pdev->dev);
-		if (rc)
+		if (rc) {
+			QEDF_WARN(&qedf->dbg_ctx,
+				  "Error adding Scsi_Host rc=0x%x.\n", rc);
 			goto err6;
+		}
 	}
 
 	memset(&params, 0, sizeof(params));

@@ -1788,10 +1788,8 @@ void qla82xx_config_rings(struct scsi_qla_host *vha)
 	icb->response_q_inpointer = cpu_to_le16(0);
 	icb->request_q_length = cpu_to_le16(req->length);
 	icb->response_q_length = cpu_to_le16(rsp->length);
-	icb->request_q_address[0] = cpu_to_le32(LSD(req->dma));
-	icb->request_q_address[1] = cpu_to_le32(MSD(req->dma));
-	icb->response_q_address[0] = cpu_to_le32(LSD(rsp->dma));
-	icb->response_q_address[1] = cpu_to_le32(MSD(rsp->dma));
+	put_unaligned_le64(req->dma, &icb->request_q_address);
+	put_unaligned_le64(rsp->dma, &icb->response_q_address);
 
 	WRT_REG_DWORD(&reg->req_q_out[0], 0);
 	WRT_REG_DWORD(&reg->rsp_q_in[0], 0);
@@ -2039,7 +2037,7 @@ qla82xx_intr_handler(int irq, void *dev_id)
 	unsigned long	flags;
 	unsigned long	iter;
 	uint32_t	stat = 0;
-	uint16_t	mb[4];
+	uint16_t	mb[8];
 
 	rsp = (struct rsp_que *) dev_id;
 	if (!rsp) {
@@ -2123,7 +2121,7 @@ qla82xx_msix_default(int irq, void *dev_id)
 	unsigned long flags;
 	uint32_t stat = 0;
 	uint32_t host_int = 0;
-	uint16_t mb[4];
+	uint16_t mb[8];
 
 	rsp = (struct rsp_que *) dev_id;
 	if (!rsp) {
@@ -2219,7 +2217,7 @@ qla82xx_poll(int irq, void *dev_id)
 	int status = 0;
 	uint32_t stat;
 	uint32_t host_int = 0;
-	uint16_t mb[4];
+	uint16_t mb[8];
 	unsigned long flags;
 
 	rsp = (struct rsp_que *) dev_id;
