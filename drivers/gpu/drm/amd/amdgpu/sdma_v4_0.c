@@ -210,12 +210,14 @@ static void sdma_v4_0_init_golden_registers(struct amdgpu_device *adev)
 {
 	switch (adev->asic_type) {
 	case CHIP_VEGA10:
-		soc15_program_register_sequence(adev,
-						 golden_settings_sdma_4,
-						 ARRAY_SIZE(golden_settings_sdma_4));
-		soc15_program_register_sequence(adev,
-						 golden_settings_sdma_vg10,
-						 ARRAY_SIZE(golden_settings_sdma_vg10));
+		if (!amdgpu_virt_support_skip_setting(adev)) {
+			soc15_program_register_sequence(adev,
+							 golden_settings_sdma_4,
+							 ARRAY_SIZE(golden_settings_sdma_4));
+			soc15_program_register_sequence(adev,
+							 golden_settings_sdma_vg10,
+							 ARRAY_SIZE(golden_settings_sdma_vg10));
+		}
 		break;
 	case CHIP_VEGA12:
 		soc15_program_register_sequence(adev,
@@ -1531,8 +1533,14 @@ static int sdma_v4_0_late_init(void *handle)
 	**ras_if = ras_block;
 
 	r = amdgpu_ras_feature_enable_on_boot(adev, *ras_if, 1);
-	if (r)
+	if (r) {
+		if (r == -EAGAIN) {
+			amdgpu_ras_request_reset_on_boot(adev,
+					AMDGPU_RAS_BLOCK__SDMA);
+			r = 0;
+		}
 		goto feature;
+	}
 
 	ih_info.head = **ras_if;
 	fs_info.head = **ras_if;
@@ -1571,7 +1579,7 @@ interrupt:
 feature:
 	kfree(*ras_if);
 	*ras_if = NULL;
-	return -EINVAL;
+	return r;
 }
 
 static int sdma_v4_0_sw_init(void *handle)

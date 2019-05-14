@@ -30,6 +30,7 @@
 #include "amdgpu_object.h"
 #include "amdgpu_vm.h"
 #include "amdgpu_amdkfd.h"
+#include "amdgpu_dma_buf.h"
 
 /* Special VM and GART address alignment needed for VI pre-Fiji due to
  * a HW bug.
@@ -896,6 +897,9 @@ static int init_kfd_vm(struct amdgpu_vm *vm, void **process_info,
 				  AMDGPU_FENCE_OWNER_KFD, false);
 	if (ret)
 		goto wait_pd_fail;
+	ret = reservation_object_reserve_shared(vm->root.base.bo->tbo.resv, 1);
+	if (ret)
+		goto reserve_shared_fail;
 	amdgpu_bo_fence(vm->root.base.bo,
 			&vm->process_info->eviction_fence->base, true);
 	amdgpu_bo_unreserve(vm->root.base.bo);
@@ -909,6 +913,7 @@ static int init_kfd_vm(struct amdgpu_vm *vm, void **process_info,
 
 	return 0;
 
+reserve_shared_fail:
 wait_pd_fail:
 validate_pd_fail:
 	amdgpu_bo_unreserve(vm->root.base.bo);
@@ -1109,7 +1114,8 @@ int amdgpu_amdkfd_gpuvm_alloc_memory_of_gpu(
 		if (!offset || !*offset)
 			return -EINVAL;
 		user_addr = *offset;
-	} else if (flags & ALLOC_MEM_FLAGS_DOORBELL) {
+	} else if (flags & (ALLOC_MEM_FLAGS_DOORBELL |
+			ALLOC_MEM_FLAGS_MMIO_REMAP)) {
 		domain = AMDGPU_GEM_DOMAIN_GTT;
 		alloc_domain = AMDGPU_GEM_DOMAIN_CPU;
 		bo_type = ttm_bo_type_sg;
@@ -1294,8 +1300,8 @@ int amdgpu_amdkfd_gpuvm_free_memory_of_gpu(
 	/* Free the sync object */
 	amdgpu_sync_free(&mem->sync);
 
-	/* If the SG is not NULL, it's one we created for a doorbell
-	 * BO. We need to free it.
+	/* If the SG is not NULL, it's one we created for a doorbell or mmio
+	 * remap BO. We need to free it.
 	 */
 	if (mem->bo->tbo.sg) {
 		sg_free_table(mem->bo->tbo.sg);
@@ -1409,7 +1415,7 @@ int amdgpu_amdkfd_gpuvm_map_memory_to_gpu(
 			ret = map_bo_to_gpuvm(adev, entry, ctx.sync,
 					      is_invalid_userptr);
 			if (ret) {
-				pr_err("Failed to map radeon bo to gpuvm\n");
+				pr_err("Failed to map bo to gpuvm\n");
 				goto map_bo_to_gpuvm_failed;
 			}
 

@@ -118,7 +118,8 @@ const char *ras_block_string[] = {
 #define ras_err_str(i) (ras_error_string[ffs(i)])
 #define ras_block_str(i) (ras_block_string[i])
 
-#define AMDGPU_RAS_FLAG_INIT_BY_VBIOS 1
+#define AMDGPU_RAS_FLAG_INIT_BY_VBIOS		1
+#define AMDGPU_RAS_FLAG_INIT_NEED_RESET		2
 #define RAS_DEFAULT_FLAGS (AMDGPU_RAS_FLAG_INIT_BY_VBIOS)
 
 static void amdgpu_ras_self_test(struct amdgpu_device *adev)
@@ -521,6 +522,8 @@ int amdgpu_ras_feature_enable(struct amdgpu_device *adev,
 				enable ? "enable":"disable",
 				ras_block_str(head->block),
 				ret);
+		if (ret == TA_RAS_STATUS__RESET_NEEDED)
+			return -EAGAIN;
 		return -EINVAL;
 	}
 
@@ -541,16 +544,32 @@ int amdgpu_ras_feature_enable_on_boot(struct amdgpu_device *adev,
 		return -EINVAL;
 
 	if (con->flags & AMDGPU_RAS_FLAG_INIT_BY_VBIOS) {
-		/* If ras is enabled by vbios, we set up ras object first in
-		 * both case. For enable, that is all what we need do. For
-		 * disable, we need perform a ras TA disable cmd after that.
-		 */
-		ret = __amdgpu_ras_feature_enable(adev, head, 1);
-		if (ret)
-			return ret;
+		if (enable) {
+			/* There is no harm to issue a ras TA cmd regardless of
+			 * the currecnt ras state.
+			 * If current state == target state, it will do nothing
+			 * But sometimes it requests driver to reset and repost
+			 * with error code -EAGAIN.
+			 */
+			ret = amdgpu_ras_feature_enable(adev, head, 1);
+			/* With old ras TA, we might fail to enable ras.
+			 * Log it and just setup the object.
+			 * TODO need remove this WA in the future.
+			 */
+			if (ret == -EINVAL) {
+				ret = __amdgpu_ras_feature_enable(adev, head, 1);
+				if (!ret)
+					DRM_INFO("RAS INFO: %s setup object\n",
+						ras_block_str(head->block));
+			}
+		} else {
+			/* setup the object then issue a ras TA disable cmd.*/
+			ret = __amdgpu_ras_feature_enable(adev, head, 1);
+			if (ret)
+				return ret;
 
-		if (!enable)
 			ret = amdgpu_ras_feature_enable(adev, head, 0);
+		}
 	} else
 		ret = amdgpu_ras_feature_enable(adev, head, enable);
 
@@ -1340,6 +1359,19 @@ static int amdgpu_ras_recovery_fini(struct amdgpu_device *adev)
 }
 /* recovery end */
 
+/* return 0 if ras will reset gpu and repost.*/
+int amdgpu_ras_request_reset_on_boot(struct amdgpu_device *adev,
+		unsigned int block)
+{
+	struct amdgpu_ras *ras = amdgpu_ras_get_context(adev);
+
+	if (!ras)
+		return -EINVAL;
+
+	ras->flags |= AMDGPU_RAS_FLAG_INIT_NEED_RESET;
+	return 0;
+}
+
 /*
  * check hardware's ras ability which will be saved in hw_supported.
  * if hardware does not support ras, we can skip some ras initializtion and
@@ -1415,7 +1447,12 @@ recovery_out:
 	return -EINVAL;
 }
 
-/* do some init work after IP late init as dependence */
+/* do some init work after IP late init as dependence.
+ * TODO
+ * gpu reset will re-enable ras, need fint out one way to run it again.
+ * for now, if a gpu reset happened, unless IP enable its ras, the ras state
+ * will be showed as disabled.
+ */
 void amdgpu_ras_post_init(struct amdgpu_device *adev)
 {
 	struct amdgpu_ras *con = amdgpu_ras_get_context(adev);
@@ -1443,6 +1480,19 @@ void amdgpu_ras_post_init(struct amdgpu_device *adev)
 				WARN_ON(alive_obj(obj));
 			}
 		}
+	}
+
+	if (con->flags & AMDGPU_RAS_FLAG_INIT_NEED_RESET) {
+		con->flags &= ~AMDGPU_RAS_FLAG_INIT_NEED_RESET;
+		/* setup ras obj state as disabled.
+		 * for init_by_vbios case.
+		 * if we want to enable ras, just enable it in a normal way.
+		 * If we want do disable it, need setup ras obj as enabled,
+		 * then issue another TA disable cmd.
+		 * See feature_enable_on_boot
+		 */
+		amdgpu_ras_disable_all_features(adev, 1);
+		amdgpu_ras_reset_gpu(adev, 0);
 	}
 }
 

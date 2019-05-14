@@ -338,6 +338,7 @@ struct kfd_ioctl_acquire_vm_args {
 #define KFD_IOC_ALLOC_MEM_FLAGS_GTT		(1 << 1)
 #define KFD_IOC_ALLOC_MEM_FLAGS_USERPTR		(1 << 2)
 #define KFD_IOC_ALLOC_MEM_FLAGS_DOORBELL	(1 << 3)
+#define KFD_IOC_ALLOC_MEM_FLAGS_MMIO_REMAP	(1 << 4)
 /* Allocation flags: attributes/access options */
 #define KFD_IOC_ALLOC_MEM_FLAGS_WRITABLE	(1 << 31)
 #define KFD_IOC_ALLOC_MEM_FLAGS_EXECUTABLE	(1 << 30)
@@ -424,6 +425,13 @@ struct kfd_ioctl_import_dmabuf_args {
 	__u64 handle;	/* from KFD */
 	__u32 gpu_id;	/* to KFD */
 	__u32 dmabuf_fd;	/* to KFD */
+};
+
+/* Register offset inside the remapped mmio page
+ */
+enum kfd_mmio_remap {
+	KFD_MMIO_REMAP_HDP_MEM_FLUSH_CNTL = 0,
+	KFD_MMIO_REMAP_HDP_REG_FLUSH_CNTL = 4,
 };
 
 #define AMDKFD_IOCTL_BASE 'K'
