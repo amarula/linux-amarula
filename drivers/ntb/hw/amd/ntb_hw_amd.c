@@ -160,8 +160,8 @@ static int amd_ntb_mw_set_trans(struct ntb_dev *ntb, int pidx, int idx,
 		}
 
 		/* set and verify setting the limit */
-		write64(limit, mmio + limit_reg);
-		reg_val = read64(mmio + limit_reg);
+		write64(limit, peer_mmio + limit_reg);
+		reg_val = read64(peer_mmio + limit_reg);
 		if (reg_val != limit) {
 			write64(base_addr, mmio + limit_reg);
 			write64(0, peer_mmio + xlat_reg);
@@ -183,8 +183,8 @@ static int amd_ntb_mw_set_trans(struct ntb_dev *ntb, int pidx, int idx,
 		}
 
 		/* set and verify setting the limit */
-		writel(limit, mmio + limit_reg);
-		reg_val = readl(mmio + limit_reg);
+		writel(limit, peer_mmio + limit_reg);
+		reg_val = readl(peer_mmio + limit_reg);
 		if (reg_val != limit) {
 			writel(base_addr, mmio + limit_reg);
 			writel(0, peer_mmio + xlat_reg);
@@ -1020,10 +1020,6 @@ static int amd_ntb_init_pci(struct amd_ntb_dev *ndev,
 			goto err_dma_mask;
 		dev_warn(&pdev->dev, "Cannot DMA consistent highmem\n");
 	}
-	rc = dma_coerce_mask_and_coherent(&ndev->ntb.dev,
-					  dma_get_mask(&pdev->dev));
-	if (rc)
-		goto err_dma_mask;
 
 	ndev->self_mmio = pci_iomap(pdev, 0, 0);
 	if (!ndev->self_mmio) {
