@@ -745,6 +745,12 @@ S:	Supported
 F:	Documentation/networking/device_drivers/amazon/ena.txt
 F:	drivers/net/ethernet/amazon/
 
+AMAZON ANNAPURNA LABS THERMAL MMIO DRIVER
+M:	Talel Shenhar <talel@amazon.com>
+S:	Maintained
+F:	Documentation/devicetree/bindings/thermal/amazon,al-thermal.txt
+F:	drivers/thermal/thermal_mmio.c
+
 AMAZON RDMA EFA DRIVER
 M:	Gal Pressman <galpress@amazon.com>
 R:	Yossi Leybovich <sleybo@amazon.com>
