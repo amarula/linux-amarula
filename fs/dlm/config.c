@@ -29,8 +29,10 @@
  * /config/dlm/<cluster>/spaces/<space>/nodes/<node>/weight
  * /config/dlm/<cluster>/comms/<comm>/nodeid
  * /config/dlm/<cluster>/comms/<comm>/local
+ * /config/dlm/<cluster>/comms/<comm>/bind_all
  * /config/dlm/<cluster>/comms/<comm>/addr      (write only)
  * /config/dlm/<cluster>/comms/<comm>/addr_list (read only)
+ * /config/dlm/<cluster>/comms/<comm>/error	(write only)
  * The <cluster> level is useless, but I haven't figured out how to avoid it.
  */
 
@@ -38,6 +40,7 @@ static struct config_group *space_list;
 static struct config_group *comm_list;
 static struct dlm_comm *local_comm;
 static uint32_t dlm_comm_count;
+static int bind_all;
 
 struct dlm_clusters;
 struct dlm_cluster;
@@ -198,6 +201,8 @@ enum {
 	COMM_ATTR_LOCAL,
 	COMM_ATTR_ADDR,
 	COMM_ATTR_ADDR_LIST,
+	COMM_ATTR_ERROR,
+	COMM_ATTR_BIND_ALL,
 };
 
 enum {
@@ -662,16 +667,48 @@ static ssize_t comm_addr_list_show(struct config_item *item, char *buf)
 	return 4096 - allowance;
 }
 
+static ssize_t comm_error_store(struct config_item *item, const char *buf,
+				size_t len)
+{
+	int ret, i;
+
+	ret = kstrtoint(buf, 0, &i);
+	if (ret < 0)
+		return ret;
+
+	if (i == 0)
+		return 0;
+
+	dlm_lowcomms_next_addr();
+
+	return len;
+}
+
+static ssize_t comm_bind_all_show(struct config_item *item, char *buf)
+{
+	return sprintf(buf, "%d\n", bind_all);
+}
+
+static ssize_t comm_bind_all_store(struct config_item *item, const char *buf,
+				   size_t len)
+{
+	return kstrtoint(buf, 0, &bind_all);
+}
+
 CONFIGFS_ATTR(comm_, nodeid);
 CONFIGFS_ATTR(comm_, local);
 CONFIGFS_ATTR_WO(comm_, addr);
 CONFIGFS_ATTR_RO(comm_, addr_list);
+CONFIGFS_ATTR_WO(comm_, error);
+CONFIGFS_ATTR(comm_, bind_all);
 
 static struct configfs_attribute *comm_attrs[] = {
 	[COMM_ATTR_NODEID] = &comm_attr_nodeid,
 	[COMM_ATTR_LOCAL] = &comm_attr_local,
 	[COMM_ATTR_ADDR] = &comm_attr_addr,
 	[COMM_ATTR_ADDR_LIST] = &comm_attr_addr_list,
+	[COMM_ATTR_ERROR] = &comm_attr_error,
+	[COMM_ATTR_BIND_ALL] = &comm_attr_bind_all,
 	NULL,
 };
 
@@ -845,6 +882,11 @@ int dlm_our_addr(struct sockaddr_storage *addr, int num)
 		return -1;
 	memcpy(addr, local_comm->addr[num], sizeof(*addr));
 	return 0;
+}
+
+int dlm_bind_all(void)
+{
+	return bind_all;
 }
 
 /* Config file defaults */

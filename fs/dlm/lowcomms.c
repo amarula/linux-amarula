@@ -159,6 +159,8 @@ static DEFINE_SPINLOCK(dlm_node_addrs_spin);
 static struct sockaddr_storage *dlm_local_addr[DLM_MAX_ADDR_COUNT];
 static int dlm_local_count;
 static int dlm_allow_conn;
+static int dlm_local_idx;
+static DEFINE_SPINLOCK(dlm_local_idx_spin);
 
 /* Work queues */
 static struct workqueue_struct *recv_workqueue;
@@ -330,7 +332,8 @@ static int nodeid_to_addr(int nodeid, struct sockaddr_storage *sas_out,
 	if (!sa_out)
 		return 0;
 
-	if (dlm_local_addr[0]->ss_family == AF_INET) {
+	spin_lock(&dlm_local_idx_spin);
+	if (dlm_local_addr[dlm_local_idx]->ss_family == AF_INET) {
 		struct sockaddr_in *in4  = (struct sockaddr_in *) &sas;
 		struct sockaddr_in *ret4 = (struct sockaddr_in *) sa_out;
 		ret4->sin_addr.s_addr = in4->sin_addr.s_addr;
@@ -339,6 +342,7 @@ static int nodeid_to_addr(int nodeid, struct sockaddr_storage *sas_out,
 		struct sockaddr_in6 *ret6 = (struct sockaddr_in6 *) sa_out;
 		ret6->sin6_addr = in6->sin6_addr;
 	}
+	spin_unlock(&dlm_local_idx_spin);
 
 	return 0;
 }
@@ -519,6 +523,8 @@ static void lowcomms_error_report(struct sock *sk)
 				   dlm_config.ci_tcp_port, sk->sk_err,
 				   sk->sk_err_soft);
 	}
+
+	dlm_lowcomms_next_addr();
 out:
 	read_unlock_bh(&sk->sk_callback_lock);
 	if (orig_report)
@@ -572,7 +578,9 @@ static void add_sock(struct socket *sock, struct connection *con)
 static void make_sockaddr(struct sockaddr_storage *saddr, uint16_t port,
 			  int *addr_len)
 {
-	saddr->ss_family =  dlm_local_addr[0]->ss_family;
+	spin_lock(&dlm_local_idx_spin);
+	saddr->ss_family =  dlm_local_addr[dlm_local_idx]->ss_family;
+	spin_unlock(&dlm_local_idx_spin);
 	if (saddr->ss_family == AF_INET) {
 		struct sockaddr_in *in4_addr = (struct sockaddr_in *)saddr;
 		in4_addr->sin_port = cpu_to_be16(port);
@@ -590,8 +598,14 @@ static void make_sockaddr(struct sockaddr_storage *saddr, uint16_t port,
 static void close_connection(struct connection *con, bool and_other,
 			     bool tx, bool rx)
 {
-	bool closing = test_and_set_bit(CF_CLOSING, &con->flags);
+	bool closing;
 
+	if (!con) {
+		printk(KERN_INFO "dlm: close_connection: con is NULL\n");
+		return;
+	}
+
+	closing = test_and_set_bit(CF_CLOSING, &con->flags);
 	if (tx && !closing && cancel_work_sync(&con->swork)) {
 		log_print("canceled swork for node %d", con->nodeid);
 		clear_bit(CF_WRITE_PENDING, &con->flags);
@@ -1169,7 +1183,9 @@ static void tcp_connect_to_sock(struct connection *con)
 
 	/* Bind to our cluster-known address connecting to avoid
 	   routing problems */
-	memcpy(&src_addr, dlm_local_addr[0], sizeof(src_addr));
+	spin_lock(&dlm_local_idx_spin);
+	memcpy(&src_addr, dlm_local_addr[dlm_local_idx], sizeof(src_addr));
+	spin_unlock(&dlm_local_idx_spin);
 	make_sockaddr(&src_addr, 0, &addr_len);
 	result = sock->ops->bind(sock, (struct sockaddr *) &src_addr,
 				 addr_len);
@@ -1213,6 +1229,7 @@ out_err:
 			  con->retries, result);
 		mutex_unlock(&con->sock_mutex);
 		msleep(1000);
+		dlm_lowcomms_next_addr();
 		lowcomms_connect_sock(con);
 		return;
 	}
@@ -1263,12 +1280,17 @@ static struct socket *tcp_create_listen_sock(struct connection *con,
 	make_sockaddr(saddr, dlm_config.ci_tcp_port, &addr_len);
 	result = sock->ops->bind(sock, (struct sockaddr *) saddr, addr_len);
 	if (result < 0) {
-		log_print("Can't bind to port %d", dlm_config.ci_tcp_port);
+		log_print("Can't bind to port %pISc:%d: %d",
+			  (struct sockaddr *) saddr,
+			  dlm_config.ci_tcp_port,
+			  result);
 		sock_release(sock);
 		sock = NULL;
 		con->sock = NULL;
 		goto create_out;
 	}
+	log_print("Bound to %pISc:%d", (struct sockaddr *) saddr, 
+		  dlm_config.ci_tcp_port);
 	result = kernel_setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE,
 				 (char *)&one, sizeof(one));
 	if (result < 0) {
@@ -1293,6 +1315,9 @@ static void init_local(void)
 	struct sockaddr_storage sas, *addr;
 	int i;
 
+	spin_lock(&dlm_local_idx_spin);
+	dlm_local_idx = 0;
+	spin_unlock(&dlm_local_idx_spin);
 	dlm_local_count = 0;
 	for (i = 0; i < DLM_MAX_ADDR_COUNT; i++) {
 		if (dlm_our_addr(&sas, i))
@@ -1369,22 +1394,32 @@ out:
 static int tcp_listen_for_all(void)
 {
 	struct socket *sock = NULL;
+	struct sockaddr_in *sin4;
+	struct sockaddr_in6 *sin6;
+	struct sockaddr_storage sas, laddr;
 	struct connection *con = nodeid2con(0, GFP_NOFS);
 	int result = -EINVAL;
 
 	if (!con)
 		return -ENOMEM;
 
-	/* We don't support multi-homed hosts */
-	if (dlm_local_addr[1] != NULL) {
-		log_print("TCP protocol can't handle multi-homed hosts, "
-			  "try SCTP");
-		return -EINVAL;
-	}
-
 	log_print("Using TCP for communications");
 
-	sock = tcp_create_listen_sock(con, dlm_local_addr[0]);
+	memcpy(&sas, dlm_local_addr[dlm_local_idx], sizeof(sas));
+	memcpy(&laddr, dlm_local_addr[dlm_local_idx], sizeof(laddr));
+	if (dlm_bind_all()) {
+		if (sas.ss_family == AF_INET) {
+			sin4 = (struct sockaddr_in *) &sas;
+			sin4->sin_addr.s_addr = htonl(INADDR_ANY);
+			memcpy(&laddr, sin4, sizeof(laddr));
+		} else {
+			sin6 = (struct sockaddr_in6 *) &sas;
+			sin6->sin6_addr = in6addr_any;
+			memcpy(&laddr, sin6, sizeof(laddr));
+		}
+	}
+
+	sock = tcp_create_listen_sock(con, &laddr);
 	if (sock) {
 		add_sock(sock, con);
 		result = 0;
@@ -1630,8 +1665,10 @@ static void clean_writequeues(void)
 
 static void work_stop(void)
 {
-	destroy_workqueue(recv_workqueue);
-	destroy_workqueue(send_workqueue);
+	if (recv_workqueue)
+		destroy_workqueue(recv_workqueue);
+	if (send_workqueue)
+		destroy_workqueue(send_workqueue);
 }
 
 static int work_start(void)
@@ -1691,13 +1728,17 @@ static void work_flush(void)
 	struct hlist_node *n;
 	struct connection *con;
 
-	flush_workqueue(recv_workqueue);
-	flush_workqueue(send_workqueue);
+	if (recv_workqueue)
+		flush_workqueue(recv_workqueue);
+	if (send_workqueue)
+		flush_workqueue(send_workqueue);
 	do {
 		ok = 1;
 		foreach_conn(stop_conn);
-		flush_workqueue(recv_workqueue);
-		flush_workqueue(send_workqueue);
+		if (recv_workqueue)
+			flush_workqueue(recv_workqueue);
+		if (send_workqueue)
+			flush_workqueue(send_workqueue);
 		for (i = 0; i < CONN_HASH_SIZE && ok; i++) {
 			hlist_for_each_entry_safe(con, n,
 						  &connection_hash[i], list) {
@@ -1712,6 +1753,22 @@ static void work_flush(void)
 			}
 		}
 	} while (!ok);
+}
+
+void dlm_lowcomms_next_addr(void)
+{
+	if (!dlm_local_count)
+		init_local();
+
+	spin_lock(&dlm_local_idx_spin);
+	if (dlm_local_idx < dlm_local_count)
+		dlm_local_idx++;
+	else
+		dlm_local_idx = 0;
+	spin_unlock(&dlm_local_idx_spin);
+
+	dlm_lowcomms_stop();
+	dlm_lowcomms_start();
 }
 
 void dlm_lowcomms_stop(void)
