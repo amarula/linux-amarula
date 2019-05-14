@@ -3045,6 +3045,7 @@ void trace_printk_init_buffers(void)
 	if (global_trace.trace_buffer.buffer)
 		tracing_start_cmdline_record();
 }
+EXPORT_SYMBOL_GPL(trace_printk_init_buffers);
 
 void trace_printk_start_comm(void)
 {
@@ -3205,6 +3206,7 @@ int trace_array_printk(struct trace_array *tr,
 	va_end(ap);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(trace_array_printk);
 
 __printf(3, 4)
 int trace_array_printk_buf(struct ring_buffer *buffer,
@@ -3483,31 +3485,66 @@ static void s_stop(struct seq_file *m, void *p)
 }
 
 static void
+get_total_entries_cpu(struct trace_buffer *buf, unsigned long *total,
+		      unsigned long *entries, int cpu)
+{
+	unsigned long count;
+
+	count = ring_buffer_entries_cpu(buf->buffer, cpu);
+	/*
+	 * If this buffer has skipped entries, then we hold all
+	 * entries for the trace and we need to ignore the
+	 * ones before the time stamp.
+	 */
+	if (per_cpu_ptr(buf->data, cpu)->skipped_entries) {
+		count -= per_cpu_ptr(buf->data, cpu)->skipped_entries;
+		/* total is the same as the entries */
+		*total = count;
+	} else
+		*total = count +
+			ring_buffer_overrun_cpu(buf->buffer, cpu);
+	*entries = count;
+}
+
+static void
 get_total_entries(struct trace_buffer *buf,
 		  unsigned long *total, unsigned long *entries)
 {
-	unsigned long count;
+	unsigned long t, e;
 	int cpu;
 
 	*total = 0;
 	*entries = 0;
 
 	for_each_tracing_cpu(cpu) {
-		count = ring_buffer_entries_cpu(buf->buffer, cpu);
-		/*
-		 * If this buffer has skipped entries, then we hold all
-		 * entries for the trace and we need to ignore the
-		 * ones before the time stamp.
-		 */
-		if (per_cpu_ptr(buf->data, cpu)->skipped_entries) {
-			count -= per_cpu_ptr(buf->data, cpu)->skipped_entries;
-			/* total is the same as the entries */
-			*total += count;
-		} else
-			*total += count +
-				ring_buffer_overrun_cpu(buf->buffer, cpu);
-		*entries += count;
+		get_total_entries_cpu(buf, &t, &e, cpu);
+		*total += t;
+		*entries += e;
 	}
+}
+
+unsigned long trace_total_entries_cpu(struct trace_array *tr, int cpu)
+{
+	unsigned long total, entries;
+
+	if (!tr)
+		tr = &global_trace;
+
+	get_total_entries_cpu(&tr->trace_buffer, &total, &entries, cpu);
+
+	return entries;
+}
+
+unsigned long trace_total_entries(struct trace_array *tr)
+{
+	unsigned long total, entries;
+
+	if (!tr)
+		tr = &global_trace;
+
+	get_total_entries(&tr->trace_buffer, &total, &entries);
+
+	return entries;
 }
 
 static void print_lat_help_header(struct seq_file *m)
@@ -4692,6 +4729,7 @@ static const char readme_msg[] =
 	"  trace_pipe\t\t- A consuming read to see the contents of the buffer\n"
 	"  current_tracer\t- function and latency tracers\n"
 	"  available_tracers\t- list of configured tracers for current_tracer\n"
+	"  error_log\t- error log for failed commands (that support it)\n"
 	"  buffer_size_kb\t- view and modify size of per cpu buffer\n"
 	"  buffer_total_size_kb  - view total size of all cpu buffers\n\n"
 	"  trace_clock\t\t-change the clock used to order events\n"
@@ -6868,6 +6906,238 @@ static const struct file_operations snapshot_raw_fops = {
 
 #endif /* CONFIG_TRACER_SNAPSHOT */
 
+#define TRACING_LOG_ERRS_MAX	8
+#define TRACING_LOG_LOC_MAX	128
+
+#define CMD_PREFIX "  Command: "
+
+struct err_info {
+	const char	**errs;	/* ptr to loc-specific array of err strings */
+	u8		type;	/* index into errs -> specific err string */
+	u8		pos;	/* MAX_FILTER_STR_VAL = 256 */
+	u64		ts;
+};
+
+struct tracing_log_err {
+	struct list_head	list;
+	struct err_info		info;
+	char			loc[TRACING_LOG_LOC_MAX]; /* err location */
+	char			cmd[MAX_FILTER_STR_VAL]; /* what caused err */
+};
+
+static DEFINE_MUTEX(tracing_err_log_lock);
+
+struct tracing_log_err *get_tracing_log_err(struct trace_array *tr)
+{
+	struct tracing_log_err *err;
+
+	if (tr->n_err_log_entries < TRACING_LOG_ERRS_MAX) {
+		err = kzalloc(sizeof(*err), GFP_KERNEL);
+		if (!err)
+			err = ERR_PTR(-ENOMEM);
+		tr->n_err_log_entries++;
+
+		return err;
+	}
+
+	err = list_first_entry(&tr->err_log, struct tracing_log_err, list);
+	list_del(&err->list);
+
+	return err;
+}
+
+/**
+ * err_pos - find the position of a string within a command for error careting
+ * @cmd: The tracing command that caused the error
+ * @str: The string to position the caret at within @cmd
+ *
+ * Finds the position of the first occurence of @str within @cmd.  The
+ * return value can be passed to tracing_log_err() for caret placement
+ * within @cmd.
+ *
+ * Returns the index within @cmd of the first occurence of @str or 0
+ * if @str was not found.
+ */
+unsigned int err_pos(char *cmd, const char *str)
+{
+	char *found;
+
+	if (WARN_ON(!strlen(cmd)))
+		return 0;
+
+	found = strstr(cmd, str);
+	if (found)
+		return found - cmd;
+
+	return 0;
+}
+
+/**
+ * tracing_log_err - write an error to the tracing error log
+ * @tr: The associated trace array for the error (NULL for top level array)
+ * @loc: A string describing where the error occurred
+ * @cmd: The tracing command that caused the error
+ * @errs: The array of loc-specific static error strings
+ * @type: The index into errs[], which produces the specific static err string
+ * @pos: The position the caret should be placed in the cmd
+ *
+ * Writes an error into tracing/error_log of the form:
+ *
+ * <loc>: error: <text>
+ *   Command: <cmd>
+ *              ^
+ *
+ * tracing/error_log is a small log file containing the last
+ * TRACING_LOG_ERRS_MAX errors (8).  Memory for errors isn't allocated
+ * unless there has been a tracing error, and the error log can be
+ * cleared and have its memory freed by writing the empty string in
+ * truncation mode to it i.e. echo > tracing/error_log.
+ *
+ * NOTE: the @errs array along with the @type param are used to
+ * produce a static error string - this string is not copied and saved
+ * when the error is logged - only a pointer to it is saved.  See
+ * existing callers for examples of how static strings are typically
+ * defined for use with tracing_log_err().
+ */
+void tracing_log_err(struct trace_array *tr,
+		     const char *loc, const char *cmd,
+		     const char **errs, u8 type, u8 pos)
+{
+	struct tracing_log_err *err;
+
+	if (!tr)
+		tr = &global_trace;
+
+	mutex_lock(&tracing_err_log_lock);
+	err = get_tracing_log_err(tr);
+	if (PTR_ERR(err) == -ENOMEM) {
+		mutex_unlock(&tracing_err_log_lock);
+		return;
+	}
+
+	snprintf(err->loc, TRACING_LOG_LOC_MAX, "%s: error: ", loc);
+	snprintf(err->cmd, MAX_FILTER_STR_VAL,"\n" CMD_PREFIX "%s\n", cmd);
+
+	err->info.errs = errs;
+	err->info.type = type;
+	err->info.pos = pos;
+	err->info.ts = local_clock();
+
+	list_add_tail(&err->list, &tr->err_log);
+	mutex_unlock(&tracing_err_log_lock);
+}
+
+static void clear_tracing_err_log(struct trace_array *tr)
+{
+	struct tracing_log_err *err, *next;
+
+	mutex_lock(&tracing_err_log_lock);
+	list_for_each_entry_safe(err, next, &tr->err_log, list) {
+		list_del(&err->list);
+		kfree(err);
+	}
+
+	tr->n_err_log_entries = 0;
+	mutex_unlock(&tracing_err_log_lock);
+}
+
+static void *tracing_err_log_seq_start(struct seq_file *m, loff_t *pos)
+{
+	struct trace_array *tr = m->private;
+
+	mutex_lock(&tracing_err_log_lock);
+
+	return seq_list_start(&tr->err_log, *pos);
+}
+
+static void *tracing_err_log_seq_next(struct seq_file *m, void *v, loff_t *pos)
+{
+	struct trace_array *tr = m->private;
+
+	return seq_list_next(v, &tr->err_log, pos);
+}
+
+static void tracing_err_log_seq_stop(struct seq_file *m, void *v)
+{
+	mutex_unlock(&tracing_err_log_lock);
+}
+
+static void tracing_err_log_show_pos(struct seq_file *m, u8 pos)
+{
+	u8 i;
+
+	for (i = 0; i < sizeof(CMD_PREFIX) - 1; i++)
+		seq_putc(m, ' ');
+	for (i = 0; i < pos; i++)
+		seq_putc(m, ' ');
+	seq_puts(m, "^\n");
+}
+
+static int tracing_err_log_seq_show(struct seq_file *m, void *v)
+{
+	struct tracing_log_err *err = v;
+
+	if (err) {
+		const char *err_text = err->info.errs[err->info.type];
+		u64 sec = err->info.ts;
+		u32 nsec;
+
+		nsec = do_div(sec, NSEC_PER_SEC);
+		seq_printf(m, "[%5llu.%06u] %s%s", sec, nsec / 1000,
+			   err->loc, err_text);
+		seq_printf(m, "%s", err->cmd);
+		tracing_err_log_show_pos(m, err->info.pos);
+	}
+
+	return 0;
+}
+
+static const struct seq_operations tracing_err_log_seq_ops = {
+	.start  = tracing_err_log_seq_start,
+	.next   = tracing_err_log_seq_next,
+	.stop   = tracing_err_log_seq_stop,
+	.show   = tracing_err_log_seq_show
+};
+
+static int tracing_err_log_open(struct inode *inode, struct file *file)
+{
+	struct trace_array *tr = inode->i_private;
+	int ret = 0;
+
+	if (trace_array_get(tr) < 0)
+		return -ENODEV;
+
+	/* If this file was opened for write, then erase contents */
+	if ((file->f_mode & FMODE_WRITE) && (file->f_flags & O_TRUNC))
+		clear_tracing_err_log(tr);
+
+	if (file->f_mode & FMODE_READ) {
+		ret = seq_open(file, &tracing_err_log_seq_ops);
+		if (!ret) {
+			struct seq_file *m = file->private_data;
+			m->private = tr;
+		} else {
+			trace_array_put(tr);
+		}
+	}
+	return ret;
+}
+
+static ssize_t tracing_err_log_write(struct file *file,
+				     const char __user *buffer,
+				     size_t count, loff_t *ppos)
+{
+	return count;
+}
+
+static const struct file_operations tracing_err_log_fops = {
+	.open           = tracing_err_log_open,
+	.write		= tracing_err_log_write,
+	.read           = seq_read,
+	.llseek         = seq_lseek,
+	.release	= tracing_release_generic_tr,
+};
+
 static int tracing_buffers_open(struct inode *inode, struct file *filp)
 {
 	struct trace_array *tr = inode->i_private;
@@ -8033,7 +8303,7 @@ static void update_tracer_options(struct trace_array *tr)
 	mutex_unlock(&trace_types_lock);
 }
 
-static int instance_mkdir(const char *name)
+struct trace_array *trace_array_create(const char *name)
 {
 	struct trace_array *tr;
 	int ret;
@@ -8072,6 +8342,7 @@ static int instance_mkdir(const char *name)
 	INIT_LIST_HEAD(&tr->systems);
 	INIT_LIST_HEAD(&tr->events);
 	INIT_LIST_HEAD(&tr->hist_vars);
+	INIT_LIST_HEAD(&tr->err_log);
 
 	if (allocate_trace_buffers(tr, trace_buf_size) < 0)
 		goto out_free_tr;
@@ -8097,7 +8368,7 @@ static int instance_mkdir(const char *name)
 	mutex_unlock(&trace_types_lock);
 	mutex_unlock(&event_mutex);
 
-	return 0;
+	return tr;
 
  out_free_tr:
 	free_trace_buffers(tr);
@@ -8109,33 +8380,21 @@ static int instance_mkdir(const char *name)
 	mutex_unlock(&trace_types_lock);
 	mutex_unlock(&event_mutex);
 
-	return ret;
+	return ERR_PTR(ret);
+}
+EXPORT_SYMBOL_GPL(trace_array_create);
 
+static int instance_mkdir(const char *name)
+{
+	return PTR_ERR_OR_ZERO(trace_array_create(name));
 }
 
-static int instance_rmdir(const char *name)
+static int __remove_instance(struct trace_array *tr)
 {
-	struct trace_array *tr;
-	int found = 0;
-	int ret;
 	int i;
 
-	mutex_lock(&event_mutex);
-	mutex_lock(&trace_types_lock);
-
-	ret = -ENODEV;
-	list_for_each_entry(tr, &ftrace_trace_arrays, list) {
-		if (tr->name && strcmp(tr->name, name) == 0) {
-			found = 1;
-			break;
-		}
-	}
-	if (!found)
-		goto out_unlock;
-
-	ret = -EBUSY;
 	if (tr->ref || (tr->current_trace && tr->current_trace->ref))
-		goto out_unlock;
+		return -EBUSY;
 
 	list_del(&tr->list);
 
@@ -8161,10 +8420,46 @@ static int instance_rmdir(const char *name)
 	free_cpumask_var(tr->tracing_cpumask);
 	kfree(tr->name);
 	kfree(tr);
+	tr = NULL;
 
-	ret = 0;
+	return 0;
+}
 
- out_unlock:
+int trace_array_destroy(struct trace_array *tr)
+{
+	int ret;
+
+	if (!tr)
+		return -EINVAL;
+
+	mutex_lock(&event_mutex);
+	mutex_lock(&trace_types_lock);
+
+	ret = __remove_instance(tr);
+
+	mutex_unlock(&trace_types_lock);
+	mutex_unlock(&event_mutex);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(trace_array_destroy);
+
+static int instance_rmdir(const char *name)
+{
+	struct trace_array *tr;
+	int ret;
+
+	mutex_lock(&event_mutex);
+	mutex_lock(&trace_types_lock);
+
+	ret = -ENODEV;
+	list_for_each_entry(tr, &ftrace_trace_arrays, list) {
+		if (tr->name && strcmp(tr->name, name) == 0) {
+			ret = __remove_instance(tr);
+			break;
+		}
+	}
+
 	mutex_unlock(&trace_types_lock);
 	mutex_unlock(&event_mutex);
 
@@ -8253,6 +8548,9 @@ init_tracer_tracefs(struct trace_array *tr, struct dentry *d_tracer)
 	trace_create_file("snapshot", 0644, d_tracer,
 			  tr, &snapshot_fops);
 #endif
+
+	trace_create_file("error_log", 0644, d_tracer,
+			  tr, &tracing_err_log_fops);
 
 	for_each_tracing_cpu(cpu)
 		tracing_init_tracefs_percpu(tr, cpu);
@@ -8839,6 +9137,7 @@ __init static int tracer_alloc_buffers(void)
 	INIT_LIST_HEAD(&global_trace.systems);
 	INIT_LIST_HEAD(&global_trace.events);
 	INIT_LIST_HEAD(&global_trace.hist_vars);
+	INIT_LIST_HEAD(&global_trace.err_log);
 	list_add(&global_trace.list, &ftrace_trace_arrays);
 
 	apply_trace_boot_options();
