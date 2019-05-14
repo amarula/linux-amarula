@@ -756,6 +756,7 @@ static int dw_mipi_dsi_rockchip_bind(struct device *dev,
 	bool master1, master2;
 	int ret;
 
+	printk("%s start...\n", __func__);
 	second = dw_mipi_dsi_rockchip_find_second(dsi);
 	if (IS_ERR(second))
 		return PTR_ERR(second);
@@ -811,6 +812,7 @@ static int dw_mipi_dsi_rockchip_bind(struct device *dev,
 		return ret;
 	}
 
+	printk("%s done!\n", __func__);
 	return 0;
 }
 
@@ -840,6 +842,7 @@ static int dw_mipi_dsi_rockchip_host_attach(void *priv_data,
 	struct device *second;
 	int ret;
 
+	printk("%s start...\n", __func__);
 	ret = component_add(dsi->dev, &dw_mipi_dsi_rockchip_ops);
 	if (ret) {
 		DRM_DEV_ERROR(dsi->dev, "Failed to register component: %d\n",
@@ -860,6 +863,7 @@ static int dw_mipi_dsi_rockchip_host_attach(void *priv_data,
 		}
 	}
 
+	printk("%s done!\n", __func__);
 	return 0;
 }
 
@@ -897,6 +901,7 @@ static int dw_mipi_dsi_rockchip_probe(struct platform_device *pdev)
 	if (!dsi)
 		return -ENOMEM;
 
+	printk("1. %s\n", __func__);
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	dsi->base = devm_ioremap_resource(dev, res);
 	if (IS_ERR(dsi->base)) {
@@ -914,6 +919,7 @@ static int dw_mipi_dsi_rockchip_probe(struct platform_device *pdev)
 		i++;
 	}
 
+	printk("2. %s\n", __func__);
 	if (!dsi->cdata) {
 		dev_err(dev, "no dsi-config for %s node\n", np->name);
 		return -EINVAL;
@@ -927,6 +933,7 @@ static int dw_mipi_dsi_rockchip_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	printk("3. %s\n", __func__);
 	if (dsi->cdata->flags & DW_MIPI_NEEDS_PHY_CFG_CLK) {
 		dsi->phy_cfg_clk = devm_clk_get(dev, "phy_cfg");
 		if (IS_ERR(dsi->phy_cfg_clk)) {
@@ -946,6 +953,7 @@ static int dw_mipi_dsi_rockchip_probe(struct platform_device *pdev)
 		}
 	}
 
+	printk("4. %s\n", __func__);
 	dsi->grf_regmap = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
 	if (IS_ERR(dsi->grf_regmap)) {
 		DRM_DEV_ERROR(dsi->dev, "Unable to get rockchip,grf\n");
@@ -960,6 +968,7 @@ static int dw_mipi_dsi_rockchip_probe(struct platform_device *pdev)
 	dsi->pdata.priv_data = dsi;
 	platform_set_drvdata(pdev, dsi);
 
+	printk("5. %s\n", __func__);
 	dsi->dmd = dw_mipi_dsi_probe(pdev, &dsi->pdata);
 	if (IS_ERR(dsi->dmd)) {
 		ret = PTR_ERR(dsi->dmd);
@@ -969,6 +978,7 @@ static int dw_mipi_dsi_rockchip_probe(struct platform_device *pdev)
 		goto err_clkdisable;
 	}
 
+	printk("Rockchip MIPI DSI init done!\n");
 	return 0;
 
 err_clkdisable:
