@@ -48,6 +48,8 @@ static void nsfs_evict(struct inode *inode)
 {
 	struct ns_common *ns = inode->i_private;
 	clear_inode(inode);
+	if (ns->ops->evict)
+		ns->ops->evict(ns);
 	ns->ops->put(ns);
 }
 
