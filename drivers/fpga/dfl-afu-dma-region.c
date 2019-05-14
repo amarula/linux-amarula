@@ -35,44 +35,36 @@ void afu_dma_region_init(struct dfl_feature_platform_data *pdata)
  * afu_dma_adjust_locked_vm - adjust locked memory
  * @dev: port device
  * @npages: number of pages
- * @incr: increase or decrease locked memory
  *
  * Increase or decrease the locked memory size with npages input.
  *
  * Return 0 on success.
  * Return -ENOMEM if locked memory size is over the limit and no CAP_IPC_LOCK.
  */
-static int afu_dma_adjust_locked_vm(struct device *dev, long npages, bool incr)
+static int afu_dma_adjust_locked_vm(struct device *dev, long pages)
 {
-	unsigned long locked, lock_limit;
+	unsigned long lock_limit;
+	s64 locked_vm;
 	int ret = 0;
 
 	/* the task is exiting. */
-	if (!current->mm)
+	if (!current->mm || !pages)
 		return 0;
 
-	down_write(&current->mm->mmap_sem);
-
-	if (incr) {
-		locked = current->mm->locked_vm + npages;
+	locked_vm = atomic64_add_return(pages, &current->mm->locked_vm);
+	WARN_ON_ONCE(locked_vm < 0);
+	if (pages > 0 && !capable(CAP_IPC_LOCK)) {
 		lock_limit = rlimit(RLIMIT_MEMLOCK) >> PAGE_SHIFT;
-
-		if (locked > lock_limit && !capable(CAP_IPC_LOCK))
+		if (locked_vm > lock_limit) {
 			ret = -ENOMEM;
-		else
-			current->mm->locked_vm += npages;
-	} else {
-		if (WARN_ON_ONCE(npages > current->mm->locked_vm))
-			npages = current->mm->locked_vm;
-		current->mm->locked_vm -= npages;
+			atomic64_sub(pages, &current->mm->locked_vm);
+		}
 	}
 
-	dev_dbg(dev, "[%d] RLIMIT_MEMLOCK %c%ld %ld/%ld%s\n", current->pid,
-		incr ? '+' : '-', npages << PAGE_SHIFT,
-		current->mm->locked_vm << PAGE_SHIFT, rlimit(RLIMIT_MEMLOCK),
+	dev_dbg(dev, "[%d] RLIMIT_MEMLOCK %c%ld %lld/%lu%s\n", current->pid,
+		(pages > 0) ? '+' : '-', pages << PAGE_SHIFT,
+		locked_vm << PAGE_SHIFT, rlimit(RLIMIT_MEMLOCK),
 		ret ? "- exceeded" : "");
-
-	up_write(&current->mm->mmap_sem);
 
 	return ret;
 }
@@ -92,7 +84,7 @@ static int afu_dma_pin_pages(struct dfl_feature_platform_data *pdata,
 	struct device *dev = &pdata->dev->dev;
 	int ret, pinned;
 
-	ret = afu_dma_adjust_locked_vm(dev, npages, true);
+	ret = afu_dma_adjust_locked_vm(dev, npages);
 	if (ret)
 		return ret;
 
@@ -102,7 +94,7 @@ static int afu_dma_pin_pages(struct dfl_feature_platform_data *pdata,
 		goto unlock_vm;
 	}
 
-	pinned = get_user_pages_fast(region->user_addr, npages, 1,
+	pinned = get_user_pages_fast(region->user_addr, npages, FOLL_WRITE,
 				     region->pages);
 	if (pinned < 0) {
 		ret = pinned;
@@ -121,7 +113,7 @@ put_pages:
 free_pages:
 	kfree(region->pages);
 unlock_vm:
-	afu_dma_adjust_locked_vm(dev, npages, false);
+	afu_dma_adjust_locked_vm(dev, -npages);
 	return ret;
 }
 
@@ -141,7 +133,7 @@ static void afu_dma_unpin_pages(struct dfl_feature_platform_data *pdata,
 
 	put_all_pages(region->pages, npages);
 	kfree(region->pages);
-	afu_dma_adjust_locked_vm(dev, npages, false);
+	afu_dma_adjust_locked_vm(dev, -npages);
 
 	dev_dbg(dev, "%ld pages unpinned\n", npages);
 }
