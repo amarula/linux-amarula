@@ -1891,7 +1891,7 @@ static int vmx_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		break;
 	case MSR_IA32_CR_PAT:
 		if (vmcs_config.vmentry_ctrl & VM_ENTRY_LOAD_IA32_PAT) {
-			if (!kvm_mtrr_valid(vcpu, MSR_IA32_CR_PAT, data))
+			if (!kvm_pat_valid(data))
 				return 1;
 			vmcs_write64(GUEST_IA32_PAT, data);
 			vcpu->arch.pat = data;
@@ -2288,7 +2288,6 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf,
 	min |= VM_EXIT_HOST_ADDR_SPACE_SIZE;
 #endif
 	opt = VM_EXIT_LOAD_IA32_PERF_GLOBAL_CTRL |
-	      VM_EXIT_SAVE_IA32_PAT |
 	      VM_EXIT_LOAD_IA32_PAT |
 	      VM_EXIT_LOAD_IA32_EFER |
 	      VM_EXIT_CLEAR_BNDCFGS |
@@ -5723,8 +5722,16 @@ void dump_vmcs(void)
 	if (secondary_exec_control & SECONDARY_EXEC_TSC_SCALING)
 		pr_err("TSC Multiplier = 0x%016llx\n",
 		       vmcs_read64(TSC_MULTIPLIER));
-	if (cpu_based_exec_ctrl & CPU_BASED_TPR_SHADOW)
-		pr_err("TPR Threshold = 0x%02x\n", vmcs_read32(TPR_THRESHOLD));
+	if (cpu_based_exec_ctrl & CPU_BASED_TPR_SHADOW) {
+		if (secondary_exec_control & SECONDARY_EXEC_VIRTUAL_INTR_DELIVERY) {
+			u16 status = vmcs_read16(GUEST_INTR_STATUS);
+			pr_err("SVI|RVI = %02x|%02x ", status >> 8, status & 0xff);
+		}
+		pr_err(KERN_CONT "TPR Threshold = 0x%02x\n", vmcs_read32(TPR_THRESHOLD));
+		if (secondary_exec_control & SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES)
+			pr_err("APIC-access addr = 0x%016llx ", vmcs_read64(APIC_ACCESS_ADDR));
+		pr_err(KERN_CONT "virt-APIC addr = 0x%016llx\n", vmcs_read64(VIRTUAL_APIC_PAGE_ADDR));
+	}
 	if (pin_based_exec_ctrl & PIN_BASED_POSTED_INTR)
 		pr_err("PostedIntrVec = 0x%02x\n", vmcs_read16(POSTED_INTR_NV));
 	if ((secondary_exec_control & SECONDARY_EXEC_ENABLE_EPT))

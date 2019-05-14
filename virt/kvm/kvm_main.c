@@ -2254,7 +2254,7 @@ void kvm_vcpu_block(struct kvm_vcpu *vcpu)
 	u64 block_ns;
 
 	start = cur = ktime_get();
-	if (vcpu->halt_poll_ns) {
+	if (vcpu->halt_poll_ns && !kvm_arch_no_poll(vcpu)) {
 		ktime_t stop = ktime_add_ns(ktime_get(), vcpu->halt_poll_ns);
 
 		++vcpu->stat.halt_attempted_poll;
@@ -3064,6 +3064,8 @@ static long kvm_vm_ioctl_check_extension_generic(struct kvm *kvm, long arg)
 #endif
 	case KVM_CAP_MAX_VCPU_ID:
 		return KVM_MAX_VCPU_ID;
+	case KVM_CAP_NR_MEMSLOTS:
+		return KVM_USER_MEM_SLOTS;
 	default:
 		break;
 	}
