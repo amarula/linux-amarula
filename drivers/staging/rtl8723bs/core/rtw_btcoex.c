@@ -9,12 +9,6 @@
 #include <rtw_btcoex.h>
 #include <hal_btcoex.h>
 
-
-void rtw_btcoex_Initialize(struct adapter *padapter)
-{
-	hal_btcoex_Initialize(padapter);
-}
-
 void rtw_btcoex_PowerOnSetting(struct adapter *padapter)
 {
 	hal_btcoex_PowerOnSetting(padapter);
@@ -101,7 +95,7 @@ u8 rtw_btcoex_IsBtDisabled(struct adapter *padapter)
 
 void rtw_btcoex_Handler(struct adapter *padapter)
 {
-	hal_btcoex_Hanlder(padapter);
+	hal_btcoex_Handler(padapter);
 }
 
 s32 rtw_btcoex_IsBTCoexCtrlAMPDUSize(struct adapter *padapter)

@@ -275,7 +275,7 @@ exit:
 	return pnetwork;
 }
 
-void _rtw_free_network_queue(struct adapter *padapter, u8 isfreeall)
+void rtw_free_network_queue(struct adapter *padapter, u8 isfreeall)
 {
 	struct list_head *phead, *plist;
 	struct wlan_network *pnetwork;
@@ -373,12 +373,6 @@ void rtw_free_network_nolock(struct adapter *padapter, struct wlan_network *pnet
 	/* RT_TRACE(_module_rtl871x_mlme_c_, _drv_err_, ("rtw_free_network ==> ssid = %s\n\n" , pnetwork->network.Ssid.Ssid)); */
 	_rtw_free_network_nolock(&(padapter->mlmepriv), pnetwork);
 	rtw_cfg80211_unlink_bss(padapter, pnetwork);
-}
-
-
-void rtw_free_network_queue(struct adapter *dev, u8 isfreeall)
-{
-	_rtw_free_network_queue(dev, isfreeall);
 }
 
 /*
@@ -1672,7 +1666,7 @@ void rtw_stadel_event_callback(struct adapter *adapter, u8 *pbuf)
 			roam_target = pmlmepriv->roam_network;
 		}
 
-		if (roam == true) {
+		if (roam) {
 			if (rtw_to_roam(adapter) > 0)
 				rtw_dec_to_roam(adapter); /* this stadel_event is caused by roaming, decrease to_roam */
 			else if (rtw_to_roam(adapter) == 0)
@@ -1934,11 +1928,6 @@ inline void rtw_clear_scan_deny(struct adapter *adapter)
 	atomic_set(&mlmepriv->set_scan_deny, 0);
 
 	DBG_871X(FUNC_ADPT_FMT"\n", FUNC_ADPT_ARG(adapter));
-}
-
-void rtw_set_scan_deny_timer_hdl(struct adapter *adapter)
-{
-	rtw_clear_scan_deny(adapter);
 }
 
 void rtw_set_scan_deny(struct adapter *adapter, u32 ms)
@@ -2229,7 +2218,6 @@ sint rtw_set_auth(struct adapter *adapter, struct security_priv *psecuritypriv)
 		goto exit;
 	}
 
-	memset(psetauthparm, 0, sizeof(struct setauth_parm));
 	psetauthparm->mode = (unsigned char)psecuritypriv->dot11AuthAlgrthm;
 
 	pcmd->cmdcode = _SetAuth_CMD_;
@@ -2262,7 +2250,6 @@ sint rtw_set_key(struct adapter *adapter, struct security_priv *psecuritypriv, s
 		res = _FAIL;
 		goto exit;
 	}
-	memset(psetkeyparm, 0, sizeof(struct setkey_parm));
 
 	if (psecuritypriv->dot11AuthAlgrthm == dot11AuthAlgrthm_8021X) {
 		psetkeyparm->algorithm = (unsigned char)psecuritypriv->dot118021XGrpPrivacy;
