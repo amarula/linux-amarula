@@ -36,6 +36,9 @@ properties:
   resets:
     maxItems: 1
 
+  vcc-dsi-supply:
+    description: VCC-DSI power supply of the DSI encoder
+
   phys:
     maxItems: 1
 
