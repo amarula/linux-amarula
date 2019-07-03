@@ -9,32 +9,6 @@
 #include <rtw_btcoex.h>
 #include <hal_btcoex.h>
 
-
-void rtw_btcoex_Initialize(struct adapter *padapter)
-{
-	hal_btcoex_Initialize(padapter);
-}
-
-void rtw_btcoex_PowerOnSetting(struct adapter *padapter)
-{
-	hal_btcoex_PowerOnSetting(padapter);
-}
-
-void rtw_btcoex_HAL_Initialize(struct adapter *padapter, u8 bWifiOnly)
-{
-	hal_btcoex_InitHwConfig(padapter, bWifiOnly);
-}
-
-void rtw_btcoex_IpsNotify(struct adapter *padapter, u8 type)
-{
-	hal_btcoex_IpsNotify(padapter, type);
-}
-
-void rtw_btcoex_LpsNotify(struct adapter *padapter, u8 type)
-{
-	hal_btcoex_LpsNotify(padapter, type);
-}
-
 void rtw_btcoex_ScanNotify(struct adapter *padapter, u8 type)
 {
 	hal_btcoex_ScanNotify(padapter, type);
@@ -55,24 +29,9 @@ void rtw_btcoex_MediaStatusNotify(struct adapter *padapter, u8 mediaStatus)
 	hal_btcoex_MediaStatusNotify(padapter, mediaStatus);
 }
 
-void rtw_btcoex_SpecialPacketNotify(struct adapter *padapter, u8 pktType)
-{
-	hal_btcoex_SpecialPacketNotify(padapter, pktType);
-}
-
-void rtw_btcoex_IQKNotify(struct adapter *padapter, u8 state)
-{
-	hal_btcoex_IQKNotify(padapter, state);
-}
-
 void rtw_btcoex_BtInfoNotify(struct adapter *padapter, u8 length, u8 *tmpBuf)
 {
 	hal_btcoex_BtInfoNotify(padapter, length, tmpBuf);
-}
-
-void rtw_btcoex_SuspendNotify(struct adapter *padapter, u8 state)
-{
-	hal_btcoex_SuspendNotify(padapter, state);
 }
 
 void rtw_btcoex_HaltNotify(struct adapter *padapter)
@@ -101,7 +60,7 @@ u8 rtw_btcoex_IsBtDisabled(struct adapter *padapter)
 
 void rtw_btcoex_Handler(struct adapter *padapter)
 {
-	hal_btcoex_Hanlder(padapter);
+	hal_btcoex_Handler(padapter);
 }
 
 s32 rtw_btcoex_IsBTCoexCtrlAMPDUSize(struct adapter *padapter)
@@ -113,19 +72,9 @@ s32 rtw_btcoex_IsBTCoexCtrlAMPDUSize(struct adapter *padapter)
 	return coexctrl;
 }
 
-void rtw_btcoex_SetManualControl(struct adapter *padapter, u8 manual)
-{
-	hal_btcoex_SetManualControl(padapter, manual);
-}
-
 u8 rtw_btcoex_IsBtControlLps(struct adapter *padapter)
 {
 	return hal_btcoex_IsBtControlLps(padapter);
-}
-
-u8 rtw_btcoex_IsLpsOn(struct adapter *padapter)
-{
-	return hal_btcoex_IsLpsOn(padapter);
 }
 
 u8 rtw_btcoex_RpwmVal(struct adapter *padapter)

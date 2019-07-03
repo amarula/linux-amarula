@@ -43,7 +43,7 @@ void ips_enter(struct adapter *padapter)
 	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
 
 
-	rtw_btcoex_IpsNotify(padapter, pwrpriv->ips_mode_req);
+	hal_btcoex_IpsNotify(padapter, pwrpriv->ips_mode_req);
 
 	mutex_lock(&pwrpriv->lock);
 	_ips_enter(padapter);
@@ -90,7 +90,7 @@ int ips_leave(struct adapter *padapter)
 	mutex_unlock(&pwrpriv->lock);
 
 	if (_SUCCESS == ret)
-		rtw_btcoex_IpsNotify(padapter, IPS_NONE);
+		hal_btcoex_IpsNotify(padapter, IPS_NONE);
 
 	return ret;
 }
@@ -178,7 +178,7 @@ void rtw_ps_processor(struct adapter *padapter)
 	if (pwrpriv->ips_mode_req == IPS_NONE)
 		goto exit;
 
-	if (rtw_pwr_unassociated_idle(padapter) == false)
+	if (!rtw_pwr_unassociated_idle(padapter))
 		goto exit;
 
 	if ((pwrpriv->rf_pwrstate == rf_on) && ((pwrpriv->pwr_state_check_cnts%4) == 0)) {
@@ -421,7 +421,7 @@ void rtw_set_ps_mode(struct adapter *padapter, u8 ps_mode, u8 smart_ps, u8 bcn_a
 			&& (((rtw_btcoex_IsBtControlLps(padapter) == false)
 					)
 				|| ((rtw_btcoex_IsBtControlLps(padapter) == true)
-					&& (rtw_btcoex_IsLpsOn(padapter) == false))
+					&& (hal_btcoex_IsLpsOn(padapter) == false))
 				)
 			) {
 			DBG_871X(FUNC_ADPT_FMT" Leave 802.11 power save - %s\n",
@@ -457,19 +457,19 @@ void rtw_set_ps_mode(struct adapter *padapter, u8 ps_mode, u8 smart_ps, u8 bcn_a
 			rtw_hal_set_hwreg(padapter, HW_VAR_H2C_FW_PWRMODE, (u8 *)(&ps_mode));
 			pwrpriv->bFwCurrentInPSMode = false;
 
-			rtw_btcoex_LpsNotify(padapter, ps_mode);
+			hal_btcoex_LpsNotify(padapter, ps_mode);
 		}
 	} else {
 		if ((PS_RDY_CHECK(padapter) && check_fwstate(&padapter->mlmepriv, WIFI_ASOC_STATE))
 			|| ((rtw_btcoex_IsBtControlLps(padapter) == true)
-				&& (rtw_btcoex_IsLpsOn(padapter) == true))
+				&& (hal_btcoex_IsLpsOn(padapter) == true))
 			) {
 			u8 pslv;
 
 			DBG_871X(FUNC_ADPT_FMT" Enter 802.11 power save - %s\n",
 				FUNC_ADPT_ARG(padapter), msg);
 
-			rtw_btcoex_LpsNotify(padapter, ps_mode);
+			hal_btcoex_LpsNotify(padapter, ps_mode);
 
 			pwrpriv->bFwCurrentInPSMode = true;
 			pwrpriv->pwr_mode = ps_mode;
