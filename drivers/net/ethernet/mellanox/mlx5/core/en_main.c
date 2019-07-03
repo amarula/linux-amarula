@@ -4790,7 +4790,7 @@ static void mlx5e_set_netdev_dev_addr(struct net_device *netdev)
 {
 	struct mlx5e_priv *priv = netdev_priv(netdev);
 
-	mlx5_query_nic_vport_mac_address(priv->mdev, 0, netdev->dev_addr);
+	mlx5_query_mac_address(priv->mdev, netdev->dev_addr);
 	if (is_zero_ether_addr(netdev->dev_addr) &&
 	    !MLX5_CAP_GEN(priv->mdev, vport_group_manager)) {
 		eth_hw_addr_random(netdev);
@@ -5356,7 +5356,7 @@ static void *mlx5e_add(struct mlx5_core_dev *mdev)
 
 #ifdef CONFIG_MLX5_ESWITCH
 	if (MLX5_ESWITCH_MANAGER(mdev) &&
-	    mlx5_eswitch_mode(mdev->priv.eswitch) == SRIOV_OFFLOADS) {
+	    mlx5_eswitch_mode(mdev->priv.eswitch) == MLX5_ESWITCH_OFFLOADS) {
 		mlx5e_rep_register_vport_reps(mdev);
 		return mdev;
 	}
