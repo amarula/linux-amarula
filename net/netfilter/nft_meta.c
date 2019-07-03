@@ -240,6 +240,22 @@ void nft_meta_get_eval(const struct nft_expr *expr,
 			goto err;
 		strncpy((char *)dest, p->br->dev->name, IFNAMSIZ);
 		return;
+	case NFT_META_BRI_PVID:
+		if (in == NULL || (p = br_port_get_rtnl_rcu(in)) == NULL)
+			goto err;
+		if (br_opt_get(p->br, BROPT_VLAN_ENABLED)) {
+			nft_reg_store16(dest, br_get_pvid(nbp_vlan_group_rcu(p)));
+			return;
+		}
+		goto err;
+	case NFT_META_BRI_IIFVPROTO:
+		if (in == NULL || (p = br_port_get_rtnl_rcu(in)) == NULL)
+			goto err;
+		if (br_opt_get(p->br, BROPT_VLAN_ENABLED)) {
+			nft_reg_store16(dest, p->br->vlan_proto);
+			return;
+		}
+		goto err;
 #endif
 	case NFT_META_IIFKIND:
 		if (in == NULL || in->rtnl_link_ops == NULL)
@@ -366,6 +382,12 @@ static int nft_meta_get_init(const struct nft_ctx *ctx,
 		if (ctx->family != NFPROTO_BRIDGE)
 			return -EOPNOTSUPP;
 		len = IFNAMSIZ;
+		break;
+	case NFT_META_BRI_PVID:
+	case NFT_META_BRI_IIFVPROTO:
+		if (ctx->family != NFPROTO_BRIDGE)
+			return -EOPNOTSUPP;
+		len = sizeof(u16);
 		break;
 #endif
 	default:
