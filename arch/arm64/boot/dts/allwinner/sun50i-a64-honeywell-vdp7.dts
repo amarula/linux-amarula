@@ -21,6 +21,14 @@
 		serial0 = &uart0;
 	};
 
+	backlight: backlight {
+		compatible = "pwm-backlight";
+		pwms = <&r_pwm 0 50000 PWM_POLARITY_INVERTED>;
+		brightness-levels = <0 5 10 15 20 30 40 55 70 85 100>;
+		default-brightness-level = <8>;
+		enable-gpios = <&r_pio 0 4 GPIO_ACTIVE_HIGH>; /* PL4*/
+	};
+
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
@@ -39,6 +47,43 @@
 			gpios = <&pio 0 4 GPIO_ACTIVE_LOW>; /* PD4 */
 		};
 	};
+
+	panel {
+		compatible = "tbs,a711-panel", "panel-lvds";
+		power-supply = <&reg_dldo2>;
+		enable-gpios = <&pio 3 23 GPIO_ACTIVE_HIGH>; /* PD24 */
+		reset-gpios = <&pio 3 24 GPIO_ACTIVE_HIGH>; /* PD24 */
+		backlight = <&backlight>;
+		width-mm = <153>;
+		height-mm = <90>;
+		data-mapping = "vesa-24";
+
+		panel-timing {
+			/* 1024x600 @60Hz */
+			clock-frequency = <51000000>;
+//			clock-frequency = <49500000>;
+			hactive = <1024>;
+			vactive = <600>;
+			hsync-len = <10>;
+			hfront-porch = <160>;
+			hback-porch = <150>;
+			vfront-porch = <12>;
+			vback-porch = <18>;
+			vsync-len = <5>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+		};
+
+		port {
+			panel_input: endpoint {
+				remote-endpoint = <&tcon0_out_lcd>;
+			};
+		};
+	};
+};
+
+&de {
+	status = "okay";
 };
 
 &mmc0 {
@@ -48,6 +93,10 @@
 	disable-wp;
 	bus-width = <4>;
 	cd-gpios = <&pio 5 6 GPIO_ACTIVE_LOW>; /* PF6 */
+	status = "okay";
+};
+
+&r_pwm {
 	status = "okay";
 };
 
@@ -180,6 +229,21 @@
 
 &reg_rtc_ldo {
 	regulator-name = "vcc-rtc";
+};
+
+&reg_dc1sw {
+	regulator-name = "vcc-lcd";
+};
+
+&tcon0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&lcd_lvds_pins>;
+};
+
+&tcon0_out {
+	tcon0_out_lcd: endpoint {
+		remote-endpoint = <&panel_input>;
+	};
 };
 
 &uart0 {
