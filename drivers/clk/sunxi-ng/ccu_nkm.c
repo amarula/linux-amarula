@@ -159,6 +159,7 @@ static int ccu_nkm_set_rate(struct clk_hw *hw, unsigned long rate,
 	_nkm.min_m = 1;
 	_nkm.max_m = nkm->m.max ?: 1 << nkm->m.width;
 
+//	parent_rate = 297000000;
 	ccu_nkm_find_best(parent_rate, rate, &_nkm);
 
 	spin_lock_irqsave(nkm->common.lock, flags);
