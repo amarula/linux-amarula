@@ -406,8 +406,8 @@ static void sun4i_tcon0_mode_set_lvds(struct sun4i_tcon *tcon,
 
 	WARN_ON(!tcon->quirks->has_channel_0);
 
-	tcon->dclk_min_div = 8;
-	tcon->dclk_max_div = 8;
+	tcon->dclk_min_div = 7;
+	tcon->dclk_max_div = 7;
 	sun4i_tcon0_mode_set_common(tcon, mode);
 
 	/* Set dithering if needed */
@@ -415,12 +415,9 @@ static void sun4i_tcon0_mode_set_lvds(struct sun4i_tcon *tcon,
 
 	/* Adjust clock delay */
 	clk_delay = sun4i_tcon_get_clk_delay(mode, 0);
-	clk_delay = 0x19;
 	regmap_update_bits(tcon->regs, SUN4I_TCON0_CTL_REG,
 			   SUN4I_TCON0_CTL_CLK_DELAY_MASK,
 			   SUN4I_TCON0_CTL_CLK_DELAY(clk_delay));
-
-//	regmap_write(tcon->regs, SUN4I_TCON0_CPU_IF_REG, 0x00400000);
 
 	/*
 	 * This is called a backporch in the register documentation,
@@ -471,16 +468,6 @@ static void sun4i_tcon0_mode_set_lvds(struct sun4i_tcon *tcon,
 	regmap_update_bits(tcon->regs, SUN4I_TCON_GCTL_REG,
 			   SUN4I_TCON_GCTL_IOMAP_MASK,
 			   SUN4I_TCON_GCTL_IOMAP_TCON0);
-
-      regmap_write(tcon->regs, SUN4I_TCON0_DCLK_REG, 0xf0000007);
-       regmap_write(tcon->regs, SUN4I_TCON0_BASIC3_REG, 0x00090004);
-       /*
-        * The Allwinner BSP has a comment that the period should be
-        * the display clock * 15, but uses an hardcoded 3000...
-        */
-       regmap_write(tcon->regs, SUN4I_TCON_SAFE_PERIOD_REG, 0x02fd0023);
-       regmap_write(tcon->regs, 0xFC, 0x02304000);
-       regmap_write(tcon->regs, 0x400, 0x0056134d);
 
 	/* Enable the output on the pins */
 	regmap_write(tcon->regs, SUN4I_TCON0_IO_TRI_REG, 0xe0000000);
