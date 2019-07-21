@@ -248,7 +248,6 @@ struct sun4i_tcon {
 	struct clk			*dclk;
 	u8				dclk_max_div;
 	u8				dclk_min_div;
-	u8				dclk_mul;
 
 	/* Reset control */
 	struct reset_control		*lcd_rst;

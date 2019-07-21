@@ -402,14 +402,12 @@ static void sun4i_tcon0_mode_set_lvds(struct sun4i_tcon *tcon,
 {
 	unsigned int bp;
 	u8 clk_delay;
-	u8 bpp = 24;
 	u32 reg, val = 0;
 
 	WARN_ON(!tcon->quirks->has_channel_0);
 
-	tcon->dclk_min_div = 4;
-	tcon->dclk_max_div = 127;
-	tcon->dclk_mul = bpp;
+	tcon->dclk_min_div = 7;
+	tcon->dclk_max_div = 7;
 	sun4i_tcon0_mode_set_common(tcon, mode);
 
 	/* Set dithering if needed */
