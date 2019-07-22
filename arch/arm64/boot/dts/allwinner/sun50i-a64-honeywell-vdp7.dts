@@ -50,9 +50,9 @@
 
 	panel {
 		compatible = "tbs,a711-panel", "panel-lvds";
-		power-supply = <&reg_dldo2>;
-		enable-gpios = <&pio 3 23 GPIO_ACTIVE_HIGH>; /* PD24 */
-		reset-gpios = <&pio 3 24 GPIO_ACTIVE_HIGH>; /* PD24 */
+		power-supply = <&reg_dc1sw>;
+//		enable-gpios = <&pio 3 23 GPIO_ACTIVE_HIGH>; /* PD24 */
+//		reset-gpios = <&pio 3 24 GPIO_ACTIVE_LOW>; /* PD24 */
 		backlight = <&backlight>;
 		width-mm = <153>;
 		height-mm = <90>;
