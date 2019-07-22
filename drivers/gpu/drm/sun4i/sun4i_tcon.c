@@ -408,6 +408,7 @@ static void sun4i_tcon0_mode_set_lvds(struct sun4i_tcon *tcon,
 
 	tcon->dclk_min_div = 8;
 	tcon->dclk_max_div = 8;
+//	tcon->dclk_mul = 3;
 	sun4i_tcon0_mode_set_common(tcon, mode);
 
 	/* Set dithering if needed */
@@ -456,7 +457,7 @@ static void sun4i_tcon0_mode_set_lvds(struct sun4i_tcon *tcon,
 	else
 		reg |= SUN4I_TCON0_LVDS_IF_BITWIDTH_18BITS;
 
-	regmap_write(tcon->regs, SUN4I_TCON0_LVDS_IF_REG, reg);
+	regmap_write(tcon->regs, SUN4I_TCON0_LVDS_IF_REG, 0);
 
 	/* Setup the polarity of the various signals */
 	if (!(mode->flags & DRM_MODE_FLAG_PHSYNC))

@@ -74,13 +74,16 @@ static long sun4i_dclk_round_rate(struct clk_hw *hw, unsigned long rate,
 	struct sun4i_dclk *dclk = hw_to_dclk(hw);
 	struct sun4i_tcon *tcon = dclk->tcon;
 	unsigned long best_parent = 0;
+	u64 ideal = (u64)rate * tcon->dclk_mul;
 	u8 best_div = 1;
 	int i;
 
 	printk("%s: min_div = %d max_div = %d, rate = %d\n", __func__, tcon->dclk_min_div, tcon->dclk_max_div, rate);
 	for (i = tcon->dclk_min_div; i <= tcon->dclk_max_div; i++) {
-		u64 ideal = (u64)rate * i;
 		unsigned long rounded;
+
+		if (!tcon->dclk_mul)
+			ideal = (u64)rate * i;
 
 		/*
 		 * ideal has overflowed the max value that can be stored in an

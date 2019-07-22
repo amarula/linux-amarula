@@ -51,8 +51,7 @@
 	panel {
 		compatible = "tbs,a711-panel", "panel-lvds";
 		power-supply = <&reg_dc1sw>;
-//		enable-gpios = <&pio 3 23 GPIO_ACTIVE_HIGH>; /* PD24 */
-//		reset-gpios = <&pio 3 24 GPIO_ACTIVE_LOW>; /* PD24 */
+		reset-gpios = <&pio 3 24 GPIO_ACTIVE_HIGH>; /* PD24 */
 		backlight = <&backlight>;
 		width-mm = <153>;
 		height-mm = <90>;
@@ -61,7 +60,6 @@
 		panel-timing {
 			/* 1024x600 @60Hz */
 			clock-frequency = <51000000>;
-//			clock-frequency = <49500000>;
 			hactive = <1024>;
 			vactive = <600>;
 			hsync-len = <10>;

@@ -122,6 +122,14 @@ static unsigned long ccu_nkm_round_rate(struct ccu_mux_internal *mux,
 	if (nkm->common.features & CCU_FEATURE_FIXED_POSTDIV)
 		rate *= nkm->fixed_post_div;
 
+	printk("rate %ld, max_rate %d\n", rate, nkm->max_rate);
+	if (nkm->max_rate && rate > nkm->max_rate) {
+                rate = nkm->max_rate;
+                if (nkm->common.features & CCU_FEATURE_FIXED_POSTDIV)
+                        rate /= nkm->fixed_post_div;
+                return rate;
+        }
+
 	ccu_nkm_find_best(*parent_rate, rate, &_nkm);
 
 	rate = *parent_rate * _nkm.n * _nkm.k / _nkm.m;
@@ -159,7 +167,6 @@ static int ccu_nkm_set_rate(struct clk_hw *hw, unsigned long rate,
 	_nkm.min_m = 1;
 	_nkm.max_m = nkm->m.max ?: 1 << nkm->m.width;
 
-//	parent_rate = 297000000;
 	ccu_nkm_find_best(parent_rate, rate, &_nkm);
 
 	spin_lock_irqsave(nkm->common.lock, flags);
