@@ -1452,15 +1452,15 @@ static void log_tf(struct dc_context *ctx,
 	DC_LOG_ALL_TF_CHANNELS("Logging all channels...");
 
 	for (i = 0; i < hw_points_num; i++) {
-		DC_LOG_GAMMA("R\t%d\t%llu\n", i, tf->tf_pts.red[i].value);
-		DC_LOG_ALL_TF_CHANNELS("G\t%d\t%llu\n", i, tf->tf_pts.green[i].value);
-		DC_LOG_ALL_TF_CHANNELS("B\t%d\t%llu\n", i, tf->tf_pts.blue[i].value);
+		DC_LOG_GAMMA("R\t%d\t%llu", i, tf->tf_pts.red[i].value);
+		DC_LOG_ALL_TF_CHANNELS("G\t%d\t%llu", i, tf->tf_pts.green[i].value);
+		DC_LOG_ALL_TF_CHANNELS("B\t%d\t%llu", i, tf->tf_pts.blue[i].value);
 	}
 
 	for (i = hw_points_num; i < MAX_NUM_HW_POINTS; i++) {
-		DC_LOG_ALL_GAMMA("R\t%d\t%llu\n", i, tf->tf_pts.red[i].value);
-		DC_LOG_ALL_TF_CHANNELS("G\t%d\t%llu\n", i, tf->tf_pts.green[i].value);
-		DC_LOG_ALL_TF_CHANNELS("B\t%d\t%llu\n", i, tf->tf_pts.blue[i].value);
+		DC_LOG_ALL_GAMMA("R\t%d\t%llu", i, tf->tf_pts.red[i].value);
+		DC_LOG_ALL_TF_CHANNELS("G\t%d\t%llu", i, tf->tf_pts.green[i].value);
+		DC_LOG_ALL_TF_CHANNELS("B\t%d\t%llu", i, tf->tf_pts.blue[i].value);
 	}
 }
 
@@ -2304,8 +2304,7 @@ void update_dchubp_dpp(
 			dc->res_pool->dccg->funcs->update_dpp_dto(
 					dc->res_pool->dccg,
 					dpp->inst,
-					pipe_ctx->plane_res.bw.dppclk_khz,
-					false);
+					pipe_ctx->plane_res.bw.dppclk_khz);
 		else
 			dc->clk_mgr->clks.dppclk_khz = should_divided_by_2 ?
 						dc->clk_mgr->clks.dispclk_khz / 2 :
@@ -2512,8 +2511,10 @@ static void program_all_pipe_in_tree(
 		pipe_ctx->stream_res.tg->funcs->set_vtg_params(
 				pipe_ctx->stream_res.tg, &pipe_ctx->stream->timing);
 
-		dc->hwss.blank_pixel_data(dc, pipe_ctx, blank);
+		if (dc->hwss.setup_vupdate_interrupt)
+			dc->hwss.setup_vupdate_interrupt(pipe_ctx);
 
+		dc->hwss.blank_pixel_data(dc, pipe_ctx, blank);
 	}
 
 	if (pipe_ctx->plane_state != NULL)

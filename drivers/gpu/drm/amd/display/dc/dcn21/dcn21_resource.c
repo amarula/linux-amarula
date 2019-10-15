@@ -636,6 +636,8 @@ static const struct dcn10_stream_encoder_mask se_mask = {
 		SE_COMMON_MASK_SH_LIST_DCN20(_MASK)
 };
 
+static void dcn21_pp_smu_destroy(struct pp_smu_funcs **pp_smu);
+
 static struct input_pixel_processor *dcn21_ipp_create(
 	struct dc_context *ctx, uint32_t inst)
 {
@@ -726,7 +728,7 @@ static const struct resource_caps res_cap_rn = {
 		.num_timing_generator = 4,
 		.num_opp = 4,
 		.num_video_plane = 4,
-		.num_audio = 6, // 6 audio endpoints.  4 audio streams
+		.num_audio = 4, // 4 audio endpoints.  4 audio streams
 		.num_stream_encoder = 5,
 		.num_pll = 5,  // maybe 3 because the last two used for USB-c
 		.num_dwb = 1,
@@ -804,7 +806,7 @@ static const struct dc_debug_options debug_defaults_drv = {
 		.disable_pplib_wm_range = false,
 		.scl_reset_length10 = true,
 		.sanity_checks = true,
-		.disable_48mhz_pwrdwn = true,
+		.disable_48mhz_pwrdwn = false,
 };
 
 static const struct dc_debug_options debug_defaults_diags = {
@@ -939,7 +941,7 @@ static void destruct(struct dcn21_resource_pool *pool)
 		dcn_dccg_destroy(&pool->base.dccg);
 
 	if (pool->base.pp_smu != NULL)
-		dcn20_pp_smu_destroy(&pool->base.pp_smu);
+		dcn21_pp_smu_destroy(&pool->base.pp_smu);
 }
 
 
@@ -1278,7 +1280,6 @@ static void update_bw_bounding_box(struct dc *dc, struct clk_bw_params *bw_param
 	dcn2_1_ip.max_num_otg = pool->base.res_cap->num_timing_generator;
 	dcn2_1_ip.max_num_dpp = pool->base.pipe_count;
 	dcn2_1_soc.num_chans = bw_params->num_channels;
-	dcn2_1_soc.num_states = 0;
 
 	for (i = 0; i < clk_table->num_entries; i++) {
 
@@ -1288,8 +1289,9 @@ static void update_bw_bounding_box(struct dc *dc, struct clk_bw_params *bw_param
 		dcn2_1_soc.clock_limits[i].socclk_mhz = clk_table->entries[i].socclk_mhz;
 		/* This is probably wrong, TODO: find correct calculation */
 		dcn2_1_soc.clock_limits[i].dram_speed_mts = clk_table->entries[i].memclk_mhz * 16 / 1000;
-		dcn2_1_soc.num_states++;
 	}
+	dcn2_1_soc.clock_limits[i] = dcn2_1_soc.clock_limits[i - i];
+	dcn2_1_soc.num_states = i;
 }
 
 /* Temporary Place holder until we can get them from fuse */
@@ -1317,32 +1319,42 @@ static struct dpm_clocks dummy_clocks = {
 
 };
 
-enum pp_smu_status dummy_set_wm_ranges(struct pp_smu *pp,
+static enum pp_smu_status dummy_set_wm_ranges(struct pp_smu *pp,
 		struct pp_smu_wm_range_sets *ranges)
 {
 	return PP_SMU_RESULT_OK;
 }
 
-enum pp_smu_status dummy_get_dpm_clock_table(struct pp_smu *pp,
+static enum pp_smu_status dummy_get_dpm_clock_table(struct pp_smu *pp,
 		struct dpm_clocks *clock_table)
 {
 	*clock_table = dummy_clocks;
 	return PP_SMU_RESULT_OK;
 }
 
-struct pp_smu_funcs *dcn21_pp_smu_create(struct dc_context *ctx)
+static struct pp_smu_funcs *dcn21_pp_smu_create(struct dc_context *ctx)
 {
 	struct pp_smu_funcs *pp_smu = kzalloc(sizeof(*pp_smu), GFP_KERNEL);
 
-	pp_smu->ctx.ver = PP_SMU_VER_RN;
+	if (!pp_smu)
+		return pp_smu;
 
-	pp_smu->rn_funcs.get_dpm_clock_table = dummy_get_dpm_clock_table;
-	pp_smu->rn_funcs.set_wm_ranges = dummy_set_wm_ranges;
+	if (IS_FPGA_MAXIMUS_DC(ctx->dce_environment)) {
+		pp_smu->ctx.ver = PP_SMU_VER_RN;
+		pp_smu->rn_funcs.get_dpm_clock_table = dummy_get_dpm_clock_table;
+		pp_smu->rn_funcs.set_wm_ranges = dummy_set_wm_ranges;
+	} else {
+
+		dm_pp_get_funcs(ctx, pp_smu);
+
+		if (pp_smu->ctx.ver != PP_SMU_VER_RN)
+			pp_smu = memset(pp_smu, 0, sizeof(struct pp_smu_funcs));
+	}
 
 	return pp_smu;
 }
 
-void dcn21_pp_smu_destroy(struct pp_smu_funcs **pp_smu)
+static void dcn21_pp_smu_destroy(struct pp_smu_funcs **pp_smu)
 {
 	if (pp_smu && *pp_smu) {
 		kfree(*pp_smu);

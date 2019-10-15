@@ -581,11 +581,13 @@ static const struct dcn2_dpp_registers tf_regs[] = {
 };
 
 static const struct dcn2_dpp_shift tf_shift = {
-		TF_REG_LIST_SH_MASK_DCN20(__SHIFT)
+		TF_REG_LIST_SH_MASK_DCN20(__SHIFT),
+		TF_DEBUG_REG_LIST_SH_DCN10
 };
 
 static const struct dcn2_dpp_mask tf_mask = {
-		TF_REG_LIST_SH_MASK_DCN20(_MASK)
+		TF_REG_LIST_SH_MASK_DCN20(_MASK),
+		TF_DEBUG_REG_LIST_MASK_DCN10
 };
 
 #define dwbc_regs_dcn2(id)\
@@ -1153,6 +1155,8 @@ static const struct resource_create_funcs res_create_maximus_funcs = {
 	.create_stream_encoder = NULL,
 	.create_hwseq = dcn20_hwseq_create,
 };
+
+static void dcn20_pp_smu_destroy(struct pp_smu_funcs **pp_smu);
 
 void dcn20_clock_source_destroy(struct clock_source **clk_src)
 {
@@ -1760,7 +1764,7 @@ int dcn20_populate_dml_pipes_from_context(
 			pipe_cnt = i;
 			continue;
 		}
-		if (!resource_are_streams_timing_synchronizable(
+		if (dc->debug.disable_timing_sync || !resource_are_streams_timing_synchronizable(
 				res_ctx->pipe_ctx[pipe_cnt].stream,
 				res_ctx->pipe_ctx[i].stream)) {
 			synchronized_vblank = false;
@@ -1892,7 +1896,7 @@ int dcn20_populate_dml_pipes_from_context(
 			break;
 		case PIXEL_ENCODING_YCBCR420:
 			pipes[pipe_cnt].dout.output_format = dm_420;
-			pipes[pipe_cnt].dout.output_bpp = (output_bpc * 3) / 2;
+			pipes[pipe_cnt].dout.output_bpp = (output_bpc * 3.0) / 2;
 			break;
 		case PIXEL_ENCODING_YCBCR422:
 			if (true) /* todo */
@@ -1905,6 +1909,9 @@ int dcn20_populate_dml_pipes_from_context(
 			pipes[pipe_cnt].dout.output_format = dm_444;
 			pipes[pipe_cnt].dout.output_bpp = output_bpc * 3;
 		}
+
+		if (res_ctx->pipe_ctx[i].stream->timing.flags.DSC)
+			pipes[pipe_cnt].dout.output_bpp = res_ctx->pipe_ctx[i].stream->timing.dsc_cfg.bits_per_pixel / 16.0;
 
 		/* todo: default max for now, until there is logic reflecting this in dc*/
 		pipes[pipe_cnt].dout.output_bpc = 12;
@@ -2202,7 +2209,8 @@ static struct pipe_ctx *dcn20_find_secondary_pipe(struct dc *dc,
 		 */
 		if (secondary_pipe == NULL) {
 			for (j = dc->res_pool->pipe_count - 1; j >= 0; j--) {
-				if (dc->current_state->res_ctx.pipe_ctx[j].top_pipe == NULL) {
+				if (dc->current_state->res_ctx.pipe_ctx[j].top_pipe == NULL
+						&& dc->current_state->res_ctx.pipe_ctx[j].prev_odm_pipe == NULL) {
 					preferred_pipe_idx = j;
 
 					if (res_ctx->pipe_ctx[preferred_pipe_idx].stream == NULL) {
@@ -2249,11 +2257,7 @@ bool dcn20_fast_validate_bw(
 	bool out = false;
 
 	int pipe_cnt, i, pipe_idx, vlevel, vlevel_unsplit;
-	bool odm_capable = context->bw_ctx.dml.ip.odm_capable;
 	bool force_split = false;
-#ifdef CONFIG_DRM_AMD_DC_DSC_SUPPORT
-	bool failed_non_odm_dsc = false;
-#endif
 	int split_threshold = dc->res_pool->pipe_count / 2;
 	bool avoid_split = dc->debug.pipe_split_policy != MPC_SPLIT_DYNAMIC;
 
@@ -2330,23 +2334,7 @@ bool dcn20_fast_validate_bw(
 		goto validate_out;
 	}
 
-	context->bw_ctx.dml.ip.odm_capable = 0;
-
 	vlevel = dml_get_voltage_level(&context->bw_ctx.dml, pipes, pipe_cnt);
-
-	context->bw_ctx.dml.ip.odm_capable = odm_capable;
-
-#ifdef CONFIG_DRM_AMD_DC_DSC_SUPPORT
-	/* 1 dsc per stream dsc validation */
-	if (vlevel <= context->bw_ctx.dml.soc.num_states)
-		if (!dcn20_validate_dsc(dc, context)) {
-			failed_non_odm_dsc = true;
-			vlevel = context->bw_ctx.dml.soc.num_states + 1;
-		}
-#endif
-
-	if (vlevel > context->bw_ctx.dml.soc.num_states && odm_capable)
-		vlevel = dml_get_voltage_level(&context->bw_ctx.dml, pipes, pipe_cnt);
 
 	if (vlevel > context->bw_ctx.dml.soc.num_states)
 		goto validate_fail;
@@ -2469,6 +2457,7 @@ bool dcn20_fast_validate_bw(
 							&context->res_ctx, dc->res_pool,
 							pipe, hsplit_pipe))
 						goto validate_fail;
+					dcn20_build_mapped_resource(dc, context, pipe->stream);
 				} else
 					dcn20_split_stream_for_mpc(
 						&context->res_ctx, dc->res_pool,
@@ -2482,7 +2471,7 @@ bool dcn20_fast_validate_bw(
 	}
 #ifdef CONFIG_DRM_AMD_DC_DSC_SUPPORT
 	/* Actual dsc count per stream dsc validation*/
-	if (failed_non_odm_dsc && !dcn20_validate_dsc(dc, context)) {
+	if (!dcn20_validate_dsc(dc, context)) {
 		context->bw_ctx.dml.vba.ValidationStatus[context->bw_ctx.dml.vba.soc.num_states] =
 				DML_FAIL_DSC_VALIDATION_FAILURE;
 		goto validate_fail;
@@ -2624,7 +2613,7 @@ void dcn20_calculate_dlg_params(
 	context->bw_ctx.bw.dcn.clk.socclk_khz = context->bw_ctx.dml.vba.SOCCLK * 1000;
 	context->bw_ctx.bw.dcn.clk.dramclk_khz = context->bw_ctx.dml.vba.DRAMSpeed * 1000 / 16;
 	context->bw_ctx.bw.dcn.clk.dcfclk_deep_sleep_khz = context->bw_ctx.dml.vba.DCFCLKDeepSleep * 1000;
-	context->bw_ctx.bw.dcn.clk.fclk_khz = 0;
+	context->bw_ctx.bw.dcn.clk.fclk_khz = context->bw_ctx.dml.vba.FabricClock * 1000;
 	context->bw_ctx.bw.dcn.clk.p_state_change_support =
 		context->bw_ctx.dml.vba.DRAMClockChangeSupport[vlevel][context->bw_ctx.dml.vba.maxMpcComb]
 							!= dm_dram_clock_change_unsupported;
@@ -2640,8 +2629,8 @@ void dcn20_calculate_dlg_params(
 			continue;
 
 		if (!visited[pipe_idx]) {
-			display_pipe_source_params_st *src = &pipes[pipe_idx_unsplit].pipe.src;
-			display_pipe_dest_params_st *dst = &pipes[pipe_idx_unsplit].pipe.dest;
+			display_pipe_source_params_st *src = &pipes[pipe_idx].pipe.src;
+			display_pipe_dest_params_st *dst = &pipes[pipe_idx].pipe.dest;
 
 			dst->vstartup_start = context->bw_ctx.dml.vba.VStartup[pipe_idx_unsplit];
 			dst->vupdate_offset = context->bw_ctx.dml.vba.VUpdateOffsetPix[pipe_idx_unsplit];
@@ -2801,7 +2790,6 @@ bool dcn20_validate_bandwidth(struct dc *dc, struct dc_state *context,
 	ASSERT(false);
 
 restore_dml_state:
-	memcpy(&context->bw_ctx.dml, &dc->dml, sizeof(struct display_mode_lib));
 	context->bw_ctx.dml.soc.dram_clock_change_latency_us = p_state_latency_us;
 
 	return voltage_supported;
@@ -2942,7 +2930,7 @@ bool dcn20_mmhubbub_create(struct dc_context *ctx, struct resource_pool *pool)
 	return true;
 }
 
-struct pp_smu_funcs *dcn20_pp_smu_create(struct dc_context *ctx)
+static struct pp_smu_funcs *dcn20_pp_smu_create(struct dc_context *ctx)
 {
 	struct pp_smu_funcs *pp_smu = kzalloc(sizeof(*pp_smu), GFP_KERNEL);
 
@@ -2957,7 +2945,7 @@ struct pp_smu_funcs *dcn20_pp_smu_create(struct dc_context *ctx)
 	return pp_smu;
 }
 
-void dcn20_pp_smu_destroy(struct pp_smu_funcs **pp_smu)
+static void dcn20_pp_smu_destroy(struct pp_smu_funcs **pp_smu)
 {
 	if (pp_smu && *pp_smu) {
 		kfree(*pp_smu);
@@ -3035,13 +3023,15 @@ static void cap_soc_clocks(
 static void update_bounding_box(struct dc *dc, struct _vcs_dpi_soc_bounding_box_st *bb,
 		struct pp_smu_nv_clock_table *max_clocks, unsigned int *uclk_states, unsigned int num_states)
 {
-	struct _vcs_dpi_voltage_scaling_st calculated_states[MAX_CLOCK_LIMIT_STATES] = {0};
+	struct _vcs_dpi_voltage_scaling_st calculated_states[MAX_CLOCK_LIMIT_STATES];
 	int i;
 	int num_calculated_states = 0;
 	int min_dcfclk = 0;
 
 	if (num_states == 0)
 		return;
+
+	memset(calculated_states, 0, sizeof(calculated_states));
 
 	if (dc->bb_overrides.min_dcfclk_mhz > 0)
 		min_dcfclk = dc->bb_overrides.min_dcfclk_mhz;
