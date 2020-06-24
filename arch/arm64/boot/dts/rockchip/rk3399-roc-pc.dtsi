@@ -110,6 +110,14 @@
 		regulator-max-microvolt = <5000000>;
 	};
 
+	sys_12v: sys-12v {
+		compatible = "regulator-fixed";
+		regulator-name = "sys_12v";
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&mp8859>;
+	};
+
 	/* switched by pmic_sleep */
 	vcc1v8_s3: vcca1v8_s3: vcc1v8-s3 {
 		compatible = "regulator-fixed";
@@ -536,13 +544,14 @@
 	mp8859: regulator@66 {
 		compatible = "mps,mp8859";
 		reg = <0x66>;
-		sys_12v: mp8859_dcdc {
-			regulator-name = "sys_12v";
+		vin-supply = <&vcc_vbus_typec0>;
+
+		dc_12v: mp8859_dcdc {
+			regulator-name = "dc_12v";
 			regulator-min-microvolt = <12000000>;
 			regulator-max-microvolt = <12000000>;
 			regulator-always-on;
 			regulator-boot-on;
-			vin-supply = <&vcc_vbus_typec0>;
 
 			regulator-state-mem {
 				regulator-on-in-suspend;
