@@ -789,10 +789,13 @@ static int vc5_get_output_config(struct i2c_client *client,
 	int ret = 0;
 
 	child_name = kasprintf(GFP_KERNEL, "OUT%d", clk_out->num + 1);
+	if (!child_name)
+		return -ENOMEM;
+
 	np_output = of_get_child_by_name(client->dev.of_node, child_name);
 	kfree(child_name);
 	if (!np_output)
-		goto output_done;
+		return 0;
 
 	ret = vc5_update_mode(np_output, clk_out);
 	if (ret)
@@ -813,7 +816,6 @@ output_error:
 
 	of_node_put(np_output);
 
-output_done:
 	return ret;
 }
 
@@ -828,7 +830,7 @@ static int vc5_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	int ret;
 
 	vc5 = devm_kzalloc(&client->dev, sizeof(*vc5), GFP_KERNEL);
-	if (vc5 == NULL)
+	if (!vc5)
 		return -ENOMEM;
 
 	i2c_set_clientdata(client, vc5);
@@ -882,11 +884,9 @@ static int vc5_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	init.parent_names = parent_names;
 	vc5->clk_mux.init = &init;
 	ret = devm_clk_hw_register(&client->dev, &vc5->clk_mux);
+	if (ret)
+		goto err_clk_register;
 	kfree(init.name);	/* clock framework made a copy of the name */
-	if (ret) {
-		dev_err(&client->dev, "unable to register %s\n", init.name);
-		goto err_clk;
-	}
 
 	if (vc5->chip_info->flags & VC5_HAS_PFD_FREQ_DBL) {
 		/* Register frequency doubler */
@@ -900,12 +900,9 @@ static int vc5_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		init.num_parents = 1;
 		vc5->clk_mul.init = &init;
 		ret = devm_clk_hw_register(&client->dev, &vc5->clk_mul);
+		if (ret)
+			goto err_clk_register;
 		kfree(init.name); /* clock framework made a copy of the name */
-		if (ret) {
-			dev_err(&client->dev, "unable to register %s\n",
-				init.name);
-			goto err_clk;
-		}
 	}
 
 	/* Register PFD */
@@ -921,11 +918,9 @@ static int vc5_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	init.num_parents = 1;
 	vc5->clk_pfd.init = &init;
 	ret = devm_clk_hw_register(&client->dev, &vc5->clk_pfd);
+	if (ret)
+		goto err_clk_register;
 	kfree(init.name);	/* clock framework made a copy of the name */
-	if (ret) {
-		dev_err(&client->dev, "unable to register %s\n", init.name);
-		goto err_clk;
-	}
 
 	/* Register PLL */
 	memset(&init, 0, sizeof(init));
@@ -939,11 +934,9 @@ static int vc5_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	vc5->clk_pll.vc5 = vc5;
 	vc5->clk_pll.hw.init = &init;
 	ret = devm_clk_hw_register(&client->dev, &vc5->clk_pll.hw);
+	if (ret)
+		goto err_clk_register;
 	kfree(init.name); /* clock framework made a copy of the name */
-	if (ret) {
-		dev_err(&client->dev, "unable to register %s\n", init.name);
-		goto err_clk;
-	}
 
 	/* Register FODs */
 	for (n = 0; n < vc5->chip_info->clk_fod_cnt; n++) {
@@ -960,12 +953,9 @@ static int vc5_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		vc5->clk_fod[n].vc5 = vc5;
 		vc5->clk_fod[n].hw.init = &init;
 		ret = devm_clk_hw_register(&client->dev, &vc5->clk_fod[n].hw);
+		if (ret)
+			goto err_clk_register;
 		kfree(init.name); /* clock framework made a copy of the name */
-		if (ret) {
-			dev_err(&client->dev, "unable to register %s\n",
-				init.name);
-			goto err_clk;
-		}
 	}
 
 	/* Register MUX-connected OUT0_I2C_SELB output */
@@ -981,11 +971,9 @@ static int vc5_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	vc5->clk_out[0].vc5 = vc5;
 	vc5->clk_out[0].hw.init = &init;
 	ret = devm_clk_hw_register(&client->dev, &vc5->clk_out[0].hw);
-	kfree(init.name);	/* clock framework made a copy of the name */
-	if (ret) {
-		dev_err(&client->dev, "unable to register %s\n", init.name);
-		goto err_clk;
-	}
+	if (ret)
+		goto err_clk_register;
+	kfree(init.name); /* clock framework made a copy of the name */
 
 	/* Register FOD-connected OUTx outputs */
 	for (n = 1; n < vc5->chip_info->clk_out_cnt; n++) {
@@ -1008,12 +996,9 @@ static int vc5_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		vc5->clk_out[n].vc5 = vc5;
 		vc5->clk_out[n].hw.init = &init;
 		ret = devm_clk_hw_register(&client->dev, &vc5->clk_out[n].hw);
+		if (ret)
+			goto err_clk_register;
 		kfree(init.name); /* clock framework made a copy of the name */
-		if (ret) {
-			dev_err(&client->dev, "unable to register %s\n",
-				init.name);
-			goto err_clk;
-		}
 
 		/* Fetch Clock Output configuration from DT (if specified) */
 		ret = vc5_get_output_config(client, &vc5->clk_out[n]);
@@ -1029,6 +1014,9 @@ static int vc5_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	return 0;
 
+err_clk_register:
+	dev_err(&client->dev, "unable to register %s\n", init.name);
+	kfree(init.name); /* clock framework made a copy of the name */
 err_clk:
 	if (vc5->chip_info->flags & VC5_HAS_INTERNAL_XTAL)
 		clk_unregister_fixed_rate(vc5->pin_xin);
