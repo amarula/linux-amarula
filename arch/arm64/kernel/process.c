@@ -46,6 +46,7 @@
 
 #include <asm/alternative.h>
 #include <asm/arch_gicv3.h>
+#include <asm/compat.h>
 #include <asm/cpufeature.h>
 #include <asm/cacheflush.h>
 #include <asm/exec.h>

@@ -10,7 +10,7 @@
 #ifdef CONFIG_COMPAT
 
 #include <linux/time.h>
-#include <linux/compat.h>
+#include <asm/compat.h>
 
 /*
  * struct stat64 is needed for compat tasks only. Its definition is different
