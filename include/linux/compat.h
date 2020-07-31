@@ -91,14 +91,6 @@
 	static inline long __do_compat_sys##name(__MAP(x,__SC_DECL,__VA_ARGS__))
 #endif /* COMPAT_SYSCALL_DEFINEx */
 
-#ifdef CONFIG_COMPAT_FOR_U64_ALIGNMENT
-typedef s64 __attribute__((aligned(4))) compat_s64;
-typedef u64 __attribute__((aligned(4))) compat_u64;
-#else
-typedef s64 compat_s64;
-typedef u64 compat_u64;
-#endif
-
 #ifdef CONFIG_COMPAT
 
 #ifndef compat_user_stack_pointer
