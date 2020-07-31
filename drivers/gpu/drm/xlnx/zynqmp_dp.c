@@ -44,7 +44,7 @@ MODULE_PARM_DESC(aux_timeout_ms, "DP aux timeout value in msec (default: 50)");
  */
 static uint zynqmp_dp_power_on_delay_ms = 4;
 module_param_named(power_on_delay_ms, zynqmp_dp_power_on_delay_ms, uint, 0444);
-MODULE_PARM_DESC(aux_timeout_ms, "DP power on delay in msec (default: 4)");
+MODULE_PARM_DESC(power_on_delay_ms, "DP power on delay in msec (default: 4)");
 
 /* Link configuration registers */
 #define ZYNQMP_DP_LINK_BW_SET				0x0
@@ -1308,7 +1308,7 @@ zynqmp_dp_connector_detect(struct drm_connector *connector, bool force)
 		ret = drm_dp_dpcd_read(&dp->aux, 0x0, dp->dpcd,
 				       sizeof(dp->dpcd));
 		if (ret < 0) {
-			dev_dbg(dp->dev, "DPCD read failes");
+			dev_dbg(dp->dev, "DPCD read failed");
 			goto disconnected;
 		}
 
