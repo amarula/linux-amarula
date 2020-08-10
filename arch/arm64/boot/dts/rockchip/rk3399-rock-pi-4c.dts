@@ -11,6 +11,34 @@
 / {
 	model = "Radxa ROCK Pi 4C";
 	compatible = "radxa,rockpi4c", "radxa,rockpi4", "rockchip,rk3399";
+
+	vpd0: vpd0 {
+		compatible = "linux,extcon-virtual-pd";
+		det-gpios = <&gpio4 RK_PD1 GPIO_ACTIVE_LOW>;
+		/* 0: positive, 1: negative*/
+		vpd,init-flip = <0>;
+		/* 0: u2, 1: u3*/
+		vpd,init-ss = <1>;
+		/* 0: dfp, 1: ufp, 2: dp 3: dp/ufp */
+		vpd,init-mode = <2>;
+	};
+};
+
+&cdn_dp {
+	extcon = <&vpd0>;
+	status = "okay";
+};
+
+&tcphy0 {
+	extcon = <&vpd0>;
+};
+
+&pinctrl {
+	dp {
+		dp_pwr: dp-pwr {
+			rockchip,pins = <1 RK_PD0 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
 };
 
 &sdio0 {
