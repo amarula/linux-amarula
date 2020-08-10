@@ -186,4 +186,10 @@ config EXTCON_USBC_CROS_EC
 	  Say Y here to enable USB Type C cable detection extcon support when
 	  using Chrome OS EC based USB Type-C ports.
 
+config EXTCON_USBC_VIRTUAL_PD
+	tristate "Virtual Typec-pd EXTCON support"
+	help
+	  Say Y here to enable USB Type C cable detection extcon support when
+	  using Chrome OS EC based USB Type-C ports.
+
 endif
