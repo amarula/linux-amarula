@@ -173,17 +173,6 @@
 		vin-supply = <&vcc_sys>;
 	};
 
-	vcc_vbus_typec1: vcc-vbus-typec1 {
-		compatible = "regulator-fixed";
-		enable-active-high;
-		gpio = <&gpio1 RK_PB5 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&vcc_vbus_typec1_en>;
-		regulator-name = "vcc_vbus_typec1";
-		regulator-always-on;
-		vin-supply = <&vcc_sys>;
-	};
-
 	vcc_sys: vcc-sys {
 		compatible = "regulator-fixed";
 		enable-active-high;
@@ -210,8 +199,8 @@
 };
 
 &cdn_dp {
-	extcon = <&fusb0>;
-	phys = <&tcphy0_dp>;
+	extcon = <&fusb0 &fusb1>;
+	phys = <&tcphy0_dp &tcphy1_dp>;
 	status = "okay";
 };
 
@@ -520,13 +509,12 @@
 	status = "okay";
 
 	fusb1: usb-typec@22 {
-		compatible = "fcs,fusb302";
+		compatible = "fairchild,fusb302";
 		reg = <0x22>;
-		interrupt-parent = <&gpio1>;
-		interrupts = <1 IRQ_TYPE_LEVEL_LOW>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&fusb1_int>;
-		vbus-supply = <&vcc_vbus_typec1>;
+		pinctrl-0 = <&fusb1_int &vcc_vbus_typec1_en>;
+		int-n-gpios = <&gpio1 1 GPIO_ACTIVE_HIGH>;
+		vbus-5v-gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
 };
@@ -730,6 +718,7 @@
 };
 
 &tcphy1 {
+	extcon = <&fusb1>;
 	status = "okay";
 };
 
@@ -757,10 +746,10 @@
 };
 
 &u2phy1 {
+	extcon = <&fusb1>;
 	status = "okay";
 
 	u2phy1_otg: otg-port {
-		phy-supply = <&vcc_vbus_typec1>;
 		status = "okay";
 	};
 
@@ -806,6 +795,7 @@
 };
 
 &usbdrd3_1 {
+	extcon = <&fusb1>;
 	status = "okay";
 };
 
