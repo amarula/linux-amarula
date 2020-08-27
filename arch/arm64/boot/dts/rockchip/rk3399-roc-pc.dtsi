@@ -209,6 +209,12 @@
 	};
 };
 
+&cdn_dp {
+	extcon = <&fusb0>;
+	phys = <&tcphy0_dp>;
+	status = "okay";
+};
+
 &cpu_l0 {
 	cpu-supply = <&vdd_cpu_l>;
 };
@@ -526,17 +532,17 @@
 };
 
 &i2c7 {
+	clock-frequency = <400000>;
 	i2c-scl-rising-time-ns = <600>;
 	i2c-scl-falling-time-ns = <20>;
 	status = "okay";
 
 	fusb0: usb-typec@22 {
-		compatible = "fcs,fusb302";
+		compatible = "fairchild,fusb302";
 		reg = <0x22>;
-		interrupt-parent = <&gpio1>;
-		interrupts = <2 IRQ_TYPE_LEVEL_LOW>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&fusb0_int>;
+		int-n-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
 		vbus-supply = <&vcc_vbus_typec0>;
 		status = "okay";
 	};
@@ -719,6 +725,7 @@
 };
 
 &tcphy0 {
+	extcon = <&fusb0>;
 	status = "okay";
 };
 
@@ -735,6 +742,7 @@
 };
 
 &u2phy0 {
+	extcon = <&fusb0>;
 	status = "okay";
 
 	u2phy0_otg: otg-port {
@@ -789,6 +797,7 @@
 };
 
 &usbdrd3_0 {
+	extcon = <&fusb0>;
 	status = "okay";
 };
 
