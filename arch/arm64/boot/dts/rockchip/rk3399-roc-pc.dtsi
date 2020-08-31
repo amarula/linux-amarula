@@ -791,6 +791,7 @@
 };
 
 &usbdrd_dwc3_0 {
+	dr_mode = "host";
 	status = "okay";
 };
 
