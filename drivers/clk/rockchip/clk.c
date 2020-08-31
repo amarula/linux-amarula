@@ -190,6 +190,15 @@ static void rockchip_fractional_approximation(struct clk_hw *hw,
 		p_parent = clk_hw_get_parent(clk_hw_get_parent(hw));
 		p_parent_rate = clk_hw_get_rate(p_parent);
 		*parent_rate = p_parent_rate;
+
+		/* fractional divider not apply if parent_rate is lower than (rate * 20) */
+		if (*parent_rate < rate * 20) {
+			pr_warn("%s: %s fractional div is not allowed, so use half-div\n",
+				__func__, clk_hw_get_name(hw));
+			*m = 0;
+			*n = 1;
+			return;
+		}
 	}
 
 	/*
