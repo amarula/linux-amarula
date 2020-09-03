@@ -20,3 +20,23 @@
 		stdout-path = "serial2:115200n8";
 	};
 };
+
+&sdio_pwrseq {
+	reset-gpios = <&gpio1 RK_PC2 GPIO_ACTIVE_LOW>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&wifi_enable_h>;
+	status = "okay";
+};
+
+&sdio {
+	mmc-pwrseq = <&sdio_pwrseq>;
+	status = "okay";
+};
+
+&pinctrl {
+	sdio-pwrseq {
+		wifi_enable_h: wifi-enable-h {
+			rockchip,pins = <1 RK_PC2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+};
