@@ -38,6 +38,16 @@
 		clock-names = "ext_clock";
 		post-power-on-delay-ms = <80>;
 	};
+
+	vcc3v3_btreg: vcc3v3-btreg {
+		compatible = "regulator-gpio";
+		regulator-name = "btreg-gpio-supply";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		states = <3300000 0x0>;
+		enable-active-high;
+	};
 };
 
 &sdio {
