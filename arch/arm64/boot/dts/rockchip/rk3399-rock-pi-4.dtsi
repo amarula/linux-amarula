@@ -127,6 +127,28 @@
 		regulator-max-microvolt = <1400000>;
 		vin-supply = <&vcc5v0_sys>;
 	};
+
+	es8316-sound {
+                status = "okay";
+                compatible = "simple-audio-card";
+                simple-audio-card,format = "i2s";
+                simple-audio-card,name = "rockchip,es8316-codec";
+                simple-audio-card,mclk-fs = <256>;
+                simple-audio-card,widgets =
+                        "Microphone", "Mic Jack",
+                        "Headphone", "Headphone Jack";
+                simple-audio-card,routing =
+//                        "Mic Jack", "MICBIAS1",
+//                        "IN1P", "Mic Jack",
+                        "Headphone Jack", "HPOL",
+                        "Headphone Jack", "HPOR";
+                simple-audio-card,cpu {
+                        sound-dai = <&i2s0>;
+                };
+                simple-audio-card,codec {
+                        sound-dai = <&es8316>;
+                };
+        };
 };
 
 &cpu_l0 {
@@ -425,6 +447,16 @@
 	i2c-scl-rising-time-ns = <300>;
 	i2c-scl-falling-time-ns = <15>;
 	status = "okay";
+
+	 es8316: codec@11 {
+                compatible = "everest,es8316";
+                reg = <0x11>;
+                clocks = <&cru SCLK_I2S_8CH_OUT>;
+                clock-names = "mclk";
+                #sound-dai-cells = <0>;
+                pinctrl-names = "default";
+                pinctrl-0 = <&i2s_8ch_mclk>;
+        };
 };
 
 &i2c3 {
@@ -442,6 +474,8 @@
 &i2s0 {
 	rockchip,playback-channels = <8>;
 	rockchip,capture-channels = <8>;
+	rockchip,i2s-broken-burst-len;
+        #sound-dai-cells = <0>;
 	status = "okay";
 };
 
@@ -557,6 +591,12 @@
 
 		wifi_host_wake_l: wifi-host-wake-l {
 			rockchip,pins = <0 RK_PA3 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	i2s0 {
+		i2s_8ch_mclk: i2s-8ch-mclk {
+			rockchip,pins = <4 0 1 &pcfg_pull_none>;
 		};
 	};
 };
